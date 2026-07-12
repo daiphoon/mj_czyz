@@ -43,10 +43,17 @@ class WorkflowTest(unittest.TestCase):
     def test_run_can_be_explicitly_skipped(self):
         wf = Workflow(self.settings)
         run_id = wf.init_run("live")
+        wf.scan(run_id)
+        wf.select(run_id, ["C1"])
         wf.skip(run_id, "候选质量不足")
         status = wf.status(run_id)[0]
         self.assertEqual(status["status"], "skipped")
         self.assertIn("候选质量不足", status["checkpoint_json"])
+        with wf.db.connect() as conn:
+            selected = conn.execute("SELECT COUNT(*) FROM candidates WHERE run_id=? AND selected=1", (run_id,)).fetchone()[0]
+        self.assertEqual(selected, 0)
+        with self.assertRaisesRegex(ValueError, "运行已关闭"):
+            wf.generate(run_id)
 
 
 if __name__ == "__main__":

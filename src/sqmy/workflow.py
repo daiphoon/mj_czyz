@@ -89,6 +89,7 @@ class Workflow:
     def skip(self, run_id: str, reason: str) -> None:
         with self.db.connect() as conn:
             row = conn.execute("SELECT phase,checkpoint_json FROM runs WHERE id=?", (run_id,)).fetchone()
+            conn.execute("UPDATE candidates SET selected=0 WHERE run_id=?", (run_id,))
         if row is None:
             raise ValueError(f"未找到运行：{run_id}")
         data = json.loads(row["checkpoint_json"] or "{}")
@@ -97,7 +98,12 @@ class Workflow:
 
     def generate(self, run_id: str) -> list[Path]:
         with self.db.connect() as conn:
+            run = conn.execute("SELECT status FROM runs WHERE id=?", (run_id,)).fetchone()
             rows = conn.execute("SELECT data_json FROM candidates WHERE run_id=? AND selected=1 ORDER BY score DESC", (run_id,)).fetchall()
+        if run is None:
+            raise ValueError(f"未找到运行：{run_id}")
+        if run["status"] == TaskStatus.SKIPPED:
+            raise ValueError("运行已关闭，不得生成稿件")
         if not rows:
             raise ValueError("尚未人工确认选题")
         self.db.checkpoint(run_id, phase=Phase.WRITING, status=TaskStatus.RUNNING, data={"selected_count": len(rows)})
