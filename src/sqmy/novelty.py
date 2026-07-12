@@ -237,6 +237,14 @@ def rolling_evaluation(settings: Settings, days: int | None = None) -> dict[str,
                WHERE r.created_at>=? AND rc.mode='live'""",
             (cutoff,),
         ).fetchone()
+        tier_rows = conn.execute(
+            """SELECT e.expansion_tier,COUNT(*)
+               FROM run_efficiency e
+               JOIN runs r ON r.id=e.run_id JOIN run_context rc ON rc.run_id=e.run_id
+               WHERE r.created_at>=? AND rc.mode='live'
+               GROUP BY e.expansion_tier ORDER BY e.expansion_tier""",
+            (cutoff,),
+        ).fetchall()
     total = len(rows)
     counts = {status: sum(row["coverage_status"] == status for row in rows) for status in ("covered", "likely_covered", "unclear")}
     blocked = [row for row in rows if row["decision"] == "block_original_gap"]
@@ -270,6 +278,7 @@ def rolling_evaluation(settings: Settings, days: int | None = None) -> dict[str,
         "screening_cache_hits": int(efficiency[3]),
         "screening_tokens_saved_by_cache": int(efficiency[4]),
         "events_deferred_for_batch": int(efficiency[5]),
+        "runs_by_expansion_tier": {str(row[0]): int(row[1]) for row in tier_rows},
         "potential_waste_tokens_prevented": sum(row["potential_waste_tokens"] for row in blocked),
         "measurement_note": "potential_waste_tokens_prevented是代理指标，不等于实际账单节省；误杀率需要人工或后续研究结果标签。",
         "automatic_conclusion": conclusion,

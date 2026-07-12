@@ -54,7 +54,7 @@ def infer_source_level(url: str, configured: int) -> int:
     domain = urlparse(url).netloc.lower()
     if domain.endswith(".gov.cn") or domain in {"gov.cn", "www.gov.cn"}:
         return 1
-    official = ("court.gov.cn", "jcy.gov.cn", "bjcourt.gov.cn", "bj148.org", "bjjubao.org.cn")
+    official = ("court.gov.cn", "jcy.gov.cn", "bjcourt.gov.cn", "bjjc.gov.cn", "bj148.org", "bjjubao.org.cn")
     if any(domain == item or domain.endswith("." + item) for item in official):
         return 1
     authoritative = ("news.cn", "people.com.cn", "ce.cn", "youth.cn", "chinanews.com.cn")
@@ -67,7 +67,7 @@ def infer_event_region(title: str, summary: str, url: str, source_region: str) -
     domain = urlparse(url).netloc.lower()
     if domain.endswith("bjhd.gov.cn"):
         return "海淀", "trusted_domain:bjhd.gov.cn"
-    if domain.endswith("beijing.gov.cn") or domain.endswith("bjcourt.gov.cn"):
+    if domain.endswith("beijing.gov.cn") or domain.endswith("bjcourt.gov.cn") or domain.endswith("bjjc.gov.cn"):
         return "北京", f"trusted_domain:{domain}"
     text = title + " " + summary
     text = re.sub(r"(?:新华网|中新网|人民网)?北京\d{1,2}月\d{1,2}日电\s*", "", text)
@@ -155,6 +155,7 @@ class SourceCollector:
                     id=digest[:16], source_id=source["id"], source_name=source["name"], source_level=infer_source_level(url, int(source["level"])),
                     title=title, url=url, published_at=published.isoformat() if published else "",
                     summary=summary, region=event_region, source_region=source["region"], region_evidence=region_evidence,
+                    expansion_tier=int(source.get("expansion_tier", 1)),
                     collected_at=datetime.now(timezone.utc).isoformat(),
                 ))
         return items

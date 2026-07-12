@@ -57,12 +57,28 @@ class LiveDiscovery:
         mode = "test_fixture" if fixture else "live"
         run_id = self.wf.init_run(mode, forced=force)
         self.wf.db.checkpoint(run_id, phase=Phase.DISCOVERY, status=TaskStatus.RUNNING, data={"next": "collect_sources"})
-        collected = SourceCollector(self.s.root, self.s.raw).collect(run_id, fixture=fixture)
-        rule_results = rule_screen(collected, self.s.section("discovery"))
-        premodel_pool = rule_results[: self.s.section("discovery")["screened_max"]]
-        fresh_pool, repeated_excluded = (premodel_pool, 0) if force else self._exclude_unchanged(premodel_pool, run_id, mode)
+        collector = SourceCollector(self.s.root, self.s.raw)
+        collected = collector.collect(run_id, fixture=fixture)
+        max_tier = max((int(source.get("expansion_tier", 1)) for source in collector.sources), default=1)
+        if fixture:
+            max_tier = max((item.expansion_tier for item in collected), default=1)
+        tier_stats = []
+        premodel_pool, fresh_pool, repeated_excluded, expansion_tier = [], [], 0, 1
+        for tier in range(1, max_tier + 1):
+            tier_items = [item for item in collected if item.expansion_tier <= tier]
+            rule_results = rule_screen(tier_items, self.s.section("discovery"))
+            fresh_results, repeated_excluded = (rule_results, 0) if force else self._exclude_unchanged(rule_results, run_id, mode)
+            premodel_pool = fresh_results[: self.s.section("discovery")["screened_max"]]
+            fresh_pool = premodel_pool
+            expansion_tier = tier
+            tier_stats.append({"tier": tier, "collected": len(tier_items), "rule_qualified": len(rule_results), "repeated_excluded": repeated_excluded, "fresh_available": len(fresh_results), "model_pool": len(fresh_pool)})
+            if len(fresh_pool) >= self.s.section("discovery")["screened_min"]:
+                break
         self._persist_events(run_id, premodel_pool)
-        should_model, batch_reason = self._should_run_model(fresh_pool, force=force)
+        should_model, batch_reason = self._should_run_model(
+            fresh_pool, force=force,
+            final_attempt=mode == "live" and expansion_tier == max_tier,
+        )
         model_pool = fresh_pool if should_model else []
         deferred_count = 0 if should_model else len(fresh_pool)
         screened, cache_hit, tokens_saved = self._model_rank(run_id, model_pool, use_cache=not force)
@@ -86,16 +102,17 @@ class LiveDiscovery:
         self._record_efficiency(
             run_id, premodel_count=len(premodel_pool), repeated_excluded=repeated_excluded,
             model_input_count=len(model_pool), cache_hit=cache_hit,
-            tokens_saved=tokens_saved, deferred_count=deferred_count, candidate_count=len(candidates),
+            tokens_saved=tokens_saved, deferred_count=deferred_count,
+            expansion_tier=expansion_tier, candidate_count=len(candidates),
         )
         report = self._report(
             run_id, candidates, audits, len(collected), len(screened), len(premodel_pool),
-            repeated_excluded, cache_hit, tokens_saved, deferred_count, batch_reason,
+            repeated_excluded, cache_hit, tokens_saved, deferred_count, batch_reason, expansion_tier,
         )
         metrics_path = write_rolling_evaluation(self.s)
         self.wf.db.checkpoint(
             run_id, phase=Phase.SELECTION, status=TaskStatus.NEEDS_REVIEW if candidates else TaskStatus.SKIPPED,
-            data={"collected": len(collected), "premodel": len(premodel_pool), "repeated_excluded": repeated_excluded, "fresh_events": len(fresh_pool), "model_input": len(model_pool), "deferred_count": deferred_count, "batch_reason": batch_reason, "screening_cache_hit": cache_hit, "screened": len(screened), "novelty_audited": len(audits), "novelty_blocked": sum(a.decision == "block_original_gap" for a in audits), "candidates": len(candidates), "report": str(report), "rolling_metrics": str(metrics_path), "next": f"sqmy select {run_id} C1" if candidates else ("新事件已延迟到下一批合并初筛" if deferred_count else "本次无新候选，无需人工选题")},
+            data={"collected": len(collected), "premodel": len(premodel_pool), "repeated_excluded": repeated_excluded, "fresh_events": len(fresh_pool), "model_input": len(model_pool), "deferred_count": deferred_count, "batch_reason": batch_reason, "expansion_tier": expansion_tier, "tier_stats": tier_stats, "screening_cache_hit": cache_hit, "screened": len(screened), "novelty_audited": len(audits), "novelty_blocked": sum(a.decision == "block_original_gap" for a in audits), "candidates": len(candidates), "report": str(report), "rolling_metrics": str(metrics_path), "next": f"sqmy select {run_id} C1" if candidates else ("新事件已延迟到下一批合并初筛" if deferred_count else "三层扩展均无可用新事件，需人工检查来源")},
         )
         return run_id, candidates
 
@@ -115,6 +132,7 @@ class LiveDiscovery:
             published_at=row["published_at"] or "", summary=row["summary"] or "", region=row["region"],
             source_region=row["source_region"] if "source_region" in row.keys() else "",
             region_evidence=row["region_evidence"] if "region_evidence" in row.keys() else "",
+            expansion_tier=row["expansion_tier"] if "expansion_tier" in row.keys() else 1,
             topics=json.loads(row["topics_json"]), rule_score=row["rule_score"], collected_at=row["collected_at"],
         ) for row in rows]
         for event in events:
@@ -135,10 +153,11 @@ class LiveDiscovery:
         self._persist_candidates(run_id, candidates)
         self._record_efficiency(
             run_id, premodel_count=len(events), repeated_excluded=0, model_input_count=0,
-            cache_hit=True, tokens_saved=int(tokens), deferred_count=0, candidate_count=len(candidates),
+            cache_hit=True, tokens_saved=int(tokens), deferred_count=0,
+            expansion_tier=1, candidate_count=len(candidates),
         )
         report = self._report(
-            run_id, candidates, audits, len(events), len(screened), len(events), 0, True, int(tokens), 0, "replay",
+            run_id, candidates, audits, len(events), len(screened), len(events), 0, True, int(tokens), 0, "replay", 1,
         )
         self.wf.db.checkpoint(
             run_id, phase=Phase.SELECTION, status=TaskStatus.COMPLETED,
@@ -197,7 +216,7 @@ class LiveDiscovery:
                 fresh.append(event)
         return fresh, len(events) - len(fresh)
 
-    def _should_run_model(self, events: list, *, force: bool) -> tuple[bool, str]:
+    def _should_run_model(self, events: list, *, force: bool, final_attempt: bool = False) -> tuple[bool, str]:
         if force:
             return bool(events), "forced"
         cfg = self.s.section("discovery")
@@ -210,6 +229,8 @@ class LiveDiscovery:
         )
         if urgent:
             return True, "urgent_exception"
+        if final_attempt and events:
+            return True, "cascade_exhausted_floor"
         return False, "deferred_small_batch" if events else "no_new_events"
 
     def _model_rank(self, run_id: str, events: list, *, use_cache: bool = True) -> tuple[list, bool, int]:
@@ -221,7 +242,7 @@ class LiveDiscovery:
         router = build_router(self.s.root, model_cfg)
         if router is None:
             return events, False, 0
-        compact = [{"id": x.id, "title": x.title, "date": x.published_at[:10], "region": x.region, "source_level": x.source_level, "summary": x.summary[:350], "rule_score": x.rule_score} for x in pool]
+        compact = [{"id": x.id, "title": x.title, "date": x.published_at[:10], "region": x.region, "source_level": x.source_level, "expansion_tier": x.expansion_tier, "summary": x.summary[:350], "rule_score": x.rule_score} for x in pool]
         prompt = (
             "你是社情民意选题初筛员。仅依据以下标题、摘要和元数据进行低成本判断，不得补造事实。"
             "优先选择存在制度缺口、北京或海淀落点、明确受影响群体且可进一步核验的事件；"
@@ -330,11 +351,11 @@ class LiveDiscovery:
                 content_hash = hashlib.sha256((event.title + event.url + event.summary).encode()).hexdigest()
                 conn.execute("""INSERT OR IGNORE INTO event_items(
                     id,run_id,source_id,source_name,source_level,title,url,published_at,summary,
-                    region,topics_json,rule_score,content_hash,collected_at,source_region,region_evidence
-                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", (
+                    region,topics_json,rule_score,content_hash,collected_at,source_region,region_evidence,expansion_tier
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", (
                     f"{run_id}:{event.id}", run_id, event.source_id, event.source_name, event.source_level, event.title,
                     event.url, event.published_at, event.summary, event.region, json.dumps(event.topics, ensure_ascii=False),
-                    event.rule_score, content_hash, event.collected_at, event.source_region, event.region_evidence,
+                    event.rule_score, content_hash, event.collected_at, event.source_region, event.region_evidence, event.expansion_tier,
                 ))
 
     def _persist_candidates(self, run_id: str, candidates: list) -> None:
@@ -346,13 +367,13 @@ class LiveDiscovery:
 
     def _record_efficiency(self, run_id: str, *, premodel_count: int, repeated_excluded: int,
                            model_input_count: int, cache_hit: bool, tokens_saved: int,
-                           deferred_count: int, candidate_count: int) -> None:
+                           deferred_count: int, expansion_tier: int, candidate_count: int) -> None:
         with self.wf.db.connect() as conn:
             conn.execute(
                 """INSERT INTO run_efficiency(
                      run_id,premodel_count,repeated_excluded,model_input_count,
-                     screening_cache_hit,screening_tokens_saved,deferred_count,candidate_count,updated_at
-                   ) VALUES(?,?,?,?,?,?,?,?,?)
+                     screening_cache_hit,screening_tokens_saved,deferred_count,expansion_tier,candidate_count,updated_at
+                   ) VALUES(?,?,?,?,?,?,?,?,?,?)
                    ON CONFLICT(run_id) DO UPDATE SET
                      premodel_count=excluded.premodel_count,
                      repeated_excluded=excluded.repeated_excluded,
@@ -360,18 +381,19 @@ class LiveDiscovery:
                      screening_cache_hit=excluded.screening_cache_hit,
                      screening_tokens_saved=excluded.screening_tokens_saved,
                      deferred_count=excluded.deferred_count,
+                     expansion_tier=excluded.expansion_tier,
                      candidate_count=excluded.candidate_count,updated_at=excluded.updated_at""",
                 (run_id, premodel_count, repeated_excluded, model_input_count,
-                 int(cache_hit), tokens_saved, deferred_count, candidate_count, now()),
+                 int(cache_hit), tokens_saved, deferred_count, expansion_tier, candidate_count, now()),
             )
 
     def _report(self, run_id: str, candidates: list, audits: list, collected: int, screened: int,
                 premodel: int, repeated_excluded: int, cache_hit: bool, tokens_saved: int,
-                deferred_count: int, batch_reason: str) -> Path:
+                deferred_count: int, batch_reason: str, expansion_tier: int) -> Path:
         path = self.s.root / "outputs/candidates" / f"{run_id}.md"
         path.parent.mkdir(parents=True, exist_ok=True)
         blocked = [item for item in audits if item.decision == "block_original_gap"]
-        lines = [f"# 周一候选选题报告（{run_id}）", "", f"采集 {collected} 条；模型前 {premodel} 条；排除历史未变化或同源事件 {repeated_excluded} 条；延迟合并 {deferred_count} 条；模型初筛 {screened} 条；制度新意审查 {len(audits)} 条；阻断原缺口 {len(blocked)} 条；输出 {len(candidates)} 个候选。", f"批处理决策：{batch_reason}；筛选结果缓存：{'命中' if cache_hit else '未命中'}；本次复用节省Token：{tokens_saved}。", "", "> 自动发现和初筛结果，不得直接用于报送。", ""]
+        lines = [f"# 周一候选选题报告（{run_id}）", "", f"采集 {collected} 条；扩展到第 {expansion_tier} 层；模型前 {premodel} 条；排除历史未变化或同源事件 {repeated_excluded} 条；延迟合并 {deferred_count} 条；模型初筛 {screened} 条；制度新意审查 {len(audits)} 条；阻断原缺口 {len(blocked)} 条；输出 {len(candidates)} 个候选。", f"批处理决策：{batch_reason}；筛选结果缓存：{'命中' if cache_hit else '未命中'}；本次复用节省Token：{tokens_saved}。", "", "> 扩展层级：1=扩大选题内容，2=扩大北京信息来源，3=扩大到全国；自动候选不得直接用于报送。", ""]
         for c in candidates:
             lines += [f"## {c.id}｜{c.title}", "", f"- 得分：{c.score}；优先级：{c.priority}", f"- 时间与地域：{c.event_date}；{c.region}", f"- 事件概述：{c.summary}", f"- 可反证缺口：{c.gap_hypothesis}（{c.gap_type}）", f"- 制度覆盖审查：{c.coverage_status}；{c.novelty_decision}", f"- 制度矛盾：{c.institutional_conflict}", f"- 权限判断：{c.authority}", f"- 数据条件：{c.data_sufficiency}", f"- 历史关系：{c.history_relation}", f"- 风险：{c.risk}", f"- 结论：{c.recommendation}", f"- 来源：{c.score_reasons.get('来源名称', '')}；{c.score_reasons.get('来源URL', '')}", ""]
         if blocked:

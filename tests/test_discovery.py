@@ -13,6 +13,7 @@ from sqmy.config import Settings
 from sqmy.discovery import LiveDiscovery, same_origin_event
 from sqmy.models import EventItem
 from sqmy.providers import ModelResult
+from sqmy.screener import classify
 
 
 class FakeRouter:
@@ -60,6 +61,23 @@ class DiscoveryTest(unittest.TestCase):
             "海淀",
         )
 
+    def test_expanded_topic_scope_is_classified(self):
+        event = EventItem(
+            id="food", source_id="s", source_name="s", source_level=1,
+            title="校园餐食品安全抽检发现流程问题", url="https://example.test/food",
+            published_at="2026-07-13T00:00:00+00:00", summary="涉及未成年人公共利益",
+            region="北京",
+        )
+        self.assertIn("食品安全", classify(event))
+
+    def test_source_expansion_tier_is_carried_to_event(self):
+        payload = [{
+            "source": {"id": "national", "name": "全国来源", "level": 1, "region": "全国", "expansion_tier": 3},
+            "xml": "<rss><channel><item><title>全国青年就业政策问题</title><link>https://example.gov.cn/youth</link><description>公开调查数据</description><pubDate>Mon, 13 Jul 2026 00:00:00 GMT</pubDate></item></channel></rss>",
+        }]
+        events = SourceCollector(self.root, self.settings.raw)._items_from_payloads(payload)
+        self.assertEqual(events[0].expansion_tier, 3)
+
     def test_small_fresh_batch_is_deferred_without_model(self):
         discovery = LiveDiscovery(self.settings)
         events = [
@@ -73,6 +91,10 @@ class DiscoveryTest(unittest.TestCase):
         ]
         self.assertEqual(discovery._should_run_model(events, force=False), (False, "deferred_small_batch"))
         self.assertEqual(discovery._should_run_model(events, force=True), (True, "forced"))
+        self.assertEqual(
+            discovery._should_run_model(events, force=False, final_attempt=True),
+            (True, "cascade_exhausted_floor"),
+        )
 
     def test_small_batch_urgent_exception(self):
         discovery = LiveDiscovery(self.settings)
@@ -194,7 +216,8 @@ class DiscoveryTest(unittest.TestCase):
             discovery._persist_events(prior, [event])
             discovery._record_efficiency(
                 prior, premodel_count=1, repeated_excluded=0, model_input_count=0,
-                cache_hit=False, tokens_saved=0, deferred_count=1, candidate_count=0,
+                cache_hit=False, tokens_saved=0, deferred_count=1,
+                expansion_tier=1, candidate_count=0,
             )
             current = discovery.wf.init_run("live")
             fresh, excluded = discovery._exclude_unchanged([event], current, "live")

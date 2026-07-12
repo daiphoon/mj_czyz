@@ -5,6 +5,7 @@ level = 1
 region = "海淀"
 type = "rss_search"
 query = "site:bjhd.gov.cn 海淀"
+expansion_tier = 1
 
 [[sources]]
 id = "beijing_policy"
@@ -13,6 +14,7 @@ level = 1
 region = "北京"
 type = "rss_search"
 query = "site:beijing.gov.cn 政策"
+expansion_tier = 1
 
 [[sources]]
 id = "beijing_statistics"
@@ -21,6 +23,7 @@ level = 1
 region = "北京"
 type = "rss_search"
 query = "site:tjj.beijing.gov.cn 数据"
+expansion_tier = 1
 
 [[sources]]
 id = "central_policy"
@@ -29,6 +32,7 @@ level = 1
 region = "全国"
 type = "rss_search"
 query = "site:gov.cn 政策 民生"
+expansion_tier = 3
 
 [[sources]]
 id = "national_statistics"
@@ -37,6 +41,7 @@ level = 1
 region = "全国"
 type = "rss_search"
 query = "site:stats.gov.cn 数据"
+expansion_tier = 3
 
 [[sources]]
 id = "mohrss"
@@ -45,6 +50,7 @@ level = 1
 region = "全国"
 type = "rss_search"
 query = "site:mohrss.gov.cn 就业"
+expansion_tier = 3
 
 [[sources]]
 id = "xinhua_beijing"
@@ -53,6 +59,7 @@ level = 2
 region = "北京"
 type = "rss_search"
 query = "site:news.cn 北京 民生"
+expansion_tier = 2
 
 [[sources]]
 id = "research_beijing"
@@ -61,6 +68,7 @@ level = 2
 region = "北京"
 type = "rss_search"
 query = "北京 研究报告 民生"
+expansion_tier = 2
 
 [[sources]]
 id = "topic_ai_haidian"
@@ -69,6 +77,7 @@ level = 2
 region = "海淀"
 type = "rss_search"
 query = "海淀 人工智能 政策"
+expansion_tier = 1
 
 [[sources]]
 id = "topic_labor_beijing"
@@ -77,6 +86,7 @@ level = 2
 region = "北京"
 type = "rss_search"
 query = "北京 就业 劳动者 政策"
+expansion_tier = 1
 
 [[sources]]
 id = "topic_education_beijing"
@@ -85,6 +95,7 @@ level = 2
 region = "北京"
 type = "rss_search"
 query = "北京 教育 未成年人 问题"
+expansion_tier = 1
 
 [[sources]]
 id = "topic_health_beijing"
@@ -93,6 +104,7 @@ level = 2
 region = "北京"
 type = "rss_search"
 query = "北京 养老 医疗 政策"
+expansion_tier = 1
 
 [[sources]]
 id = "topic_business_beijing"
@@ -101,6 +113,7 @@ level = 2
 region = "北京"
 type = "rss_search"
 query = "北京 中小企业 营商 政策"
+expansion_tier = 1
 
 [[sources]]
 id = "topic_governance_beijing"
@@ -109,3 +122,76 @@ level = 2
 region = "北京"
 type = "rss_search"
 query = "北京 社区 城市治理 问题"
+expansion_tier = 1
+
+[[sources]]
+id = "topic_data_food_beijing"
+name = "北京数据治理与食品安全专题发现"
+level = 2
+region = "北京"
+type = "rss_search"
+query = "北京 (数据治理 OR 食品安全) 问题"
+expansion_tier = 1
+
+[[sources]]
+id = "topic_youth_trade_beijing"
+name = "北京青年就业与外贸专题发现"
+level = 2
+region = "北京"
+type = "rss_search"
+query = "北京 (青年就业 OR 外贸 OR 出海) 问题"
+expansion_tier = 1
+
+[[sources]]
+id = "topic_talent_haidian"
+name = "海淀科技人才与成果转化专题发现"
+level = 2
+region = "海淀"
+type = "rss_search"
+query = "海淀 (科技人才 OR 成果转化 OR 中小企业) 问题"
+expansion_tier = 1
+
+[[sources]]
+id = "beijing_court"
+name = "北京市法院公开信息"
+level = 1
+region = "北京"
+type = "rss_search"
+query = "site:bjcourt.gov.cn 纠纷 司法建议"
+expansion_tier = 2
+
+[[sources]]
+id = "beijing_market_regulation"
+name = "北京市市场监管公开信息"
+level = 1
+region = "北京"
+type = "rss_search"
+query = "site:scjgj.beijing.gov.cn 投诉 风险"
+expansion_tier = 2
+
+[[sources]]
+id = "beijing_procuratorate"
+name = "北京市检察机关公开信息"
+level = 1
+region = "北京"
+type = "rss_search"
+query = "site:bjjc.gov.cn 未成年人 公益诉讼"
+expansion_tier = 2
+
+[[sources]]
+id = "national_investigation"
+name = "新华社全国民生调查"
+level = 2
+region = "全国"
+type = "rss_search"
+query = "site:news.cn 民生 调查 问题"
+expansion_tier = 3
+
+[[sources]]
+id = "national_judicial"
+name = "最高人民法院治理线索"
+level = 1
+region = "全国"
+type = "rss_search"
+query = "site:court.gov.cn 司法建议 纠纷 治理"
+expansion_tier = 3
