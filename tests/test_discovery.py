@@ -179,6 +179,39 @@ class DiscoveryTest(unittest.TestCase):
             self.assertTrue((test_root / "outputs/candidates" / f"{run_id}.md").exists())
             self.assertTrue(all(c.score_reasons["来源URL"].startswith("https://") for c in candidates))
 
+    def test_tier_continuation_excludes_earlier_sources(self):
+        words = ["人工智能", "就业", "教育", "养老", "社区", "中小企业", "食品安全", "住房"]
+        payload = []
+        for tier in (1, 2):
+            items = "".join(
+                f"<item><title>北京市{word}政策问题第{tier}层{index}</title>"
+                f"<link>https://example.gov.cn/tier{tier}/{index}</link>"
+                "<description>公开数据反映相关群体存在政策执行和公共服务问题。</description>"
+                f"<pubDate>{format_datetime(datetime.now(timezone.utc))}</pubDate></item>"
+                for index, word in enumerate(words)
+            )
+            payload.append({
+                "source": {"id": f"tier{tier}", "name": f"第{tier}层来源", "level": 1, "region": "北京", "type": "rss_search", "query": "fixture", "expansion_tier": tier},
+                "xml": "<?xml version='1.0'?><rss><channel>" + items + "</channel></rss>",
+            })
+        with tempfile.TemporaryDirectory() as temp:
+            test_root = Path(temp)
+            (test_root / "config").mkdir()
+            shutil.copy(self.root / "config/sources.toml", test_root / "config/sources.toml")
+            shutil.copy(self.root / "config/policy_mechanisms.toml", test_root / "config/policy_mechanisms.toml")
+            raw = deepcopy(self.settings.raw)
+            raw["model"]["provider"] = "mock"
+            settings = Settings(test_root, raw)
+            fixture = test_root / "fixture.json"
+            fixture.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+            run_id, candidates = LiveDiscovery(settings).run(fixture, start_tier=2)
+            with LiveDiscovery(settings).wf.db.connect() as conn:
+                tiers = {row[0] for row in conn.execute("SELECT expansion_tier FROM event_items WHERE run_id=?", (run_id,))}
+                checkpoint = json.loads(conn.execute("SELECT checkpoint_json FROM runs WHERE id=?", (run_id,)).fetchone()[0])
+            self.assertEqual(len(candidates), 5)
+            self.assertEqual(tiers, {2})
+            self.assertEqual(checkpoint["start_tier"], 2)
+
     def test_live_run_excludes_unchanged_previous_event(self):
         with tempfile.TemporaryDirectory() as temp:
             test_root = Path(temp)

@@ -24,6 +24,7 @@ def parser() -> argparse.ArgumentParser:
     monday = sub.add_parser("monday", help="运行周一真实来源候选扫描")
     monday.add_argument("--fixture", type=Path, help="使用离线 RSS 测试夹具")
     monday.add_argument("--force", action="store_true", help="人工强制重算，跳过历史排除和模型结果缓存")
+    monday.add_argument("--start-tier", type=int, choices=(1, 2, 3), default=1, help="从指定扩展层开始续扫")
     replay = sub.add_parser("monday-replay", help="使用已保存的模型结果离线回放周一流程")
     replay.add_argument("source_run_id")
     sub.add_parser("monday-mock", help="运行旧版纯 mock 候选扫描")
@@ -67,7 +68,7 @@ def main(argv: list[str] | None = None) -> int:
         create_template(Path(cfg["reference_path"]), s.root / cfg["template_path"], cfg, s.section("project")["signature"])
         print(f"已初始化：{s.root}")
     elif args.command == "monday":
-        run_id, candidates = LiveDiscovery(s).run(args.fixture, force=args.force)
+        run_id, candidates = LiveDiscovery(s).run(args.fixture, force=args.force, start_tier=args.start_tier)
         print(run_id)
         print(f"已生成 {len(candidates)} 个候选：outputs/candidates/{run_id}.md")
     elif args.command == "monday-mock":

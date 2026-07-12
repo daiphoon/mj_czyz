@@ -1,0 +1,103 @@
+{
+  "topic_id": "haidian-kindergarten-verification-2026-07",
+  "sources": [
+    {
+      "key": "haidian_faq",
+      "source_name": "海淀区教育委员会",
+      "page_title": "关于2026年海淀区幼儿园适龄儿童信息采集常见问题答疑",
+      "url": "https://zyk.bjhd.gov.cn/jbdt/auto4489_51785/zdly/202606/t20260603_4817106.shtml",
+      "publisher": "海淀区教育委员会",
+      "published_at": "2026-05-29",
+      "fetched_at": "2026-07-13",
+      "excerpt": "家长经北京市适龄幼儿入园服务平台跳转至海淀平台；网上信息审核通过后幼儿园还会现场审核材料；信息与材料不一致时需补充证明并等待再次审核；6月15日后不能自行修改幼儿信息。",
+      "data_scope": "2026年海淀区幼儿入园统一公开流程",
+      "content_hash": "haidian-kindergarten-faq-20260529"
+    },
+    {
+      "key": "beijing_data_rules",
+      "source_name": "北京市人民政府",
+      "page_title": "北京市政务信息资源管理办法（试行）",
+      "url": "https://www.beijing.gov.cn/zhengce/zhengcefagui/201905/t20190522_60694.html",
+      "publisher": "北京市人民政府",
+      "published_at": "2018-01-01",
+      "fetched_at": "2026-07-13",
+      "excerpt": "规定共享为常态、不共享为例外，依托市级平台一次汇聚、多次共享，并明确共享申请答复、数据维护和错误反馈责任。",
+      "data_scope": "北京市政务信息资源共享通用规则",
+      "content_hash": "beijing-government-data-rules"
+    },
+    {
+      "key": "beijing_public_data",
+      "source_name": "北京市政务服务和数据管理局",
+      "page_title": "北京市公共数据资源登记管理实施细则",
+      "url": "https://www.beijing.gov.cn/cs/gncs/zcwj/202603/t20260327_4567990.html",
+      "publisher": "北京市人民政府",
+      "published_at": "2025-11-18",
+      "fetched_at": "2026-07-13",
+      "excerpt": "北京市已经建立公共数据资源登记和合规开发利用制度，说明不宜另建重复数据底座，应优先复用现有市级能力。",
+      "data_scope": "北京市公共数据资源登记制度",
+      "content_hash": "beijing-public-data-registration-2025"
+    },
+    {
+      "key": "haidian_ai_eldercare",
+      "source_name": "海淀区民政局",
+      "page_title": "海淀区人工智能+养老三年行动计划（2026—2028年）政策解读",
+      "url": "https://zyk.bjhd.gov.cn/zwdt/zcjd/202604/t20260424_4813001.shtml",
+      "publisher": "海淀区人民政府",
+      "published_at": "2026-04-24",
+      "fetched_at": "2026-07-13",
+      "excerpt": "海淀已提出区、街镇、社区三级需求采集和需求数据共享机制，说明区级跨部门数据应用具备现实实施基础。",
+      "data_scope": "海淀区数据共享实施能力的旁证",
+      "content_hash": "haidian-ai-eldercare-2026"
+    }
+  ],
+  "claims": [
+    {
+      "id": "kindergarten-claim-01",
+      "claim_text": "2026年海淀区幼儿入园申请需从市级平台跳转区级平台，网上审核后仍有现场材料审核，信息不一致需补充证明并再次等待审核",
+      "claim_type": "process",
+      "importance": "critical",
+      "sources": [
+        {"source": "haidian_faq", "role": "supports", "origin_group": "haidian-education-faq-2026", "source_level": 1, "primary_source": true}
+      ]
+    },
+    {
+      "id": "kindergarten-claim-02",
+      "claim_text": "海淀区公开流程规定6月15日后申请人不能自行修改幼儿信息",
+      "claim_type": "process",
+      "importance": "critical",
+      "sources": [
+        {"source": "haidian_faq", "role": "supports", "origin_group": "haidian-education-faq-2026", "source_level": 1, "primary_source": true}
+      ]
+    },
+    {
+      "id": "kindergarten-claim-03",
+      "claim_text": "北京市已有统一政务数据汇聚共享、错误反馈和公共数据登记制度，优化幼儿入园核验应复用现有能力而非新建数据平台",
+      "claim_type": "policy",
+      "importance": "critical",
+      "sources": [
+        {"source": "beijing_data_rules", "role": "supports", "origin_group": "beijing-data-rules", "source_level": 1, "primary_source": true},
+        {"source": "beijing_public_data", "role": "supports", "origin_group": "beijing-public-data-registration", "source_level": 1, "primary_source": true}
+      ]
+    },
+    {
+      "id": "kindergarten-claim-04",
+      "claim_text": "海淀幼儿入园流程是否缺少按风险分级核验、截止后留痕纠错和跨园材料复用机制",
+      "claim_type": "novelty",
+      "importance": "critical",
+      "novelty_required": true,
+      "policy_coverage_status": "unchecked",
+      "sources": [
+        {"source": "haidian_faq", "role": "context", "origin_group": "haidian-education-faq-2026", "source_level": 1, "primary_source": true, "notes": "公开流程提示核验和纠错摩擦，但不足以单独证明后台不存在其他处理机制，正式深研须向主管部门或补充材料核验。"}
+      ]
+    },
+    {
+      "id": "kindergarten-claim-05",
+      "claim_text": "海淀区具备基于既有系统开展区级数据共享和精准服务试点的实施基础",
+      "claim_type": "authority",
+      "importance": "supporting",
+      "sources": [
+        {"source": "haidian_ai_eldercare", "role": "supports", "origin_group": "haidian-ai-eldercare-plan", "source_level": 1, "primary_source": true}
+      ]
+    }
+  ]
+}

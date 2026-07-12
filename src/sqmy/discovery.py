@@ -53,7 +53,7 @@ class LiveDiscovery:
         self.s = settings
         self.wf = Workflow(settings)
 
-    def run(self, fixture: Path | None = None, *, force: bool = False) -> tuple[str, list]:
+    def run(self, fixture: Path | None = None, *, force: bool = False, start_tier: int = 1) -> tuple[str, list]:
         mode = "test_fixture" if fixture else "live"
         run_id = self.wf.init_run(mode, forced=force)
         self.wf.db.checkpoint(run_id, phase=Phase.DISCOVERY, status=TaskStatus.RUNNING, data={"next": "collect_sources"})
@@ -62,10 +62,12 @@ class LiveDiscovery:
         max_tier = max((int(source.get("expansion_tier", 1)) for source in collector.sources), default=1)
         if fixture:
             max_tier = max((item.expansion_tier for item in collected), default=1)
+        if not 1 <= start_tier <= max_tier:
+            raise ValueError(f"扩展起始层必须在1到{max_tier}之间")
         tier_stats = []
         premodel_pool, fresh_pool, repeated_excluded, expansion_tier = [], [], 0, 1
-        for tier in range(1, max_tier + 1):
-            tier_items = [item for item in collected if item.expansion_tier <= tier]
+        for tier in range(start_tier, max_tier + 1):
+            tier_items = [item for item in collected if start_tier <= item.expansion_tier <= tier]
             rule_results = rule_screen(tier_items, self.s.section("discovery"))
             fresh_results, repeated_excluded = (rule_results, 0) if force else self._exclude_unchanged(rule_results, run_id, mode)
             premodel_pool = fresh_results[: self.s.section("discovery")["screened_max"]]
@@ -107,12 +109,12 @@ class LiveDiscovery:
         )
         report = self._report(
             run_id, candidates, audits, len(collected), len(screened), len(premodel_pool),
-            repeated_excluded, cache_hit, tokens_saved, deferred_count, batch_reason, expansion_tier,
+            repeated_excluded, cache_hit, tokens_saved, deferred_count, batch_reason, start_tier, expansion_tier,
         )
         metrics_path = write_rolling_evaluation(self.s)
         self.wf.db.checkpoint(
             run_id, phase=Phase.SELECTION, status=TaskStatus.NEEDS_REVIEW if candidates else TaskStatus.SKIPPED,
-            data={"collected": len(collected), "premodel": len(premodel_pool), "repeated_excluded": repeated_excluded, "fresh_events": len(fresh_pool), "model_input": len(model_pool), "deferred_count": deferred_count, "batch_reason": batch_reason, "expansion_tier": expansion_tier, "tier_stats": tier_stats, "screening_cache_hit": cache_hit, "screened": len(screened), "novelty_audited": len(audits), "novelty_blocked": sum(a.decision == "block_original_gap" for a in audits), "candidates": len(candidates), "report": str(report), "rolling_metrics": str(metrics_path), "next": f"sqmy select {run_id} C1" if candidates else ("新事件已延迟到下一批合并初筛" if deferred_count else "三层扩展均无可用新事件，需人工检查来源")},
+            data={"collected": len(collected), "start_tier": start_tier, "premodel": len(premodel_pool), "repeated_excluded": repeated_excluded, "fresh_events": len(fresh_pool), "model_input": len(model_pool), "deferred_count": deferred_count, "batch_reason": batch_reason, "expansion_tier": expansion_tier, "tier_stats": tier_stats, "screening_cache_hit": cache_hit, "screened": len(screened), "novelty_audited": len(audits), "novelty_blocked": sum(a.decision == "block_original_gap" for a in audits), "candidates": len(candidates), "report": str(report), "rolling_metrics": str(metrics_path), "next": f"sqmy select {run_id} C1" if candidates else ("新事件已延迟到下一批合并初筛" if deferred_count else "当前扩展层无可用新事件，需进入下一层或检查来源")},
         )
         return run_id, candidates
 
@@ -157,7 +159,7 @@ class LiveDiscovery:
             expansion_tier=1, candidate_count=len(candidates),
         )
         report = self._report(
-            run_id, candidates, audits, len(events), len(screened), len(events), 0, True, int(tokens), 0, "replay", 1,
+            run_id, candidates, audits, len(events), len(screened), len(events), 0, True, int(tokens), 0, "replay", 1, 1,
         )
         self.wf.db.checkpoint(
             run_id, phase=Phase.SELECTION, status=TaskStatus.COMPLETED,
@@ -389,11 +391,11 @@ class LiveDiscovery:
 
     def _report(self, run_id: str, candidates: list, audits: list, collected: int, screened: int,
                 premodel: int, repeated_excluded: int, cache_hit: bool, tokens_saved: int,
-                deferred_count: int, batch_reason: str, expansion_tier: int) -> Path:
+                deferred_count: int, batch_reason: str, start_tier: int, expansion_tier: int) -> Path:
         path = self.s.root / "outputs/candidates" / f"{run_id}.md"
         path.parent.mkdir(parents=True, exist_ok=True)
         blocked = [item for item in audits if item.decision == "block_original_gap"]
-        lines = [f"# 周一候选选题报告（{run_id}）", "", f"采集 {collected} 条；扩展到第 {expansion_tier} 层；模型前 {premodel} 条；排除历史未变化或同源事件 {repeated_excluded} 条；延迟合并 {deferred_count} 条；模型初筛 {screened} 条；制度新意审查 {len(audits)} 条；阻断原缺口 {len(blocked)} 条；输出 {len(candidates)} 个候选。", f"批处理决策：{batch_reason}；筛选结果缓存：{'命中' if cache_hit else '未命中'}；本次复用节省Token：{tokens_saved}。", "", "> 扩展层级：1=扩大选题内容，2=扩大北京信息来源，3=扩大到全国；自动候选不得直接用于报送。", ""]
+        lines = [f"# 周一候选选题报告（{run_id}）", "", f"从第 {start_tier} 层开始；扩展到第 {expansion_tier} 层；采集 {collected} 条；模型前 {premodel} 条；排除历史未变化或同源事件 {repeated_excluded} 条；延迟合并 {deferred_count} 条；模型初筛 {screened} 条；制度新意审查 {len(audits)} 条；阻断原缺口 {len(blocked)} 条；输出 {len(candidates)} 个候选。", f"批处理决策：{batch_reason}；筛选结果缓存：{'命中' if cache_hit else '未命中'}；本次复用节省Token：{tokens_saved}。", "", "> 扩展层级：1=扩大选题内容，2=扩大北京信息来源，3=扩大到全国；自动候选不得直接用于报送。", ""]
         for c in candidates:
             lines += [f"## {c.id}｜{c.title}", "", f"- 得分：{c.score}；优先级：{c.priority}", f"- 时间与地域：{c.event_date}；{c.region}", f"- 事件概述：{c.summary}", f"- 可反证缺口：{c.gap_hypothesis}（{c.gap_type}）", f"- 制度覆盖审查：{c.coverage_status}；{c.novelty_decision}", f"- 制度矛盾：{c.institutional_conflict}", f"- 权限判断：{c.authority}", f"- 数据条件：{c.data_sufficiency}", f"- 历史关系：{c.history_relation}", f"- 风险：{c.risk}", f"- 结论：{c.recommendation}", f"- 来源：{c.score_reasons.get('来源名称', '')}；{c.score_reasons.get('来源URL', '')}", ""]
         if blocked:
