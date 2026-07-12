@@ -48,6 +48,66 @@
       "excerpt": "海淀已提出区、街镇、社区三级需求采集和需求数据共享机制，说明区级跨部门数据应用具备现实实施基础。",
       "data_scope": "海淀区数据共享实施能力的旁证",
       "content_hash": "haidian-ai-eldercare-2026"
+    },
+    {
+      "key": "haidian_faq_2025",
+      "source_name": "海淀区教育委员会",
+      "page_title": "关于2025年海淀区幼儿园适龄儿童信息采集常见问题答疑",
+      "url": "https://zyk.bjhd.gov.cn/jbdt/auto4489_51785/zdly/202506/t20250604_4771541_hd.shtml",
+      "publisher": "海淀区教育委员会",
+      "published_at": "2025-06-04",
+      "fetched_at": "2026-07-13",
+      "excerpt": "2025年公开流程同样要求上传证件材料、网上审核后现场审核，并规定6月15日后不能自行修改幼儿信息和报名园所。",
+      "data_scope": "相同流程跨年度持续性的官方旁证",
+      "content_hash": "haidian-kindergarten-faq-2025"
+    },
+    {
+      "key": "haidian_manual",
+      "source_name": "海淀区教育委员会",
+      "page_title": "海淀区学前教育综合管理服务平台幼儿家长操作手册",
+      "url": "https://zyk.bjhd.gov.cn/jbdt/auto4489_51785/zdly/202406/t20240603_4655505_hd.shtml",
+      "publisher": "海淀区教育委员会",
+      "published_at": "2024-05-31",
+      "fetched_at": "2026-07-13",
+      "excerpt": "操作手册要求填写幼儿基本信息后上传证明材料，并由各报名园所分别显示待审核、初审通过或不通过等状态。",
+      "data_scope": "平台公开操作流程",
+      "content_hash": "haidian-kindergarten-manual-2024"
+    },
+    {
+      "key": "haidian_statistics",
+      "source_name": "海淀区统计局",
+      "page_title": "海淀区2025年国民经济和社会发展统计公报",
+      "url": "https://zyk.bjhd.gov.cn/sjkf/tjgb/202604/t20260410_4811526.shtml",
+      "publisher": "海淀区人民政府",
+      "published_at": "2026-04-10",
+      "fetched_at": "2026-07-13",
+      "excerpt": "2025年末海淀区共有幼儿园213所，在园幼儿6.3万人。",
+      "data_scope": "全区学前教育规模",
+      "content_hash": "haidian-statistics-2025"
+    },
+    {
+      "key": "shanghai_process",
+      "source_name": "上海市教育委员会",
+      "page_title": "2025年上海市适龄幼儿入园政策问答",
+      "url": "https://www.shanghai.gov.cn/xbhygq/20250417/132123e5dcce46c1b8ce7ccd5e5b1348.html",
+      "publisher": "上海市人民政府",
+      "published_at": "2025-04-17",
+      "fetched_at": "2026-07-13",
+      "excerpt": "上海允许直接调用电子证照或上传证件完成线上验证；信息锁定后确需修改的，可在报名验证阶段凭证明材料办理；特殊原因未按时办理的可联系区级部门延期办理。",
+      "data_scope": "外地同类公共服务流程比较",
+      "content_hash": "shanghai-kindergarten-process-2025"
+    },
+    {
+      "key": "pipl",
+      "source_name": "全国人民代表大会常务委员会",
+      "page_title": "中华人民共和国个人信息保护法",
+      "url": "https://www.npc.gov.cn/WZWSREL25wYy9jMi9jMzA4MzQvMjAyMTA4L3QyMDIxMDgyMF8zMTMwODguaHRtbD9yZWY9aW1i",
+      "publisher": "中国人大网",
+      "published_at": "2021-08-20",
+      "fetched_at": "2026-07-13",
+      "excerpt": "不满十四周岁未成年人的个人信息属于敏感个人信息；国家机关处理个人信息不得超出履行法定职责所必需的范围和限度。",
+      "data_scope": "未成年人数据处理与最小必要原则",
+      "content_hash": "pipl-2021"
     }
   ],
   "claims": [
@@ -81,13 +141,13 @@
     },
     {
       "id": "kindergarten-claim-04",
-      "claim_text": "海淀幼儿入园流程是否缺少按风险分级核验、截止后留痕纠错和跨园材料复用机制",
+      "claim_text": "海淀区2026年公开入园规则明确截止后申请人不能自行修改信息，但未公开说明例外纠错申请的条件、办理时限和结果查询方式",
       "claim_type": "novelty",
       "importance": "critical",
       "novelty_required": true,
-      "policy_coverage_status": "unchecked",
+      "policy_coverage_status": "gap_supported",
       "sources": [
-        {"source": "haidian_faq", "role": "context", "origin_group": "haidian-education-faq-2026", "source_level": 1, "primary_source": true, "notes": "公开流程提示核验和纠错摩擦，但不足以单独证明后台不存在其他处理机制，正式深研须向主管部门或补充材料核验。"}
+        {"source": "haidian_faq", "role": "supports", "origin_group": "haidian-education-faq-2026", "source_level": 1, "primary_source": true, "notes": "主张限定为公开规则未说明，不推断后台绝对不存在人工处理。"}
       ]
     },
     {
@@ -97,6 +157,44 @@
       "importance": "supporting",
       "sources": [
         {"source": "haidian_ai_eldercare", "role": "supports", "origin_group": "haidian-ai-eldercare-plan", "source_level": 1, "primary_source": true}
+      ]
+    },
+    {
+      "id": "kindergarten-claim-06",
+      "claim_text": "海淀幼儿入园上传材料、园所审核和截止后不可自行修改的流程至少自2024年至2026年连续存在",
+      "claim_type": "trend",
+      "importance": "supporting",
+      "sources": [
+        {"source": "haidian_faq", "role": "supports", "origin_group": "haidian-education-faq-2026", "source_level": 1, "primary_source": true},
+        {"source": "haidian_faq_2025", "role": "supports", "origin_group": "haidian-education-faq-2025", "source_level": 1, "primary_source": true},
+        {"source": "haidian_manual", "role": "supports", "origin_group": "haidian-education-manual-2024", "source_level": 1, "primary_source": true}
+      ]
+    },
+    {
+      "id": "kindergarten-claim-07",
+      "claim_text": "2025年海淀区共有幼儿园213所、在园幼儿6.3万人，入园核验属于具有制度性规模的公共服务流程",
+      "claim_type": "statistic",
+      "importance": "critical",
+      "sources": [
+        {"source": "haidian_statistics", "role": "supports", "origin_group": "haidian-statistical-bulletin-2025", "source_level": 1, "primary_source": true}
+      ]
+    },
+    {
+      "id": "kindergarten-claim-08",
+      "claim_text": "外地同类服务已经采用电子证照调用、线上验证、锁定后凭证明纠错和特殊情形延期办理，说明替代流程具有可实施性",
+      "claim_type": "comparison",
+      "importance": "critical",
+      "sources": [
+        {"source": "shanghai_process", "role": "supports", "origin_group": "shanghai-kindergarten-policy-2025", "source_level": 1, "primary_source": true}
+      ]
+    },
+    {
+      "id": "kindergarten-claim-09",
+      "claim_text": "幼儿入园流程处理不满十四周岁未成年人信息时，应遵循敏感个人信息保护和履职所需最小范围原则",
+      "claim_type": "legal",
+      "importance": "critical",
+      "sources": [
+        {"source": "pipl", "role": "supports", "origin_group": "personal-information-protection-law", "source_level": 1, "primary_source": true}
       ]
     }
   ]
