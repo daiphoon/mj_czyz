@@ -230,7 +230,8 @@ def rolling_evaluation(settings: Settings, days: int | None = None) -> dict[str,
                       COALESCE(SUM(e.repeated_excluded),0),
                       COALESCE(SUM(e.model_input_count),0),
                       COALESCE(SUM(e.screening_cache_hit),0),
-                      COALESCE(SUM(e.screening_tokens_saved),0)
+                      COALESCE(SUM(e.screening_tokens_saved),0),
+                      COALESCE(SUM(e.deferred_count),0)
                FROM run_efficiency e
                JOIN runs r ON r.id=e.run_id JOIN run_context rc ON rc.run_id=e.run_id
                WHERE r.created_at>=? AND rc.mode='live'""",
@@ -268,6 +269,7 @@ def rolling_evaluation(settings: Settings, days: int | None = None) -> dict[str,
         "model_input_count": int(efficiency[2]),
         "screening_cache_hits": int(efficiency[3]),
         "screening_tokens_saved_by_cache": int(efficiency[4]),
+        "events_deferred_for_batch": int(efficiency[5]),
         "potential_waste_tokens_prevented": sum(row["potential_waste_tokens"] for row in blocked),
         "measurement_note": "potential_waste_tokens_prevented是代理指标，不等于实际账单节省；误杀率需要人工或后续研究结果标签。",
         "automatic_conclusion": conclusion,

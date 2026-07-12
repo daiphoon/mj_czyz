@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS run_efficiency (
   repeated_excluded INTEGER NOT NULL DEFAULT 0, model_input_count INTEGER NOT NULL DEFAULT 0,
   screening_cache_hit INTEGER NOT NULL DEFAULT 0,
   screening_tokens_saved INTEGER NOT NULL DEFAULT 0,
+  deferred_count INTEGER NOT NULL DEFAULT 0,
   candidate_count INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS tasks (
@@ -99,7 +100,8 @@ CREATE TABLE IF NOT EXISTS event_items (
   source_name TEXT NOT NULL, source_level INTEGER NOT NULL, title TEXT NOT NULL,
   url TEXT NOT NULL, published_at TEXT, summary TEXT, region TEXT,
   topics_json TEXT NOT NULL, rule_score INTEGER NOT NULL, content_hash TEXT NOT NULL,
-  collected_at TEXT NOT NULL, UNIQUE(run_id, content_hash)
+  collected_at TEXT NOT NULL, source_region TEXT NOT NULL DEFAULT '',
+  region_evidence TEXT NOT NULL DEFAULT '', UNIQUE(run_id, content_hash)
 );
 CREATE INDEX IF NOT EXISTS idx_event_items_run_score ON event_items(run_id, rule_score DESC);
 """
@@ -127,6 +129,14 @@ class Database:
     def initialize(self) -> None:
         with self.connect() as conn:
             conn.executescript(SCHEMA)
+            efficiency_columns = {row[1] for row in conn.execute("PRAGMA table_info(run_efficiency)")}
+            if "deferred_count" not in efficiency_columns:
+                conn.execute("ALTER TABLE run_efficiency ADD COLUMN deferred_count INTEGER NOT NULL DEFAULT 0")
+            event_columns = {row[1] for row in conn.execute("PRAGMA table_info(event_items)")}
+            if "source_region" not in event_columns:
+                conn.execute("ALTER TABLE event_items ADD COLUMN source_region TEXT NOT NULL DEFAULT ''")
+            if "region_evidence" not in event_columns:
+                conn.execute("ALTER TABLE event_items ADD COLUMN region_evidence TEXT NOT NULL DEFAULT ''")
             # Backfill legacy runs so old fixture/mock candidates cannot pollute
             # real-run history and rolling quality metrics.
             conn.execute(

@@ -35,6 +35,9 @@ candidate_count = 5
 request_timeout_seconds = 20
 user_agent = "sqmy-research/0.2 (+local policy research)"
 title_similarity_threshold = 0.88
+min_new_events_for_model = 4
+urgent_rule_score_threshold = 90
+urgent_keywords = ["突发", "事故", "紧急", "重大风险", "征求意见", "专项通报"]
 
 [novelty]
 enabled = true

@@ -8,9 +8,9 @@ import shutil
 import unittest
 from unittest.mock import patch
 
-from sqmy.collector import SourceCollector, canonical_url
+from sqmy.collector import SourceCollector, canonical_url, infer_event_region
 from sqmy.config import Settings
-from sqmy.discovery import LiveDiscovery
+from sqmy.discovery import LiveDiscovery, same_origin_event
 from sqmy.models import EventItem
 from sqmy.providers import ModelResult
 
@@ -34,6 +34,98 @@ class DiscoveryTest(unittest.TestCase):
     def test_unwraps_search_redirect(self):
         url = "https://www.bing.com/news/apiclick.aspx?url=https%3A%2F%2Fwww.beijing.gov.cn%2Fpolicy%3Futm_source%3Dx"
         self.assertEqual(canonical_url(url), "https://www.beijing.gov.cn/policy")
+
+    def test_event_region_does_not_use_source_channel_as_event_location(self):
+        region, evidence = infer_event_region(
+            "新华网民生观察丨从填表到刷脸，谁在过度收集个人信息?",
+            "新华网北京7月7日电 记者在江苏苏州等地采访发现相关问题。",
+            "https://www.news.cn/fortune/20260707/example.htm",
+            "北京",
+        )
+        self.assertEqual(region, "全国")
+        self.assertEqual(evidence, "source_channel_only:北京")
+
+    def test_event_region_uses_explicit_local_evidence(self):
+        self.assertEqual(
+            infer_event_region(
+                "北京互联网法院发布未成年人网络纠纷情况",
+                "相关案件呈现新特点。",
+                "https://example.test/court",
+                "全国",
+            )[0],
+            "北京",
+        )
+        self.assertEqual(
+            infer_event_region("社区服务调整", "通知内容", "https://www.bjhd.gov.cn/example", "全国")[0],
+            "海淀",
+        )
+
+    def test_small_fresh_batch_is_deferred_without_model(self):
+        discovery = LiveDiscovery(self.settings)
+        events = [
+            EventItem(
+                id=str(index), source_id="s", source_name="s", source_level=1,
+                title=f"北京市公共服务常规信息{index}", url=f"https://example.test/{index}",
+                published_at="2026-07-13T00:00:00+00:00", summary="政策执行信息",
+                region="北京", rule_score=80,
+            )
+            for index in range(2)
+        ]
+        self.assertEqual(discovery._should_run_model(events, force=False), (False, "deferred_small_batch"))
+        self.assertEqual(discovery._should_run_model(events, force=True), (True, "forced"))
+
+    def test_small_batch_urgent_exception(self):
+        discovery = LiveDiscovery(self.settings)
+        event = EventItem(
+            id="urgent", source_id="s", source_name="s", source_level=1,
+            title="北京市就重大风险发布专项通报", url="https://example.test/urgent",
+            published_at="2026-07-13T00:00:00+00:00", summary="涉及紧急处置",
+            region="北京", rule_score=95,
+        )
+        self.assertEqual(discovery._should_run_model([event], force=False), (True, "urgent_exception"))
+
+    def test_small_fixture_finishes_with_zero_model_calls(self):
+        titles = ["北京市养老服务政策执行观察", "北京市人工智能企业治理机制观察"]
+        items = "".join(
+            f"<item><title>{title}</title>"
+            f"<link>https://example.gov.cn/small/{index}</link>"
+            "<description>公开信息反映相关政策执行情况。</description>"
+            f"<pubDate>{format_datetime(datetime.now(timezone.utc))}</pubDate></item>"
+            for index, title in enumerate(titles)
+        )
+        payload = [{
+            "source": {"id": "fixture", "name": "离线一级信源", "level": 1, "region": "北京", "type": "rss_search", "query": "fixture"},
+            "xml": "<?xml version='1.0'?><rss><channel>" + items + "</channel></rss>",
+        }]
+        with tempfile.TemporaryDirectory() as temp:
+            test_root = Path(temp)
+            (test_root / "config").mkdir()
+            shutil.copy(self.root / "config/sources.toml", test_root / "config/sources.toml")
+            shutil.copy(self.root / "config/policy_mechanisms.toml", test_root / "config/policy_mechanisms.toml")
+            settings = Settings(test_root, deepcopy(self.settings.raw))
+            fixture = test_root / "fixture.json"
+            fixture.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+            run_id, candidates = LiveDiscovery(settings).run(fixture)
+            with LiveDiscovery(settings).wf.db.connect() as conn:
+                calls = conn.execute("SELECT COUNT(*) FROM model_calls WHERE run_id=?", (run_id,)).fetchone()[0]
+                efficiency = conn.execute("SELECT model_input_count,deferred_count FROM run_efficiency WHERE run_id=?", (run_id,)).fetchone()
+            self.assertEqual(candidates, [])
+            self.assertEqual(calls, 0)
+            self.assertEqual(tuple(efficiency), (0, 2))
+
+    def test_detects_cross_site_same_origin_event(self):
+        current = EventItem(
+            id="current", source_id="s", source_name="s", source_level=2,
+            title="北京互联网法院：未成年人游戏充值、直播打赏等退款纠纷占比86.4%",
+            url="https://media.example/current", published_at="2026-07-08T01:00:00+00:00",
+            summary="北京互联网法院通报未成年人网络纠纷情况。", region="北京",
+        )
+        previous = {
+            "title": "涉未成年人网络纠纷5年增长近20倍 北京互联网法院发布情况",
+            "summary": "北京互联网法院介绍游戏充值和直播打赏纠纷。",
+            "published_at": "2026-07-08T03:00:00+00:00",
+        }
+        self.assertTrue(same_origin_event(current, previous))
 
     def test_offline_live_discovery(self):
         items = []
@@ -84,6 +176,30 @@ class DiscoveryTest(unittest.TestCase):
             fresh, excluded = discovery._exclude_unchanged([event], current, "live")
             self.assertEqual(fresh, [])
             self.assertEqual(excluded, 1)
+
+    def test_deferred_event_remains_eligible_for_next_batch(self):
+        with tempfile.TemporaryDirectory() as temp:
+            test_root = Path(temp)
+            (test_root / "config").mkdir()
+            shutil.copy(self.root / "config/sources.toml", test_root / "config/sources.toml")
+            shutil.copy(self.root / "config/policy_mechanisms.toml", test_root / "config/policy_mechanisms.toml")
+            settings = Settings(test_root, deepcopy(self.settings.raw))
+            discovery = LiveDiscovery(settings)
+            prior = discovery.wf.init_run("live")
+            event = EventItem(
+                id="deferred", source_id="s", source_name="s", source_level=1,
+                title="北京市某项公共服务执行信息", url="https://example.test/deferred",
+                published_at="2026-07-13T00:00:00+00:00", summary="内容", region="北京",
+            )
+            discovery._persist_events(prior, [event])
+            discovery._record_efficiency(
+                prior, premodel_count=1, repeated_excluded=0, model_input_count=0,
+                cache_hit=False, tokens_saved=0, deferred_count=1, candidate_count=0,
+            )
+            current = discovery.wf.init_run("live")
+            fresh, excluded = discovery._exclude_unchanged([event], current, "live")
+            self.assertEqual([item.id for item in fresh], ["deferred"])
+            self.assertEqual(excluded, 0)
 
     def test_identical_screening_input_reuses_completed_result(self):
         with tempfile.TemporaryDirectory() as temp:

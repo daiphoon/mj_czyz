@@ -63,6 +63,23 @@ def infer_source_level(url: str, configured: int) -> int:
     return max(2, configured)
 
 
+def infer_event_region(title: str, summary: str, url: str, source_region: str) -> tuple[str, str]:
+    domain = urlparse(url).netloc.lower()
+    if domain.endswith("bjhd.gov.cn"):
+        return "海淀", "trusted_domain:bjhd.gov.cn"
+    if domain.endswith("beijing.gov.cn") or domain.endswith("bjcourt.gov.cn"):
+        return "北京", f"trusted_domain:{domain}"
+    text = title + " " + summary
+    text = re.sub(r"(?:新华网|中新网|人民网)?北京\d{1,2}月\d{1,2}日电\s*", "", text)
+    if "海淀" in text:
+        return "海淀", "text:haidian"
+    beijing_markers = ("北京市", "北京互联网法院", "北京市委", "北京市政府", "北京市网信", "北京市市场监管")
+    marker = next((item for item in beijing_markers if item in text), None)
+    if marker:
+        return "北京", f"text:{marker}"
+    return "全国", f"source_channel_only:{source_region}"
+
+
 class SourceCollector:
     def __init__(self, root: Path, settings: dict):
         self.root = root
@@ -132,10 +149,12 @@ class SourceCollector:
                 if not title or not url:
                     continue
                 digest = hashlib.sha256((title + "\n" + url).encode()).hexdigest()
+                summary = _clean_html(_text(node, "description"))[:700]
+                event_region, region_evidence = infer_event_region(title, summary, url, source["region"])
                 items.append(EventItem(
                     id=digest[:16], source_id=source["id"], source_name=source["name"], source_level=infer_source_level(url, int(source["level"])),
                     title=title, url=url, published_at=published.isoformat() if published else "",
-                    summary=_clean_html(_text(node, "description"))[:700], region=source["region"],
+                    summary=summary, region=event_region, source_region=source["region"], region_evidence=region_evidence,
                     collected_at=datetime.now(timezone.utc).isoformat(),
                 ))
         return items

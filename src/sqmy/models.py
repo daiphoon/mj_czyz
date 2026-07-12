@@ -65,6 +65,8 @@ class EventItem:
     published_at: str
     summary: str
     region: str
+    source_region: str = ""
+    region_evidence: str = ""
     topics: list[str] = field(default_factory=list)
     rule_score: int = 0
     collected_at: str = ""
