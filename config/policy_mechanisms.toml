@@ -1,0 +1,23 @@
+[[mechanisms]]
+id = "beijing-minors-platform-compliance-2023"
+name = "北京市网络产品和服务未成年人保护机制"
+problem_type = "policy_and_complaint"
+jurisdiction = "北京"
+actor = "网信等部门、网络产品和服务提供者"
+summary = "现行条例已要求平台建立未成年人保护、网络合规、内容审核和便捷有效的投诉举报机制。"
+keywords = ["未成年人", "网络", "平台", "投诉", "举报", "合规", "保护机制"]
+source_url = "https://www.beijing.gov.cn/zhengce/dfxfg/202305/t20230531_3117797.html"
+valid_from = "2023-06-01"
+last_verified_at = "2026-07-12"
+
+[[mechanisms]]
+id = "beijing-internet-court-minors-feedback"
+name = "北京互联网法院未成年人网络纠纷双向反馈与司法建议"
+problem_type = "case_to_platform_feedback"
+jurisdiction = "北京"
+actor = "北京互联网法院、相关网络平台"
+summary = "已存在示范诉讼、家庭责任告知、平台司法建议和双向反馈机制，个案可促成平台修改审核或管理规则。"
+keywords = ["未成年人", "网络纠纷", "司法建议", "双向反馈", "平台", "规则", "纠错"]
+source_url = "https://www.bj148.org/gfpl/202308/t20230822_1655746.html"
+valid_from = "2023-01-01"
+last_verified_at = "2026-07-12"

@@ -1,0 +1,111 @@
+[[sources]]
+id = "haidian_official"
+name = "海淀区政府公开信息"
+level = 1
+region = "海淀"
+type = "rss_search"
+query = "site:bjhd.gov.cn 海淀"
+
+[[sources]]
+id = "beijing_policy"
+name = "北京市政府政策"
+level = 1
+region = "北京"
+type = "rss_search"
+query = "site:beijing.gov.cn 政策"
+
+[[sources]]
+id = "beijing_statistics"
+name = "北京市统计公开信息"
+level = 1
+region = "北京"
+type = "rss_search"
+query = "site:tjj.beijing.gov.cn 数据"
+
+[[sources]]
+id = "central_policy"
+name = "中国政府网政策"
+level = 1
+region = "全国"
+type = "rss_search"
+query = "site:gov.cn 政策 民生"
+
+[[sources]]
+id = "national_statistics"
+name = "国家统计局"
+level = 1
+region = "全国"
+type = "rss_search"
+query = "site:stats.gov.cn 数据"
+
+[[sources]]
+id = "mohrss"
+name = "人力资源和社会保障部"
+level = 1
+region = "全国"
+type = "rss_search"
+query = "site:mohrss.gov.cn 就业"
+
+[[sources]]
+id = "xinhua_beijing"
+name = "新华社北京相关报道"
+level = 2
+region = "北京"
+type = "rss_search"
+query = "site:news.cn 北京 民生"
+
+[[sources]]
+id = "research_beijing"
+name = "北京高校与研究机构"
+level = 2
+region = "北京"
+type = "rss_search"
+query = "北京 研究报告 民生"
+
+[[sources]]
+id = "topic_ai_haidian"
+name = "海淀人工智能专题发现"
+level = 2
+region = "海淀"
+type = "rss_search"
+query = "海淀 人工智能 政策"
+
+[[sources]]
+id = "topic_labor_beijing"
+name = "北京就业劳动专题发现"
+level = 2
+region = "北京"
+type = "rss_search"
+query = "北京 就业 劳动者 政策"
+
+[[sources]]
+id = "topic_education_beijing"
+name = "北京教育未成年人专题发现"
+level = 2
+region = "北京"
+type = "rss_search"
+query = "北京 教育 未成年人 问题"
+
+[[sources]]
+id = "topic_health_beijing"
+name = "北京养老医疗专题发现"
+level = 2
+region = "北京"
+type = "rss_search"
+query = "北京 养老 医疗 政策"
+
+[[sources]]
+id = "topic_business_beijing"
+name = "北京中小企业专题发现"
+level = 2
+region = "北京"
+type = "rss_search"
+query = "北京 中小企业 营商 政策"
+
+[[sources]]
+id = "topic_governance_beijing"
+name = "北京社区城市治理专题发现"
+level = 2
+region = "北京"
+type = "rss_search"
+query = "北京 社区 城市治理 问题"

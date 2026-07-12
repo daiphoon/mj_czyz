@@ -1,0 +1,110 @@
+[project]
+name = "社情民意信息研究与生成工作流"
+timezone = "Asia/Shanghai"
+signature = "中关村支部：李智"
+candidate_count = 5
+max_formal_topics = 2
+
+[model]
+provider = "auto"
+primary_provider = "codex_cli"
+fallback_provider = "deepseek"
+fallback_on = ["quota_exceeded", "rate_limited"]
+screening_model = "gpt-5.4-mini"
+codex_model = "gpt-5.4"
+deepseek_model = "deepseek-v4-pro"
+deepseek_thinking = true
+deepseek_reasoning_effort = "max"
+research_model = "mock-research"
+writing_model = "mock-writing"
+max_retries = 2
+max_calls_per_task = 3
+screening_max_output_tokens = 6000
+input_price_cny_per_million = 2.0
+output_price_cny_per_million = 12.0
+deepseek_input_price_cny_per_million = 3.0
+deepseek_output_price_cny_per_million = 6.0
+
+[discovery]
+lookback_days = 90
+initial_min = 15
+initial_max = 30
+screened_min = 8
+screened_max = 12
+candidate_count = 5
+request_timeout_seconds = 20
+user_agent = "sqmy-research/0.2 (+local policy research)"
+title_similarity_threshold = 0.88
+
+[novelty]
+enabled = true
+audit_pool_size = 8
+max_queries_per_candidate = 2
+max_hits_per_query = 3
+local_mechanism_min_keyword_matches = 3
+mechanism_max_age_days = 180
+likely_covered_score_penalty = 12
+potential_waste_tokens_per_block = 6000
+rolling_evaluation_days = 21
+minimum_audits_for_decision = 10
+minimum_reviewed_blocks_for_precision = 3
+minimum_observed_outcome_rate = 0.5
+official_counterevidence_domains = ["beijing.gov.cn", "bjcourt.gov.cn", "court.gov.cn", "gov.cn", "bj148.org", "bjjubao.org.cn"]
+
+[budget]
+weekly_token_limit = 120000
+weekly_cost_limit_cny = 100.0
+discovery_tokens = 15000
+screening_tokens = 26000
+codex_cli_fixed_overhead_tokens = 15000
+api_fixed_overhead_tokens = 1000
+preflight_stale_running_hours = 2
+pre_research_tokens = 30000
+deep_research_tokens = 40000
+writing_tokens = 15000
+reserve_tokens = 5000
+
+[scoring]
+haidian_relevance = 15
+beijing_relevance = 10
+timeliness = 20
+pain_authenticity = 15
+policy_window = 15
+data_verifiability = 10
+operability = 10
+mechanism_innovation = 5
+
+[penalties]
+policy_fully_covered = 15
+repeated_without_new_mechanism = 10
+weak_sources = 15
+no_local_landing = 15
+single_case_only = 10
+high_fiscal_cost = 10
+formalism_risk = 10
+legal_conflict = 20
+facts_unconfirmed = 20
+no_executable_actor = 15
+
+[evidence]
+min_independent_origins = 2
+blocking_statuses = ["unverified", "single_source", "conflicted", "needs_review", "rejected"]
+official_primary_source_can_stand_alone = true
+same_origin_reprints_count_once = true
+novelty_requires_policy_coverage_audit = true
+
+[document]
+reference_path = "/Users/lizhi/Documents/民建工作/社情民意/完善北京市新就业形态劳动者平台算法判罚与申诉纠错机制的建议.docx"
+template_path = "templates/submission_template.docx"
+body_font = "Songti SC"
+fallback_font = "SimSun"
+body_size_pt = 12
+title_size_pt = 20
+heading_size_pt = 16
+line_spacing = 1.5
+page_width_mm = 210
+page_height_mm = 297
+margin_top_mm = 25.4
+margin_bottom_mm = 25.4
+margin_left_mm = 31.8
+margin_right_mm = 31.8

@@ -1,0 +1,184 @@
+{
+  "topic_id": "minor-online-disputes-2026-07",
+  "sources": [
+    {
+      "key": "court_cases",
+      "source_name": "北京互联网举报中心（来源：北京互联网法院）",
+      "page_title": "北京互联网法院未成年人网络司法保护典型案例",
+      "url": "https://www.bjjubao.org.cn/2026-06/01/content_48716.html",
+      "publisher": "北京互联网举报中心",
+      "published_at": "2026-06-01",
+      "fetched_at": "2026-07-12",
+      "excerpt": "公布12件典型案例，覆盖不良内容、网络暴力、个人信息、游戏及直播消费和平台处置等场景。",
+      "data_scope": "12件典型案例全文",
+      "content_hash": "court-cases-20260601"
+    },
+    {
+      "key": "press_conference_cns",
+      "source_name": "中国新闻网",
+      "page_title": "北京互联网法院：五年受理未成年人网络纠纷案件2581件",
+      "url": "https://www.chinanews.com.cn/sh/2026/05-29/10631095.shtml",
+      "publisher": "中国新闻网",
+      "published_at": "2026-05-29",
+      "fetched_at": "2026-07-12",
+      "excerpt": "2021年5月至2026年5月受理2581件；2021年收案50件，2025年997件；介绍示范诉讼与双向反馈机制。",
+      "data_scope": "北京互联网法院新闻发布会",
+      "content_hash": "cns-court-press-20260529"
+    },
+    {
+      "key": "press_conference_people",
+      "source_name": "人民网",
+      "page_title": "以司法力量护航未成年人网络安全",
+      "url": "https://society.people.com.cn/n1/2026/0617/c1008-40741938.html",
+      "publisher": "人民网",
+      "published_at": "2026-06-17",
+      "fetched_at": "2026-07-12",
+      "excerpt": "示范诉讼与调解推动平台自行解决4000余件纠纷，并建立家庭责任告知与平司法建议的双向反馈。",
+      "data_scope": "同一法院发布信息的后续报道",
+      "content_hash": "people-court-followup-20260617"
+    },
+    {
+      "key": "beijing_regulation",
+      "source_name": "北京市人民政府",
+      "page_title": "北京市未成年人保护条例",
+      "url": "https://www.beijing.gov.cn/zhengce/dfxfg/202305/t20230531_3117797.html",
+      "publisher": "北京市人民政府",
+      "published_at": "2023-05-31",
+      "fetched_at": "2026-07-12",
+      "excerpt": "第三十五条要求网络产品和服务提供者建立未保机制、网络合规制度和便捷有效的投诉举报渠道等。",
+      "data_scope": "北京市地方性法规",
+      "content_hash": "beijing-minor-regulation-2023"
+    },
+    {
+      "key": "judicial_recommendations",
+      "source_name": "京法网事",
+      "page_title": "北京互联网法院延伸审判职能参与网络空间治理",
+      "url": "https://www.bj148.org/gfpl/202308/t20230822_1655746.html",
+      "publisher": "中共北京市委政法委员会",
+      "published_at": "2023-08-22",
+      "fetched_at": "2026-07-12",
+      "excerpt": "截至当时向平台、主管部门等发出23份司法建议，回复率74%；披露了未成年人漫画等个案的平台整改回复。",
+      "data_scope": "23份为全类型司法建议，不得与未成年人专项口径混用",
+      "content_hash": "bj148-recommendations-2023"
+    },
+    {
+      "key": "cac_platforms",
+      "source_name": "中央网信办",
+      "page_title": "北京网站修订用户协议畅通未成年人举报渠道落实《未成年人保护法》",
+      "url": "https://www.cac.gov.cn/2021-06/04/c_1624388133003193.htm",
+      "publisher": "中央网络安全和信息化委员会办公室",
+      "published_at": "2021-06-04",
+      "fetched_at": "2026-07-12",
+      "excerpt": "微博、百度、抖音、快手、腾讯等8家平台修订协议、完善未成年人投诉举报和守护热线。",
+      "data_scope": "平台投诉渠道建设",
+      "content_hash": "cac-platform-minors-2021"
+    },
+    {
+      "key": "tencent",
+      "source_name": "腾讯",
+      "page_title": "未成年人健康上网保护体系",
+      "url": "https://www.tencent.com/zh-cn/responsibility/balanced-online-entertainment-system-for-underaged-users.html",
+      "publisher": "腾讯",
+      "fetched_at": "2026-07-12",
+      "excerpt": "披露事前设置、事中管理、事后服务及人脸识别等未保措施。",
+      "data_scope": "企业自报机制，不单独证明实际效果",
+      "content_hash": "tencent-minor-protection"
+    },
+    {
+      "key": "bytedance",
+      "source_name": "字节跳动公益",
+      "page_title": "抖音未成年人网络权益保护",
+      "url": "https://gongyi.bytedance.com/issue/7160869621275314212/7160869621275330596",
+      "publisher": "字节跳动",
+      "fetched_at": "2026-07-12",
+      "excerpt": "披露未成年人守护专项团队、守护专线、专项治理及法律心理帮助。",
+      "data_scope": "企业自报机制，不单独证明实际效果",
+      "content_hash": "bytedance-minor-protection"
+    },
+    {
+      "key": "beijing_governance",
+      "source_name": "北京市人民政府",
+      "page_title": "二○二五年‘全国网络普法行·北京站’活动启动",
+      "url": "https://www.beijing.gov.cn/ywdt/gzdt/202511/t20251120_4288671.html",
+      "publisher": "北京市人民政府",
+      "published_at": "2025-11-20",
+      "fetched_at": "2026-07-12",
+      "excerpt": "北京已建立全市网络执法工作协调机制，推进属地平台未成年人模式建设并开展专项治理。",
+      "data_scope": "北京市网络综合治理机制",
+      "content_hash": "beijing-network-governance-2025"
+    }
+  ],
+  "claims": [
+    {
+      "id": "minor-claim-01",
+      "claim_text": "2021年5月至2026年5月北京互联网法院受理涉未成年人网络纠纷2581件，年收案由2021年50件增至2025年997件",
+      "claim_type": "statistic",
+      "importance": "critical",
+      "sources": [
+        {"source": "press_conference_cns", "role": "supports", "origin_group": "court-press-conference-20260529", "source_level": 2},
+        {"source": "press_conference_people", "role": "supports", "origin_group": "court-press-conference-20260529", "source_level": 2, "notes": "两篇报道的核心数据均来自同一法院发布，不算独立验证"}
+      ]
+    },
+    {
+      "id": "minor-claim-02",
+      "claim_text": "12件典型案例显示责任并非一律由平台承担，需区分平台漏洞、监护人过错、用户侵权与平台合理治理",
+      "claim_type": "mechanism",
+      "importance": "critical",
+      "sources": [
+        {"source": "court_cases", "role": "supports", "origin_group": "beijing-internet-court-cases-2026", "source_level": 1, "primary_source": true}
+      ]
+    },
+    {
+      "id": "minor-claim-03",
+      "claim_text": "北京市现行地方性法规已要求平台建立未保合规、内容审核和便捷有效的投诉举报机制",
+      "claim_type": "policy",
+      "importance": "critical",
+      "sources": [
+        {"source": "beijing_regulation", "role": "supports", "origin_group": "beijing-minor-regulation-2023", "source_level": 1, "primary_source": true}
+      ]
+    },
+    {
+      "id": "minor-claim-04",
+      "claim_text": "北京互联网法院尚未建立从个案到平台规则的反馈机制",
+      "claim_type": "novelty",
+      "importance": "critical",
+      "novelty_required": true,
+      "policy_coverage_status": "covered",
+      "sources": [
+        {"source": "press_conference_cns", "role": "contradicts", "origin_group": "court-press-conference-20260529", "source_level": 2},
+        {"source": "judicial_recommendations", "role": "contradicts", "origin_group": "beijing-court-governance-2023", "source_level": 1, "primary_source": true}
+      ]
+    },
+    {
+      "id": "minor-claim-05",
+      "claim_text": "现有司法建议回复机制缺少统一、公开、可核验的整改效果指标和复发跟踪",
+      "claim_type": "novelty",
+      "importance": "critical",
+      "novelty_required": true,
+      "policy_coverage_status": "unchecked",
+      "sources": [
+        {"source": "judicial_recommendations", "role": "context", "origin_group": "beijing-court-governance-2023", "source_level": 1, "primary_source": true, "notes": "该来源仅显示回复率和个别整改，不足以单独证明不存在后续效果核验"}
+      ]
+    },
+    {
+      "id": "minor-claim-06",
+      "claim_text": "主要平台已公开披露实名、家长服务、未保专线、内容治理等机制，但企业自报不能替代独立效果评估",
+      "claim_type": "implementation",
+      "importance": "supporting",
+      "sources": [
+        {"source": "cac_platforms", "role": "supports", "origin_group": "cac-platform-governance-2021", "source_level": 1, "primary_source": true},
+        {"source": "tencent", "role": "supports", "origin_group": "tencent-self-report", "source_level": 3, "primary_source": true},
+        {"source": "bytedance", "role": "supports", "origin_group": "bytedance-self-report", "source_level": 3, "primary_source": true}
+      ]
+    },
+    {
+      "id": "minor-claim-07",
+      "claim_text": "北京已建立网络执法协调机制并对属地平台未成年人模式开展治理",
+      "claim_type": "authority",
+      "importance": "critical",
+      "sources": [
+        {"source": "beijing_governance", "role": "supports", "origin_group": "beijing-network-governance-2025", "source_level": 1, "primary_source": true}
+      ]
+    }
+  ]
+}
