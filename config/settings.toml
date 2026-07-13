@@ -99,7 +99,7 @@ novelty_requires_policy_coverage_audit = true
 [document]
 reference_path = "/Users/lizhi/Documents/民建工作/社情民意/完善北京市新就业形态劳动者平台算法判罚与申诉纠错机制的建议.docx"
 template_path = "templates/submission_template.docx"
-body_font = "Songti SC"
+body_font = "DengXian"
 fallback_font = "SimSun"
 body_size_pt = 12
 title_size_pt = 20
