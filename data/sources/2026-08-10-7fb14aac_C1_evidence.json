@@ -1,0 +1,670 @@
+{
+  "topic_id": "beijing-minor-online-refund-symmetric-verification-2026-08",
+  "sources": [
+    {
+      "key": "platform_rule_measures",
+      "source_name": "国家市场监督管理总局、国家互联网信息办公室",
+      "page_title": "网络交易平台规则监督管理办法",
+      "url": "https://www.cac.gov.cn/2026-01/07/c_1769515215345420.htm",
+      "publisher": "中央网络安全和信息化委员会办公室",
+      "published_at": "2026-01-07",
+      "fetched_at": "2026-08-10T07:41:08Z",
+      "checked_at": "2026-08-10T07:41:08Z",
+      "effective_at": "2026-02-01",
+      "excerpt": "第十九至二十一条要求告知不利处理的事实、理由和依据，设置申诉与人工复核，公平设定交易纠纷各方举证责任并防范规则滥用；第三十三、三十六条规定市场监管、网信部门协同监督以及省级以上部门组织专家评审。",
+      "data_scope": "全国网络交易平台规则的制定、执行、申诉、举证和监督管理",
+      "used_at": "现有政策覆盖、北京市评审权限、机制边界和政策窗口",
+      "content_hash": "platform-rule-measures-2026-01-07-v1",
+      "source_role": "official_policy"
+    },
+    {
+      "key": "beijing_rule_guide",
+      "source_name": "北京市市场监督管理局",
+      "page_title": "北京市市场监督管理局关于发布网络交易平台经营者服务协议与交易规则、信息公示与披露、禁限售商品管理等系列合规指引的公告",
+      "url": "https://scjgj.beijing.gov.cn/zwxx/2024zcwj/202502/t20250213_4009331.html",
+      "publisher": "北京市市场监督管理局",
+      "published_at": "2025-02-13",
+      "fetched_at": "2026-08-10T07:41:08Z",
+      "checked_at": "2026-08-10T07:41:08Z",
+      "effective_at": "2025-02-13",
+      "excerpt": "指引要求本市网络交易平台建立服务协议和交易规则合规评审、消费者权益保护、投诉举报处理等制度；其公开文本早于2026年国家平台规则监管办法。",
+      "data_scope": "在北京市行政区域内开展经营活动的网络交易平台经营者",
+      "used_at": "北京既有规则载体、政策覆盖审查和专项更新切口",
+      "content_hash": "beijing-platform-rule-guide-2025-02-13-v1",
+      "source_role": "official_policy"
+    },
+    {
+      "key": "beijing_minor_regulation",
+      "source_name": "北京市人民代表大会常务委员会",
+      "page_title": "北京市未成年人保护条例",
+      "url": "https://www.beijing.gov.cn/zhengce/dfxfg/202305/t20230531_3117797.html",
+      "publisher": "北京市人民政府门户网站",
+      "published_at": "2023-05-31",
+      "fetched_at": "2026-08-10T07:41:08Z",
+      "checked_at": "2026-08-10T07:41:08Z",
+      "effective_at": "2023-06-01",
+      "excerpt": "第三十四、三十五条规定网信统筹、多部门分工以及平台投诉、消费管理和个人信息保护义务；第五十一、五十三、五十四和六十条规定检查交易记录、投诉转办、12345专席和司法建议反馈等现有抓手。",
+      "data_scope": "北京市未成年人保护的地方治理、监督检查、投诉和司法协同",
+      "used_at": "北京权限、现有载体、隐私和投诉协同",
+      "content_hash": "beijing-minor-regulation-2023-v1",
+      "source_role": "official_policy"
+    },
+    {
+      "key": "cac_tipping_notice",
+      "source_name": "中央网信办秘书局",
+      "page_title": "关于加强网络直播打赏规范管理的通知",
+      "url": "https://www.cac.gov.cn/2026-04/13/c_1777815804150225.htm",
+      "publisher": "中央网络安全和信息化委员会办公室",
+      "published_at": "2026-04-13",
+      "fetched_at": "2026-08-10T07:41:08Z",
+      "checked_at": "2026-08-10T07:41:08Z",
+      "effective_at": "2026-04-04",
+      "excerpt": "要求首次打赏提供限额设置，修改或放弃限额时确认；按年龄设置未成年人打赏条件；对疑似未成年人使用成年人账号打赏进行必要核验；识别异常打赏、留存记录并妥善处置未成年人退款纠纷。",
+      "data_scope": "全国网站平台网络直播打赏管理",
+      "used_at": "前端核验、异常确认、记录和退款义务的现有覆盖",
+      "content_hash": "cac-live-tipping-notice-2026-v1",
+      "source_role": "official_policy"
+    },
+    {
+      "key": "minor_network_regulation",
+      "source_name": "国务院",
+      "page_title": "未成年人网络保护条例",
+      "url": "https://www.samr.gov.cn/wljys/gzzd/art/2024/art_43b2ac59aefd427aabe333df54d68f0a.html",
+      "publisher": "国家市场监督管理总局",
+      "published_at": "2023-10-24",
+      "fetched_at": "2026-08-10T07:41:08Z",
+      "checked_at": "2026-08-10T07:41:08Z",
+      "effective_at": "2024-01-01",
+      "excerpt": "第三十二至三十六条规定未成年人个人信息最小必要、查阅复制和最小授权；第四十三至四十六条规定未成年人模式、消费管理、消费限额和网络游戏身份核验。",
+      "data_scope": "全国未成年人网络保护、个人信息和消费管理",
+      "used_at": "法定义务、个人信息最小化和政策覆盖",
+      "content_hash": "minor-network-protection-regulation-2024-v1",
+      "source_role": "official_policy"
+    },
+    {
+      "key": "beijing_court_press_2025",
+      "source_name": "北京市人民政府新闻办公室、北京互联网法院",
+      "page_title": "“‘e’起护苗·守护成长”北京市未成年人网络司法保护新闻发布会",
+      "url": "https://www.beijing.gov.cn/shipin/Interviewlive/1234.html",
+      "publisher": "北京市人民政府门户网站",
+      "published_at": "2025-05-28",
+      "fetched_at": "2026-08-10T07:41:08Z",
+      "checked_at": "2026-08-10T07:41:08Z",
+      "effective_at": "2025-05-28",
+      "excerpt": "北京互联网法院院长介绍，近三年来共审结涉未成年人游戏充值和直播打赏案件近700件，单案最高标的额310万元，平均标的额8万余元；法院还开展示范诉讼、司法建议和平台治理。",
+      "data_scope": {
+        "time_period": "发布会口径为2025年5月前近三年",
+        "region": "北京互联网法院",
+        "population": "已审结的涉未成年人游戏充值和直播打赏案件",
+        "unit": "件、元",
+        "definition": "案件近700件，单案最高标的额310万元，平均标的额8万余元"
+      },
+      "used_at": "争议规模和北京司法需求，不用于推导平台机制恶化",
+      "content_hash": "beijing-internet-court-press-2025-v1",
+      "source_role": "official_data"
+    },
+    {
+      "key": "peoples_daily_investigation",
+      "source_name": "人民日报",
+      "page_title": "收钱审核松、退款要举证——未成年人网络消费“退款难”，难在哪",
+      "url": "https://paper.people.com.cn/rmrb/pc/attachement/202606/08/bc7b3261-72d6-4d6f-98a0-3f02711af98a.pdf",
+      "publisher": "人民日报",
+      "published_at": "2026-06-08",
+      "fetched_at": "2026-08-10T07:41:08Z",
+      "checked_at": "2026-08-10T07:41:08Z",
+      "effective_at": "2026-06-08",
+      "excerpt": "调查记录身份、监护关系、账单和误操作影像等补件困难，并指出平台掌握IP、设备和操作习惯等后台信息；同时记录成年人冒充未成年人退款导致平台审慎核验的风险。",
+      "data_scope": "多个地区的未成年人网络消费退款个案和专家访谈，不代表总体统计",
+      "used_at": "真实痛点、信息不对称和退款欺诈反证",
+      "content_hash": "peoples-daily-minor-refund-2026-06-08-v1",
+      "source_role": "media_investigation"
+    },
+    {
+      "key": "huawei_refund_guide",
+      "source_name": "华为终端有限公司",
+      "page_title": "未成年自助申诉退款入口及资料填写指引",
+      "url": "https://consumer.huawei.com/cn/support/content/zh-cn16019794/",
+      "publisher": "华为消费者业务官网",
+      "published_at": null,
+      "fetched_at": "2026-08-10T07:41:08Z",
+      "checked_at": "2026-08-10T07:41:08Z",
+      "effective_at": "2026-08-10",
+      "excerpt": "公开指引要求身份和监护关系证明，并对银行流水中订单覆盖比例和盖章作出具体说明；支持查询进度和重新补充资料，资料审核通过后显示退款金额。",
+      "data_scope": "华为游戏中心当前公开的未成年人消费申诉退款流程",
+      "used_at": "代表性平台家庭材料和补件流程",
+      "content_hash": "huawei-minor-refund-guide-checked-2026-08-10",
+      "source_role": "platform_rule"
+    },
+    {
+      "key": "douyin_refund_guide",
+      "source_name": "抖音开放平台",
+      "page_title": "未成年人退款功能使用指南",
+      "url": "https://partner.open-douyin.com/docs/resource/zh-CN/mini-game/guide/business-guide/revenue/refund",
+      "publisher": "抖音开放平台",
+      "published_at": "2025-07-07",
+      "fetched_at": "2026-08-10T07:41:08Z",
+      "checked_at": "2026-08-10T07:41:08Z",
+      "effective_at": "2025-07-07",
+      "excerpt": "平台先审用户材料，向开发者提供设备、订单、年龄段和初审结果；开发者须在5个自然日内处理并为拒绝上传辅助证据，平台复审；用户可在7个自然日内线上补件且无需重新申请。",
+      "data_scope": "抖音小游戏当前公开的未成年人退款开发者处理流程",
+      "used_at": "平台数据、经营者举证、复审和补件的成熟反证",
+      "content_hash": "douyin-minor-refund-guide-2025-07-07-v1",
+      "source_role": "platform_rule"
+    },
+    {
+      "key": "kuaishou_dispute_rule",
+      "source_name": "快手开放平台",
+      "page_title": "小程序交易争议执行标准",
+      "url": "https://open.kuaishou.com/docs/operate/reviewSpecification/service-performance/disputeResolutionStandards.html",
+      "publisher": "快手开放平台",
+      "published_at": "2025-09-18",
+      "fetched_at": "2026-08-10T07:41:08Z",
+      "checked_at": "2026-08-10T07:41:08Z",
+      "effective_at": "2025-09-18",
+      "excerpt": "规则对未成年人退款列为无条件退款，由平台核对身份证、承诺书等材料并保护隐私，同时注明单个账号的无行为能力人或限制行为能力人退款申请只能成功一次。",
+      "data_scope": "包含交易功能的快手小程序交易争议处理",
+      "used_at": "平台规则差异、反欺诈与二次真实申请误伤风险",
+      "content_hash": "kuaishou-miniapp-dispute-2025-09-18-v1",
+      "source_role": "platform_rule"
+    },
+    {
+      "key": "isc_draft_notice",
+      "source_name": "中国互联网协会",
+      "page_title": "关于《未成年人网络游戏服务消费管理要求》团体标准（征求意见稿）公开征求意见的通知",
+      "url": "https://www.isc.org.cn/article/20891286499618816.html",
+      "publisher": "中国互联网协会",
+      "published_at": "2024-05-28",
+      "fetched_at": "2026-08-10T07:41:08Z",
+      "checked_at": "2026-08-10T07:41:08Z",
+      "effective_at": null,
+      "excerpt": "通知明确该文件为团体标准征求意见稿，征求意见截至2024年6月27日；本轮截至2026年8月10日未在协会公开检索中找到正式发布公告。",
+      "data_scope": "团体标准制定状态",
+      "used_at": "区分草案与生效规则、制度新意反证",
+      "content_hash": "isc-minor-game-consumption-draft-notice-2024-v1",
+      "source_role": "industry_draft"
+    },
+    {
+      "key": "isc_draft_text",
+      "source_name": "中国互联网协会",
+      "page_title": "未成年人网络游戏服务消费管理要求（征求意见稿）",
+      "url": "https://www.isc.org.cn/profile/2024/05/28/f72733bc-017b-4114-be1f-188bd96a2f73.pdf",
+      "publisher": "中国互联网协会",
+      "published_at": "2024-05-28",
+      "fetched_at": "2026-08-10T07:41:08Z",
+      "checked_at": "2026-08-10T07:41:08Z",
+      "effective_at": null,
+      "excerpt": "草案涉及消费记录、监护关系核验、最小必要收集、使用平台已掌握信息审查、不得要求无关材料、过错分担和诉讼中提交平台记录等内容，编号仍为T/ISC XXXX—XXXX。",
+      "data_scope": "网络游戏未成年人消费和退费的团体标准征求意见稿",
+      "used_at": "既有机制反证和试点评估表的参考来源，不作为现行强制规则",
+      "content_hash": "isc-minor-game-consumption-draft-text-2024-v1",
+      "source_role": "industry_draft"
+    },
+    {
+      "key": "personal_information_law",
+      "source_name": "全国人民代表大会常务委员会",
+      "page_title": "中华人民共和国个人信息保护法",
+      "url": "https://www.npc.gov.cn/npc/c2/c30834/202108/t20210820_313088.html",
+      "publisher": "中国人大网",
+      "published_at": "2021-08-20",
+      "fetched_at": "2026-08-10T07:41:08Z",
+      "checked_at": "2026-08-10T07:41:08Z",
+      "effective_at": "2021-11-01",
+      "excerpt": "第六条要求目的明确、直接相关、影响最小和最小范围收集；第二十八至三十条将不满十四周岁未成年人的信息、金融账户、生物识别等列为敏感个人信息并要求充分必要和严格保护。",
+      "data_scope": "全国个人信息处理和敏感个人信息保护",
+      "used_at": "最小凭证、脱敏结果和禁止过度实名核验",
+      "content_hash": "pipl-2021-v1",
+      "source_role": "official_law"
+    },
+    {
+      "key": "spc_evidence_rules",
+      "source_name": "最高人民法院",
+      "page_title": "最高人民法院关于修改《关于民事诉讼证据的若干规定》的决定",
+      "url": "https://gongbao.court.gov.cn/Details/0c15319f2bdbabb8e398035f775385.html",
+      "publisher": "最高人民法院公报",
+      "published_at": "2019-12-26",
+      "fetched_at": "2026-08-10T07:41:08Z",
+      "checked_at": "2026-08-10T07:41:08Z",
+      "effective_at": "2020-05-01",
+      "excerpt": "第九十五条规定，一方控制证据而无正当理由拒不提交时，人民法院可以依法对相关主张作出认定。",
+      "data_scope": "全国民事诉讼证据认定规则",
+      "used_at": "区分平台内部举证规则与人民法院诉讼举证权",
+      "content_hash": "spc-civil-evidence-rules-2019-v1",
+      "source_role": "judicial_rule"
+    },
+    {
+      "key": "beijing_platform_meeting",
+      "source_name": "北京市市场监督管理局等五部门",
+      "page_title": "市市场监管局等五部门联合召开我市平台企业工作指导会",
+      "url": "https://scjgj.beijing.gov.cn/zwxx/scjgdt/202503/t20250313_4034189.html",
+      "publisher": "北京市市场监督管理局",
+      "published_at": "2025-03-13",
+      "fetched_at": "2026-08-10T07:41:08Z",
+      "checked_at": "2026-08-10T07:41:08Z",
+      "effective_at": "2025-03-13",
+      "excerpt": "北京市市场监管、网信、公安、商务和通信管理五部门已联合召开平台企业指导会，要求迅速核查处置市民诉求并保护个人信息；京东、美团、小米、抖音等平台参会。",
+      "data_scope": "北京市多部门平台企业行政指导机制",
+      "used_at": "复用现有协同载体，不新建机构或平台",
+      "content_hash": "beijing-platform-guidance-meeting-2025-v1",
+      "source_role": "official_governance"
+    },
+    {
+      "key": "large_minor_platform_recognition",
+      "source_name": "国家互联网信息办公室等八部门",
+      "page_title": "关于印发《未成年人用户数量巨大和对未成年人群体具有显著影响的网络平台服务提供者认定办法》的通知",
+      "url": "https://www.cac.gov.cn/2026-02/28/c_1774010730056867.htm",
+      "publisher": "中央网络安全和信息化委员会办公室",
+      "published_at": "2026-02-28",
+      "fetched_at": "2026-08-10T07:41:08Z",
+      "checked_at": "2026-08-10T07:41:08Z",
+      "effective_at": "2026-04-01",
+      "excerpt": "办法明确大型或对未成年人具有显著影响平台的认定标准、申请、论证和监督程序，要求避免影响正常生产经营，并将未成年人消费金额纳入显著影响考量。",
+      "data_scope": "全国对未成年人影响显著的平台认定程序",
+      "used_at": "风险分级、试点对象和2026年政策窗口",
+      "content_hash": "large-minor-platform-recognition-2026-v1",
+      "source_role": "official_policy"
+    },
+    {
+      "key": "beijing_court_case_report",
+      "source_name": "中央广播电视总台《法治在线》",
+      "page_title": "消费限制被轻松解除，未成年人打赏的45万多元能退还吗",
+      "url": "https://news.cnr.cn/native/gd/kx/20250417/t20250417_527138248.shtml",
+      "publisher": "央广网",
+      "published_at": "2025-04-17",
+      "fetched_at": "2026-08-10T07:41:08Z",
+      "checked_at": "2026-08-10T07:41:08Z",
+      "effective_at": "2025-04-17",
+      "excerpt": "北京法院案件中，平台原有消费限制，但仅凭电话询问解除；二审认为平台审核存在严重疏漏，同时认定未成年人及监护人也有责任，维持平台退还24万元的判决。",
+      "data_scope": "北京互联网法院和北京市第四中级人民法院已审结的单一案件",
+      "used_at": "前端限制解除记录和多方过错的机制实例，不外推为行业总体",
+      "content_hash": "beijing-minor-tipping-case-cnr-2025-v1",
+      "source_role": "court_case_report"
+    }
+  ],
+  "claims": [
+    {
+      "id": "minor-refund-claim-01",
+      "claim_text": "自2026年2月1日起，网络交易平台规则已经必须公平设置交易纠纷各方举证责任，为不利处理提供申诉、复核和人工判定，并防范减轻举证责任后的规则滥用",
+      "claim_type": "policy",
+      "importance": "critical",
+      "novelty_required": false,
+      "policy_coverage_status": "covered",
+      "epistemic_status": "verified_fact",
+      "confidence": "high",
+      "uncertainty_reason": "该办法仅直接适用于其定义的网络交易平台及平台规则活动，不能当然覆盖所有自营网络游戏服务",
+      "falsifier": "主管部门废止、修改该办法，或正式解释明确相关条款不适用于所研究的平台内纠纷规则",
+      "as_of_date": "2026-08-10T07:41:08Z",
+      "conflicts": [],
+      "sources": [
+        {
+          "source": "platform_rule_measures",
+          "role": "supports",
+          "origin_group": "samr-cac-platform-rule-measures-2026",
+          "source_level": 1,
+          "primary_source": true
+        }
+      ]
+    },
+    {
+      "id": "minor-refund-claim-02",
+      "claim_text": "现行国家规则已经覆盖未成年人消费限额、打赏限额修改确认、疑似未成年人核验、异常消费确认、记录留存和退款纠纷处置，不能再主张基本保护制度完全空白",
+      "claim_type": "policy",
+      "importance": "critical",
+      "novelty_required": false,
+      "policy_coverage_status": "covered",
+      "epistemic_status": "verified_fact",
+      "confidence": "high",
+      "uncertainty_reason": "不同业态的具体义务范围不同，直播打赏通知不能直接替代网络游戏或一般电商规则",
+      "falsifier": "有关法规或通知被废止，或正式解释显示上述义务不再有效",
+      "as_of_date": "2026-08-10T07:41:08Z",
+      "conflicts": [],
+      "sources": [
+        {
+          "source": "cac_tipping_notice",
+          "role": "supports",
+          "origin_group": "cac-live-tipping-notice-2026",
+          "source_level": 1,
+          "primary_source": true
+        },
+        {
+          "source": "minor_network_regulation",
+          "role": "supports",
+          "origin_group": "state-council-minor-network-regulation",
+          "source_level": 1,
+          "primary_source": true
+        }
+      ]
+    },
+    {
+      "id": "minor-refund-claim-03",
+      "claim_text": "北京市政府2025年新闻发布会披露，北京互联网法院近三年审结涉未成年人游戏充值和直播打赏案件近700件，单案最高标的额310万元，平均标的额8万余元",
+      "claim_type": "statistic",
+      "importance": "critical",
+      "novelty_required": false,
+      "policy_coverage_status": "not_applicable",
+      "epistemic_status": "verified_fact",
+      "confidence": "high",
+      "uncertainty_reason": "公开口径为“近三年”和“近700件”，未给出精确起止日及精确件数；案件数据不能推导平台机制恶化的原因",
+      "falsifier": "北京互联网法院或北京市政府对该发布会数据发布正式更正或撤回",
+      "as_of_date": "2026-08-10T07:41:08Z",
+      "scope": {
+        "time_period": "2025年5月前近三年",
+        "region": "北京互联网法院",
+        "population": "已审结的涉未成年人游戏充值和直播打赏案件",
+        "unit": "件、元",
+        "definition": "案件近700件，单案最高标的额310万元，平均标的额8万余元"
+      },
+      "conflicts": [],
+      "sources": [
+        {
+          "source": "beijing_court_press_2025",
+          "role": "supports",
+          "origin_group": "beijing-government-court-press-2025",
+          "source_level": 1,
+          "primary_source": true
+        }
+      ]
+    },
+    {
+      "id": "minor-refund-claim-04",
+      "claim_text": "少量代表性平台的当前公开规则在家庭材料、平台数据使用、开发者举证、复核方式和反欺诈限制上存在实质差异",
+      "claim_type": "mechanism",
+      "importance": "supporting",
+      "novelty_required": false,
+      "policy_coverage_status": "partial",
+      "epistemic_status": "verified_fact",
+      "confidence": "medium",
+      "uncertainty_reason": "只核验了华为游戏中心、抖音小游戏和快手小程序公开页面，公开规则不等于实际执行效果，也不代表全部平台",
+      "falsifier": "相关平台更新公开规则使差异消失，或实际执行审计证明页面差异不影响处理流程和结果",
+      "as_of_date": "2026-08-10T07:41:08Z",
+      "conflicts": [],
+      "sources": [
+        {
+          "source": "huawei_refund_guide",
+          "role": "supports",
+          "origin_group": "huawei-minor-refund-rule",
+          "source_level": 3,
+          "primary_source": true
+        },
+        {
+          "source": "douyin_refund_guide",
+          "role": "supports",
+          "origin_group": "douyin-minor-refund-rule",
+          "source_level": 3,
+          "primary_source": true
+        },
+        {
+          "source": "kuaishou_dispute_rule",
+          "role": "supports",
+          "origin_group": "kuaishou-miniapp-dispute-rule",
+          "source_level": 3,
+          "primary_source": true
+        },
+        {
+          "source": "peoples_daily_investigation",
+          "role": "supports",
+          "origin_group": "peoples-daily-minor-refund-investigation",
+          "source_level": 2,
+          "primary_source": true,
+          "notes": "用于验证现实材料差异和家庭补件痛点，不用于证明平台总体执行比例。"
+        }
+      ]
+    },
+    {
+      "id": "minor-refund-claim-05",
+      "claim_text": "截至2026年8月10日核验的公开文件，北京已有一般平台规则合规指引和多部门治理载体，但尚未显示面向未成年人高风险虚拟消费、同时评估家庭最低材料、平台控制证据、一次性补件和人工复核的北京专项公开标准",
+      "claim_type": "novelty",
+      "importance": "critical",
+      "novelty_required": true,
+      "policy_coverage_status": "gap_supported",
+      "epistemic_status": "evidence_based_inference",
+      "confidence": "medium",
+      "uncertainty_reason": "这是对限定公开检索结果的判断，不能排除未公开内部标准、企业个别协议或后续新文件",
+      "falsifier": "北京市主管部门、法院或行业组织公布已经覆盖上述四类要素并实际运行的专项规则、评审表或试点结果",
+      "as_of_date": "2026-08-10T07:41:08Z",
+      "reasoning": "2025年北京公开指引设置一般合规评审和消费者保护机制；2026年国家办法新增公平举证、人工复核和省级专家评审；北京地方条例及多部门指导会提供执行载体。本轮对北京政府、市场监管和网信公开页面的定向检索未找到四类要素合并的专项公开文本，因此只能作边界明确的公开资料推断。",
+      "conflicts": [
+        {
+          "description": "2024年中国互联网协会征求意见稿已包含网络游戏退费核验、最小必要信息和平台记录等相近内容",
+          "resolved": true,
+          "resolution": "该文件明确为征求意见稿，且范围限于网络游戏；它否定“机制全新”，但不等于北京已经建立跨场景专项评估标准。"
+        },
+        {
+          "description": "抖音小游戏现行规则已有开发者举证、平台复审和用户补件",
+          "resolved": true,
+          "resolution": "该规则证明机制可行，也把缺口限定为北京跨平台评估与结果核验，而非单个平台完全没有机制。"
+        }
+      ],
+      "sources": [
+        {
+          "source": "platform_rule_measures",
+          "role": "supports",
+          "origin_group": "samr-cac-platform-rule-measures-2026",
+          "source_level": 1,
+          "primary_source": true,
+          "notes": "证明2026年新增的国家评审和举证要求。"
+        },
+        {
+          "source": "beijing_rule_guide",
+          "role": "supports",
+          "origin_group": "beijing-market-regulation-guide-2025",
+          "source_level": 1,
+          "primary_source": true,
+          "notes": "证明北京已有一般合规指引；公开文本未设置本主张所列的未成年人专项四要素。"
+        },
+        {
+          "source": "beijing_minor_regulation",
+          "role": "supports",
+          "origin_group": "beijing-minor-regulation",
+          "source_level": 1,
+          "primary_source": true,
+          "notes": "证明北京已有未成年人保护、投诉和检查载体。"
+        },
+        {
+          "source": "beijing_platform_meeting",
+          "role": "supports",
+          "origin_group": "beijing-platform-guidance-mechanism",
+          "source_level": 1,
+          "primary_source": true,
+          "notes": "证明多部门平台行政指导载体已经存在。"
+        }
+      ]
+    },
+    {
+      "id": "minor-refund-claim-06",
+      "claim_text": "北京市具有依现行规则组织平台规则专家评审、开展未成年人保护检查、调取交易记录并复用投诉和多部门指导机制进行小范围试点的权限与载体",
+      "claim_type": "authority",
+      "importance": "critical",
+      "novelty_required": false,
+      "policy_coverage_status": "covered",
+      "epistemic_status": "verified_fact",
+      "confidence": "high",
+      "uncertainty_reason": "具体平台是否属于北京市辖区以及网络游戏、直播、小游戏分别由哪个部门牵头，仍需在实施方案中按业态确认",
+      "falsifier": "正式权限解释认定北京市无权对辖区平台规则组织评审，或相关地方监督检查条款被废止",
+      "as_of_date": "2026-08-10T07:41:08Z",
+      "conflicts": [],
+      "sources": [
+        {
+          "source": "platform_rule_measures",
+          "role": "supports",
+          "origin_group": "samr-cac-platform-rule-measures-2026",
+          "source_level": 1,
+          "primary_source": true
+        },
+        {
+          "source": "beijing_minor_regulation",
+          "role": "supports",
+          "origin_group": "beijing-minor-regulation",
+          "source_level": 1,
+          "primary_source": true
+        },
+        {
+          "source": "beijing_platform_meeting",
+          "role": "supports",
+          "origin_group": "beijing-platform-guidance-mechanism",
+          "source_level": 1,
+          "primary_source": true
+        }
+      ]
+    },
+    {
+      "id": "minor-refund-claim-07",
+      "claim_text": "北京可以评估和改进平台内部争议处理规则，但不能以地方行政试点改变人民法院的民事诉讼举证规则或直接制定全国统一退款比例",
+      "claim_type": "authority_boundary",
+      "importance": "critical",
+      "novelty_required": false,
+      "policy_coverage_status": "covered",
+      "epistemic_status": "evidence_based_inference",
+      "confidence": "high",
+      "uncertainty_reason": "个案中平台规则、合同效力和诉讼举证如何衔接仍由有权机关依法判断，地方可以向上提出制度建议但不能自行替代国家规则",
+      "falsifier": "上位法或司法解释明确授权地方行政部门直接调整民事诉讼举证责任或统一实体退款比例",
+      "as_of_date": "2026-08-10T07:41:08Z",
+      "reasoning": "平台规则监管办法调整平台规则的制定和执行；最高人民法院证据规则规定诉讼中控制证据拒不提交的法律后果。两者属于不同程序和权限层级，因此地方试点应限定在平台内部争议处理、行政指导和向上建议。",
+      "conflicts": [],
+      "sources": [
+        {
+          "source": "platform_rule_measures",
+          "role": "supports",
+          "origin_group": "samr-cac-platform-rule-measures-2026",
+          "source_level": 1,
+          "primary_source": true
+        },
+        {
+          "source": "spc_evidence_rules",
+          "role": "supports",
+          "origin_group": "spc-civil-evidence-rules",
+          "source_level": 1,
+          "primary_source": true
+        }
+      ]
+    },
+    {
+      "id": "minor-refund-claim-08",
+      "claim_text": "退款核验涉及的未成年人身份、监护关系、人脸、金融账户、设备和轨迹信息必须遵循目的明确、最小必要、最小授权和严格保护，不能以试点为由新增普遍全量收集",
+      "claim_type": "privacy",
+      "importance": "critical",
+      "novelty_required": false,
+      "policy_coverage_status": "covered",
+      "epistemic_status": "verified_fact",
+      "confidence": "high",
+      "uncertainty_reason": "具体必要字段和保存期限需按不同业务的法定义务、争议周期和既有记录分别确定，不能仅凭本研究统一设定",
+      "falsifier": "个人信息保护法或未成年人网络保护条例被修改并取消相关最小必要和敏感信息保护要求",
+      "as_of_date": "2026-08-10T07:41:08Z",
+      "conflicts": [],
+      "sources": [
+        {
+          "source": "personal_information_law",
+          "role": "supports",
+          "origin_group": "national-personal-information-law",
+          "source_level": 1,
+          "primary_source": true
+        },
+        {
+          "source": "minor_network_regulation",
+          "role": "supports",
+          "origin_group": "state-council-minor-network-regulation",
+          "source_level": 1,
+          "primary_source": true
+        }
+      ]
+    },
+    {
+      "id": "minor-refund-claim-09",
+      "claim_text": "公开个案和调查同时显示两类相反风险：平台前端核验或限额解除可能过松，家庭事后又可能被要求提供其难以掌握的证明；成年人冒充未成年人退款也是真实的反欺诈约束",
+      "claim_type": "mechanism",
+      "importance": "supporting",
+      "novelty_required": false,
+      "policy_coverage_status": "partial",
+      "epistemic_status": "evidence_based_inference",
+      "confidence": "medium",
+      "uncertainty_reason": "材料来自具体案件和媒体调查，只能证明机制风险存在，不能量化各类风险在行业中的发生率",
+      "falsifier": "代表性平台审计和大样本争议数据证明前后端核验强度不存在显著错配，且冒名退款风险可忽略",
+      "as_of_date": "2026-08-10T07:41:08Z",
+      "reasoning": "北京已审结案件展示了限额解除核验过松，人民日报调查展示了家庭补件和平台受控证据问题，同时明确记录冒名退款风险；三者要求规则同时约束错误拒绝与欺诈退款。",
+      "conflicts": [],
+      "sources": [
+        {
+          "source": "beijing_court_case_report",
+          "role": "supports",
+          "origin_group": "beijing-court-minor-tipping-case-2025",
+          "source_level": 2,
+          "primary_source": false
+        },
+        {
+          "source": "peoples_daily_investigation",
+          "role": "supports",
+          "origin_group": "peoples-daily-minor-refund-investigation",
+          "source_level": 2,
+          "primary_source": true
+        }
+      ]
+    },
+    {
+      "id": "minor-refund-claim-10",
+      "claim_text": "中国互联网协会2024年公开文本已提出网络游戏退费核验、平台记录和过错分担等相近机制，但该文件明确是征求意见稿，不能作为已经生效的统一行业标准",
+      "claim_type": "counterevidence",
+      "importance": "supporting",
+      "novelty_required": false,
+      "policy_coverage_status": "partial",
+      "epistemic_status": "verified_fact",
+      "confidence": "high",
+      "uncertainty_reason": "本轮公开检索未找到正式发布公告不等于最终标准绝对未发布，正式写作只能表述为截至核验公开信息仍为征求意见稿",
+      "falsifier": "中国互联网协会或全国团体标准信息平台公布该标准的正式编号、生效日期和正式文本",
+      "as_of_date": "2026-08-10T07:41:08Z",
+      "conflicts": [],
+      "sources": [
+        {
+          "source": "isc_draft_notice",
+          "role": "supports",
+          "origin_group": "isc-minor-game-consumption-standard-draft",
+          "source_level": 2,
+          "primary_source": true
+        },
+        {
+          "source": "isc_draft_text",
+          "role": "supports",
+          "origin_group": "isc-minor-game-consumption-standard-draft",
+          "source_level": 2,
+          "primary_source": true
+        }
+      ]
+    },
+    {
+      "id": "minor-refund-claim-11",
+      "claim_text": "2026年平台规则监管、重要未成年人平台认定和直播打赏管理三项新规相继施行，为北京在不评价新规失败的前提下开展执行性专项评估提供了明确政策窗口",
+      "claim_type": "policy_window",
+      "importance": "critical",
+      "novelty_required": false,
+      "policy_coverage_status": "covered",
+      "epistemic_status": "evidence_based_inference",
+      "confidence": "high",
+      "uncertainty_reason": "新规实施时间较短，尚无公开对照数据证明专项评估一定改善结果，因此只能建议试点观察",
+      "falsifier": "主管部门已经完成同类全国统一执行评估并发布覆盖北京所提机制的强制标准，或新规被暂停、废止",
+      "as_of_date": "2026-08-10T07:41:08Z",
+      "reasoning": "三项规则分别提供平台内部举证和复核框架、风险分级对象以及直播打赏前端核验和记录要求，时间上均在2026年生效，适合以地方执行评估而非新增原则立法作为切口。",
+      "conflicts": [],
+      "sources": [
+        {
+          "source": "platform_rule_measures",
+          "role": "supports",
+          "origin_group": "samr-cac-platform-rule-measures-2026",
+          "source_level": 1,
+          "primary_source": true
+        },
+        {
+          "source": "large_minor_platform_recognition",
+          "role": "supports",
+          "origin_group": "eight-department-large-minor-platform-recognition",
+          "source_level": 1,
+          "primary_source": true
+        },
+        {
+          "source": "cac_tipping_notice",
+          "role": "supports",
+          "origin_group": "cac-live-tipping-notice-2026",
+          "source_level": 1,
+          "primary_source": true
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,202 @@
+{
+  "run_id": "2026-08-24-0a7f2865",
+  "candidate_id": "C3",
+  "topic_id": "beijing-platform-invoice-order-routing-2026-08",
+  "working_title": "关于完善北京市平台消费订单级开票异常协同处置机制的建议",
+  "decision": "stop",
+  "decision_reason": "policy_covered",
+  "confidence": "medium",
+  "confidence_reason": "北京官方材料已经证明，税务部门曾以美团为切口，通过精准派单快速定位被诉主体，并建立税企联动和闭环办理；2026年又在网上交易等场景推进交易即开票试点。公开资料没有证明所有平台均向消费者提供统一的订单号投诉入口，但已足以否定原候选关于北京缺少平台开票协同机制的宽泛判断。",
+  "sources": [
+    {
+      "key": "beijing_tax_proactive_governance",
+      "url": "https://www.bjszjggw.gov.cn/res/bulletin/1017_13135/1726638302228_m.html",
+      "publisher": "北京市直机关工委（北京市税务局供稿）",
+      "published_at": "2024-09-18",
+      "checked_at": "2026-08-24T12:33:40Z",
+      "source_level": 1,
+      "source_role": "official_policy",
+      "origin_group": "beijing-tax-proactive-governance-2023",
+      "excerpt": "北京税务以美团开票难为突破口实施精准派单、快速定位被诉主体，税企联动办理，工单时长由5天压缩至3天，并形成接、办、督、反、评、防闭环。"
+    },
+    {
+      "key": "beijing_transaction_invoice_pilot",
+      "url": "https://www.beijing.gov.cn/fuwu/lqfw/gggs/202604/t20260408_4576833.html",
+      "publisher": "首都之窗（国家税务总局北京市税务局）",
+      "published_at": "2026-04-08",
+      "checked_at": "2026-08-24T12:33:40Z",
+      "source_level": 1,
+      "source_role": "official_data",
+      "origin_group": "beijing-transaction-invoice-pilot-2026",
+      "excerpt": "北京在网上交易等10余个场景开展交易即开票试点，已有66家企业参与、累计开票4200万份；京东第三方商家应开未开投诉量较接入前下降15.43%。"
+    },
+    {
+      "key": "platform_tax_information_rules",
+      "url": "https://shanghai.chinatax.gov.cn/zzzb/zcwj/202506/t476759.html",
+      "publisher": "国家税务总局上海市税务局（国务院令第810号）",
+      "published_at": "2025-06-25",
+      "checked_at": "2026-08-24T12:33:40Z",
+      "source_level": 1,
+      "source_role": "official_policy",
+      "origin_group": "state-council-platform-tax-information-2025",
+      "excerpt": "平台应报送平台内经营者身份和收入信息；税务机关开展检查或发现涉税风险时，可以要求平台提供合同订单、交易明细、资金账户和物流等信息。"
+    },
+    {
+      "key": "tax_violation_reporting_rules",
+      "url": "https://www.chinatax.gov.cn/chinatax/n810214/n810641/c102061/c102062/c5171544/content.html",
+      "publisher": "国家税务总局",
+      "published_at": "2019-11-26",
+      "checked_at": "2026-08-24T12:33:40Z",
+      "source_level": 1,
+      "source_role": "official_policy",
+      "origin_group": "tax-violation-reporting-measures-2019",
+      "excerpt": "检举人应提供被检举人名称、地址和违法线索；12366对应该开具而未开具发票的事项直接转交被检举人主管税务机关相关业务部门。"
+    },
+    {
+      "key": "peoples_daily_invoice_investigation",
+      "url": "https://paper.people.com.cn/rmrb/pad/content/202608/10/content_30173936.html",
+      "publisher": "人民日报",
+      "published_at": "2026-08-10",
+      "checked_at": "2026-08-24T12:33:40Z",
+      "source_level": 2,
+      "source_role": "media_investigation",
+      "origin_group": "peoples-daily-platform-invoice-2026",
+      "excerpt": "调查列出北京当当订单、美团演出票和企业236个未开票订单；北京消费者通过税务网站举报时仍需填写商家名称、地区和地址。"
+    }
+  ],
+  "verified_facts": [
+    {
+      "statement": "北京税务已经针对平台企业开票难建立过税企协同和精准派单机制，并以美团作为具体治理切口。",
+      "source_keys": ["beijing_tax_proactive_governance"]
+    },
+    {
+      "statement": "北京已在网上交易等场景推进交易即开票试点，官方公布已有66家企业参与，并披露了开票量和投诉量下降数据。",
+      "source_keys": ["beijing_transaction_invoice_pilot"]
+    },
+    {
+      "statement": "现行国家规则已经要求平台向税务机关报送经营者身份等涉税信息，并允许税务机关在检查或发现风险时调取订单和交易明细。",
+      "source_keys": ["platform_tax_information_rules"]
+    },
+    {
+      "statement": "税收违法检举规则仍要求检举人提供被检举人名称和地址，对应开未开发票事项由12366转交被检举人主管税务机关。",
+      "source_keys": ["tax_violation_reporting_rules"]
+    },
+    {
+      "statement": "2026年8月的调查仍记录了北京消费者在平台索票和税务举报中的具体困难，说明既有机制尚未覆盖所有平台、商户或交易场景。",
+      "source_keys": ["peoples_daily_invoice_investigation"]
+    }
+  ],
+  "evidence_based_inferences": [
+    {
+      "statement": "候选原先关于北京缺少平台开票协同机制的判断不成立，真实问题更可能是既有机制的覆盖范围、跨平台标准化和消费者入口不一致。",
+      "basis": "北京已有美团精准派单、税企联动和交易即开票试点，而最新调查仍出现未覆盖案例。",
+      "uncertainty": "公开材料未披露美团机制是否允许消费者直接提交订单号，也未公布66家试点企业完整名单和各平台覆盖率。",
+      "falsifier": "如官方公开资料证明上述机制仅处理纳税人咨询、完全不处理消费者应开未开诉求，则不能据此否定原候选。",
+      "source_keys": ["beijing_tax_proactive_governance", "beijing_transaction_invoice_pilot", "peoples_daily_invoice_investigation"]
+    },
+    {
+      "statement": "技术和数据基础并非主要障碍，平台覆盖意愿、统一接口成本、跨区域管辖和异常订单分流更可能是剩余约束。",
+      "basis": "平台已定期报送经营者信息，税务机关依法可以调取订单数据，北京也已有直连开票和精准派单案例。",
+      "uncertainty": "涉税信息报送主要服务税收监管，并不当然允许直接复用于每一件消费者投诉。",
+      "falsifier": "若数据保护、税收管辖或现有系统结构证明订单数据不能合法、低成本地用于投诉分流，则该推断需要修改。",
+      "source_keys": ["platform_tax_information_rules", "beijing_tax_proactive_governance", "beijing_transaction_invoice_pilot"]
+    }
+  ],
+  "unverified_hypotheses": [
+    {
+      "statement": "北京现有平台开票协同机制尚未形成面向所有主要平台、由消费者直接使用的统一订单号入口。",
+      "verification_plan": "后续如重新研究，应向北京税务公开服务说明、12345办事指南和主要平台订单页面逐一核验入口与适用范围。",
+      "discard_if": "发现统一入口已覆盖主要平台且可凭订单号自动定位商家和管辖税务机关。"
+    },
+    {
+      "statement": "现有交易即开票试点对非自营小商户的覆盖率仍有限。",
+      "verification_plan": "取得试点企业名单、平台内商户接入率和分场景投诉数据。",
+      "discard_if": "公开数据证明高投诉平台和非自营商户已基本覆盖。"
+    }
+  ],
+  "analyst_judgments": [
+    {
+      "statement": "不应继续以新建订单级联办机制为核心建议。",
+      "rationale": "这会重复北京已有的精准派单、税企联动和交易即开票实践，并掩盖真正需要评估的是扩围效果与未覆盖原因。"
+    },
+    {
+      "statement": "若未来出现覆盖率或执行效果数据，可另立扩围评估题，而不是沿用本候选。",
+      "rationale": "扩围需要平台分层、成本核算和跨区域权限分析，已经是不同于原候选的新问题机制。"
+    }
+  ],
+  "counterevidence": [
+    {
+      "statement": "北京已形成针对平台开票诉求的精准派单、快速定位、税企联动和闭环办理案例。",
+      "implication": "直接否定‘北京没有平台开票协同机制’这一原始制度缺口。",
+      "source_keys": ["beijing_tax_proactive_governance"]
+    },
+    {
+      "statement": "北京正在以交易即开票方式从源头减少网上交易等场景的不开票投诉。",
+      "implication": "建议不能重复提出笼统的数据打通或自动开票，而必须证明未覆盖对象和扩围边际收益。",
+      "source_keys": ["beijing_transaction_invoice_pilot"]
+    }
+  ],
+  "alternative_explanations": [
+    {
+      "statement": "最新投诉可能主要来自尚未接入试点的特定平台、业务板块或商家，而不是北京整体协同机制失效。",
+      "test": "按平台、自营与第三方、商品与服务、商家属地拆分投诉样本，并与试点覆盖名单比对。"
+    },
+    {
+      "statement": "部分开票延迟可能源于商家退出、开票资格或交易性质争议，而非订单信息无法识别。",
+      "test": "核对典型订单中的经营主体状态、发票义务、平台规则和税务处理结果。"
+    }
+  ],
+  "critical_unknowns": [
+    {
+      "question": "美团精准派单是否向消费者提供订单号直达入口，还是仅为12345工单后的后台协同？",
+      "blocking": false,
+      "resolution_plan": "本题因原始缺口已被反证而停止；如未来研究扩围题，再核对12345、12366和平台端实际流程。"
+    },
+    {
+      "question": "66家交易即开票试点企业覆盖哪些网上平台和第三方商户？",
+      "blocking": false,
+      "resolution_plan": "未来仅在取得试点名单、覆盖率和分场景投诉数据后评估扩围价值。"
+    }
+  ],
+  "discard_conditions": [
+    "北京已存在平台开票精准派单和税企联动机制，原制度空白假设不成立。",
+    "没有试点覆盖率和分平台投诉数据时，不得把残余个案外推为全市机制普遍失效。"
+  ],
+  "authority": {
+    "actor": "国家税务总局北京市税务局、北京市12345和相关平台企业",
+    "power": "北京可优化接诉即办派单、推进交易即开票试点和开展税企诉求协同。",
+    "boundary": "地方不能自行改变国家税收违法检举的法定形式要求；跨省经营主体管辖、平台数据复用和全国统一接口需要国家税务总局协调。"
+  },
+  "research_questions": [
+    "如未来重新立题，首先核验现有精准派单和交易即开票的覆盖名单、入口、处理时限及未覆盖原因。",
+    "比较按平台扩围、按高投诉商户扩围和只优化12345后台派单三种方案的边际成本与收益。"
+  ],
+  "budget": {
+    "token_limit": 10000,
+    "reason": "有限预研只核验原缺口是否已被北京现行机制覆盖，不投入正式深研预算。",
+    "expected_benefit": "在源头停止重复建议，避免继续消耗深研和写作Token。"
+  },
+  "mechanism_cards": [
+    {
+      "proposal": "不新建重复联办机制；如未来有覆盖数据，再评估既有精准派单和交易即开票的分层扩围",
+      "actor": "北京市税务局会同12345和相关平台企业",
+      "target": "既有机制尚未覆盖且应开未开投诉较集中的平台业务和商户",
+      "trigger": "分平台投诉率、重复投诉率或平均处理时长持续高于试点基线",
+      "information": "平台订单与商家主体映射、税务管辖、投诉类别、处理时长和结果",
+      "cost_bearer": "税务部门和纳入扩围的平台承担接口与流程调整成本，高风险商户承担纠正成本",
+      "beneficiary": "消费者、守规商户、平台客服和税务基层办理人员",
+      "expected_behavior": "平台优先推动高投诉商户合规开票，税务部门减少人工查找和跨区域错派",
+      "evasion_risk": "平台可能只选择低风险自营业务接入，或通过重新分类投诉降低表面投诉率",
+      "cost_transfer_risk": "平台可能把接口成本转为商户服务费，最终转嫁消费者或中小商户",
+      "verification": "按平台和业务类型比较覆盖率、重复投诉率、办结时长及重新开票结果，不以开票总量单独考核",
+      "correction": "保留错误派单纠正、商户异议、消费者补充证据和跨区域转办机制",
+      "exit_condition": "扩围未降低处理成本，或数据安全与跨区域协调成本高于收益时停止",
+      "lower_cost_alternative": "先优化现有12345后台派单和平台客服直联，不建设新的消费者端系统",
+      "scenarios": {
+        "baseline": "维持现有平台专项治理和66家交易即开票试点，残余投诉按现有渠道处理",
+        "most_likely": "针对高投诉平台小范围扩围可减少人工定位和重复转办，但不能消除全部商户拒票",
+        "adverse": "全面强制接入导致接口成本上升、数据过度共享或中小商户退出平台"
+      }
+    }
+  ]
+}

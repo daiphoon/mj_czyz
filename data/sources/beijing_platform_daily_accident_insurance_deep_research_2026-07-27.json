@@ -1,0 +1,484 @@
+{
+  "topic_id": "beijing-platform-daily-accident-insurance-2026-07",
+  "sources": [
+    {
+      "key": "bjfc_parallel_case",
+      "source_name": "北京金融法院",
+      "page_title": "金典案例｜新就业形态从业人员职业伤害保障与商业意外伤害保险“并行不悖”",
+      "url": "https://bjfc.bjcourt.gov.cn/cac/1747031052844.html",
+      "publisher": "北京金融法院",
+      "published_at": "2025-05-06",
+      "fetched_at": "2026-07-27",
+      "excerpt": "平台从骑手收入中自动划扣按日意外险保费，合作公司为名义投保人；保险公司未向实际缴费骑手提示新职伤免责条款，法院判令支付60万元保险金。",
+      "data_scope": "北京金融法院审理的新就业形态从业人员商业意外险生效案例",
+      "used_at": "实际缴费人与名义投保人错位、免责提示对象、新职伤与商业人身保险关系",
+      "content_hash": "bjfc-parallel-case-20250506"
+    },
+    {
+      "key": "bjfc_penetration_case",
+      "source_name": "北京金融法院",
+      "page_title": "人民司法｜新业态骑手意外险中实际投保人及保险责任的穿透认定",
+      "url": "https://bjfc.bjcourt.gov.cn/cac/1775094097998.html",
+      "publisher": "北京金融法院",
+      "published_at": "2026-03-31",
+      "fetched_at": "2026-07-27",
+      "excerpt": "案件涉及保险公司、平台、平台合作商、平台控制的保险经纪公司和骑手；骑手每天接单前点击投保，3元保费从报酬扣除，法院穿透认定骑手为实际投保人。",
+      "data_scope": "北京金融法院审理的众包骑手按日意外险生效案例及裁判分析",
+      "used_at": "多层交易结构、实际投保人、平台内投保和自动扣费、免责告知对象",
+      "content_hash": "bjfc-penetration-case-20260331"
+    },
+    {
+      "key": "bjfc_multiple_rights",
+      "source_name": "北京金融法院",
+      "page_title": "法律适用｜厉莉：新就业形态从业人员多重保险权益关系的司法认定",
+      "url": "https://bjfc.bjcourt.gov.cn/cac/1760144963420.html",
+      "publisher": "北京金融法院",
+      "published_at": "2025-10-10",
+      "fetched_at": "2026-07-27",
+      "excerpt": "文章梳理北京法院两个典型案件，认为定额给付型商业意外险不因新职伤赔付而当然免赔，并分析平台场景中的强制购买、保险权益转让和分类衔接问题。",
+      "data_scope": "北京金融法院法官基于典型案件形成的司法研究",
+      "used_at": "定额给付与费用补偿分类、选择权、请求权转让、机制建议",
+      "content_hash": "bjfc-multiple-rights-20251010"
+    },
+    {
+      "key": "jiangsu_difference_case",
+      "source_name": "江苏法院网",
+      "page_title": "骑手获“新职伤”赔付后，商业保险不得拒赔",
+      "url": "https://www.jsfy.gov.cn/article/107701.html",
+      "publisher": "江苏省高级人民法院",
+      "published_at": "2026-07-17",
+      "fetched_at": "2026-07-27",
+      "excerpt": "平台每日扣除2.5元购买相关意外保险；骑手已获330元职业伤害医疗待遇后，法院对同一医疗费用作差额处理，判令商业保险赔付4525元。",
+      "data_scope": "江苏新沂法院审理、江苏高院网站发布的骑手意外险纠纷",
+      "used_at": "跨地区重复争议、费用补偿型产品差额处理、提示说明义务",
+      "content_hash": "jiangsu-difference-case-20260717"
+    },
+    {
+      "key": "beijing_trial_notice",
+      "source_name": "北京市人力资源和社会保障局等九部门",
+      "page_title": "关于北京市扩大新就业形态人员职业伤害保障试点有关工作的通知",
+      "url": "https://rsj.beijing.gov.cn/xxgk/2024zcwj/202508/t20250815_4174228.html",
+      "publisher": "北京市人力资源和社会保障局",
+      "published_at": "2025-08-15",
+      "fetched_at": "2026-07-27",
+      "excerpt": "平台企业按单缴纳职业伤害保障费；北京金融监管局支持发展与职业伤害保障相衔接的商业保险产品；通知鼓励平台优化商业保险保障模式。",
+      "data_scope": "北京市新就业形态人员职业伤害保障试点扩围和部门职责",
+      "used_at": "现行制度、地方权限、商业保险衔接政策基础",
+      "content_hash": "beijing-trial-notice-20250815"
+    },
+    {
+      "key": "beijing_procedures",
+      "source_name": "北京市人力资源和社会保障局、国家税务总局北京市税务局",
+      "page_title": "北京市新就业形态人员职业伤害保障业务经办细则（试行）",
+      "url": "https://rsj.beijing.gov.cn/xxgk/2024zcwj/202508/t20250821_4179318.html",
+      "publisher": "北京市人力资源和社会保障局",
+      "published_at": "2025-08-20",
+      "fetched_at": "2026-07-27",
+      "excerpt": "细则规定职业伤害保障费由平台缴纳，并设置事故备案、限时申请、一次性补正和一体化经办；平台可另外购买人身意外、雇主责任等商业保险。",
+      "data_scope": "北京市职业伤害保障业务经办全流程",
+      "used_at": "反证原经办缺口、法定保障与商业保险边界、现有系统复用",
+      "content_hash": "beijing-occupational-injury-procedures-20250820"
+    },
+    {
+      "key": "beijing_fast_claims",
+      "source_name": "北京市人力资源和社会保障局",
+      "page_title": "累计参保2990.2万人！本月起“新职伤”扩围全国",
+      "url": "https://rsj.beijing.gov.cn/zmsxw/xwsl/202607/t20260709_4753927.html",
+      "publisher": "北京市人力资源和社会保障局",
+      "published_at": "2026-07-03",
+      "fetched_at": "2026-07-27",
+      "excerpt": "北京“小伤快赔”将材料从10项压缩至5项，平均理赔时效缩短至10天，较以往压缩75%以上。",
+      "data_scope": "全国新职伤扩围及北京经办服务公开案例",
+      "used_at": "反证北京职业伤害保障经办普遍不畅的原假设",
+      "content_hash": "beijing-fast-claims-20260703"
+    },
+    {
+      "key": "insurance_sales_rules",
+      "source_name": "国家金融监督管理总局",
+      "page_title": "保险销售行为管理办法",
+      "url": "https://www.nfra.gov.cn/cn/view/pages/rulesDetail.html?docId=1129945",
+      "publisher": "国家金融监督管理总局",
+      "published_at": "2023-09-28",
+      "fetched_at": "2026-07-27",
+      "excerpt": "要求向投保人提示并说明免责条款，以销售页面和操作轨迹等方式实施可回溯管理，核保后及时提供保单，并在保险公司官方线上平台提供查询。",
+      "data_scope": "全国保险销售前、中、后行为",
+      "used_at": "现有一般披露、确认、回溯和保单查询义务",
+      "content_hash": "insurance-sales-rules-20230928"
+    },
+    {
+      "key": "internet_insurance_rules",
+      "source_name": "中国银行保险监督管理委员会",
+      "page_title": "互联网保险业务监管办法",
+      "url": "https://www.nfra.gov.cn/cn/view/pages/rulesDetail.html?docId=949137",
+      "publisher": "国家金融监督管理总局",
+      "published_at": "2020-12-14",
+      "fetched_at": "2026-07-27",
+      "excerpt": "互联网保险销售页面应突出免责条款、理赔条件和流程；保险机构应向客户提供保单，并提供可查询、下载和验真的访问方式。",
+      "data_scope": "全国互联网保险经营、销售、保单和服务管理",
+      "used_at": "平台内保险销售的一般规则和现有系统能力",
+      "content_hash": "internet-insurance-rules-20201214"
+    },
+    {
+      "key": "accident_insurance_rules",
+      "source_name": "中国银行保险监督管理委员会",
+      "page_title": "意外伤害保险业务监管办法",
+      "url": "https://www.nfra.gov.cn/chinese/docfile/2021/e7ddba0f1d5747b2ad25a463e3eab907.pdf",
+      "publisher": "国家金融监督管理总局",
+      "published_at": "2021-10-13",
+      "fetched_at": "2026-07-27",
+      "excerpt": "办法针对意外险赔付率低、佣金畸高、销售行为不规范等问题，对产品、销售、信息披露和佣金费用实施监管。",
+      "data_scope": "全国意外伤害保险业务",
+      "used_at": "现行专项监管基础和行业问题边界",
+      "content_hash": "accident-insurance-rules-20211013"
+    },
+    {
+      "key": "beijing_financial_plan",
+      "source_name": "国家金融监督管理总局北京监管局",
+      "page_title": "北京金融监管局关于强监管防风险促改革推动财险业高质量发展工作方案",
+      "url": "https://www.nfra.gov.cn/branch/beijing/view/pages/common/ItemDetail.html?docId=1203594&itemId=1853",
+      "publisher": "国家金融监督管理总局北京监管局",
+      "published_at": "2025-04-03",
+      "fetched_at": "2026-07-27",
+      "excerpt": "工作方案要求规范营销宣传和信息披露、提升理赔服务质效，并加强财险与中介机构数据真实性监管和重点风险监测。",
+      "data_scope": "北京地区财产保险和保险中介监管",
+      "used_at": "北京属地监管权限、风险触发检查和不新建监管体系",
+      "content_hash": "beijing-financial-plan-20250403"
+    },
+    {
+      "key": "worker_daily_protection",
+      "source_name": "工人日报、北京金融法院",
+      "page_title": "3元钱的保障",
+      "url": "https://bjfc.bjcourt.gov.cn/cac/1752570062329.html",
+      "publisher": "北京金融法院",
+      "published_at": "2025-07-10",
+      "fetched_at": "2026-07-27",
+      "excerpt": "生效判决后，案涉保险公司与部分骑手就批量纠纷和解，并调整保险产品的入市模式和条款；报道同时指出，个案裁判仍不足以替代源头规则。",
+      "data_scope": "工人日报对北京骑手按日意外险生效案件及后续整改的调查报道，由北京金融法院网站转载",
+      "used_at": "反方审查、避免把旧产品个案误写为全行业当前状态、验证整改可行性",
+      "content_hash": "worker-daily-protection-20250710"
+    }
+  ],
+  "claims": [
+    {
+      "id": "daily-accident-claim-01",
+      "claim_text": "北京市职业伤害保障已明确由平台企业按单缴费，并建立事故备案、限时申请、一次性补正和一体化经办流程，原候选所称一般经办衔接缺口没有得到证据支持",
+      "claim_type": "counterevidence",
+      "importance": "critical",
+      "sources": [
+        {
+          "source": "beijing_trial_notice",
+          "role": "supports",
+          "origin_group": "beijing-occupational-injury-notice",
+          "source_level": 1,
+          "primary_source": true
+        },
+        {
+          "source": "beijing_procedures",
+          "role": "supports",
+          "origin_group": "beijing-occupational-injury-procedures",
+          "source_level": 1,
+          "primary_source": true
+        },
+        {
+          "source": "beijing_fast_claims",
+          "role": "supports",
+          "origin_group": "beijing-fast-claims-report",
+          "source_level": 1,
+          "primary_source": true
+        }
+      ]
+    },
+    {
+      "id": "daily-accident-claim-02",
+      "claim_text": "北京公开司法案例中的平台按日意外险存在名义投保人与实际缴费人分离、保险公司和保险经纪等多层主体嵌套的交易结构",
+      "claim_type": "mechanism",
+      "importance": "critical",
+      "sources": [
+        {
+          "source": "bjfc_parallel_case",
+          "role": "supports",
+          "origin_group": "bjfc-parallel-case",
+          "source_level": 1,
+          "primary_source": true
+        },
+        {
+          "source": "bjfc_penetration_case",
+          "role": "supports",
+          "origin_group": "bjfc-penetration-case",
+          "source_level": 1,
+          "primary_source": true
+        }
+      ]
+    },
+    {
+      "id": "daily-accident-claim-03",
+      "claim_text": "在北京金融法院公开的不同案例中，按日保费由骑手报酬扣除，但保险公司仅向名义投保人或保险经纪提示条款，实际缴费骑手没有直接获得关键免责说明",
+      "claim_type": "pain_point",
+      "importance": "critical",
+      "sources": [
+        {
+          "source": "bjfc_parallel_case",
+          "role": "supports",
+          "origin_group": "bjfc-parallel-case",
+          "source_level": 1,
+          "primary_source": true
+        },
+        {
+          "source": "bjfc_penetration_case",
+          "role": "supports",
+          "origin_group": "bjfc-penetration-case",
+          "source_level": 1,
+          "primary_source": true
+        }
+      ]
+    },
+    {
+      "id": "daily-accident-claim-04",
+      "claim_text": "保险公司以劳动者已获职业伤害保障待遇为由拒绝商业意外险赔付的争议，在北京和江苏不同案件中均有发生",
+      "claim_type": "recurrence",
+      "importance": "critical",
+      "sources": [
+        {
+          "source": "bjfc_parallel_case",
+          "role": "supports",
+          "origin_group": "bjfc-parallel-case",
+          "source_level": 1,
+          "primary_source": true
+        },
+        {
+          "source": "bjfc_multiple_rights",
+          "role": "supports",
+          "origin_group": "bjfc-liu-fixed-benefit-case",
+          "source_level": 1,
+          "primary_source": true
+        },
+        {
+          "source": "jiangsu_difference_case",
+          "role": "supports",
+          "origin_group": "jiangsu-xinyi-medical-expense-case",
+          "source_level": 1,
+          "primary_source": true
+        }
+      ]
+    },
+    {
+      "id": "daily-accident-claim-05",
+      "claim_text": "定额给付型人身意外险与费用补偿型医疗保障应区分处理：前者不因已获职业伤害待遇而当然免赔，后者可就同一实际医疗费用按已补偿金额作差额处理",
+      "claim_type": "legal_mechanism",
+      "importance": "critical",
+      "sources": [
+        {
+          "source": "bjfc_multiple_rights",
+          "role": "supports",
+          "origin_group": "bjfc-liu-fixed-benefit-case",
+          "source_level": 1,
+          "primary_source": true
+        },
+        {
+          "source": "jiangsu_difference_case",
+          "role": "supports",
+          "origin_group": "jiangsu-xinyi-medical-expense-case",
+          "source_level": 1,
+          "primary_source": true
+        }
+      ]
+    },
+    {
+      "id": "daily-accident-claim-06",
+      "claim_text": "公开案例中的按日投保流程要求骑手接单前点击购买并从报酬扣费，劳动者对是否购买和选择产品的实际自主空间有限",
+      "claim_type": "pain_point",
+      "importance": "critical",
+      "sources": [
+        {
+          "source": "bjfc_penetration_case",
+          "role": "supports",
+          "origin_group": "bjfc-penetration-case",
+          "source_level": 1,
+          "primary_source": true
+        },
+        {
+          "source": "bjfc_multiple_rights",
+          "role": "supports",
+          "origin_group": "bjfc-multiple-rights-analysis",
+          "source_level": 1,
+          "primary_source": true
+        }
+      ]
+    },
+    {
+      "id": "daily-accident-claim-07",
+      "claim_text": "现行保险销售和互联网保险规则已经要求提示免责条款、保存销售操作轨迹、提供电子保单以及官方查询验真渠道",
+      "claim_type": "policy",
+      "importance": "critical",
+      "sources": [
+        {
+          "source": "insurance_sales_rules",
+          "role": "supports",
+          "origin_group": "insurance-sales-rules",
+          "source_level": 1,
+          "primary_source": true
+        },
+        {
+          "source": "internet_insurance_rules",
+          "role": "supports",
+          "origin_group": "internet-insurance-rules",
+          "source_level": 1,
+          "primary_source": true
+        },
+        {
+          "source": "accident_insurance_rules",
+          "role": "supports",
+          "origin_group": "accident-insurance-rules",
+          "source_level": 1,
+          "primary_source": true
+        }
+      ]
+    },
+    {
+      "id": "daily-accident-claim-08",
+      "claim_text": "北京市现行政策已经鼓励平台另行购买人身意外、雇主责任等商业保险，并明确北京金融监管局支持发展与职业伤害保障相衔接的商业保险产品",
+      "claim_type": "authority",
+      "importance": "critical",
+      "sources": [
+        {
+          "source": "beijing_trial_notice",
+          "role": "supports",
+          "origin_group": "beijing-occupational-injury-notice",
+          "source_level": 1,
+          "primary_source": true
+        },
+        {
+          "source": "beijing_procedures",
+          "role": "supports",
+          "origin_group": "beijing-occupational-injury-procedures",
+          "source_level": 1,
+          "primary_source": true
+        }
+      ]
+    },
+    {
+      "id": "daily-accident-claim-09",
+      "claim_text": "现有公开规则已覆盖一般保险销售披露和保单查询，但尚未说明平台按日险中如何穿透名义投保人向实际扣费劳动者直接确认、如何分类衔接职业伤害待遇；2025年事故和2026年公开案件显示该执行问题仍有现实性",
+      "claim_type": "novelty",
+      "importance": "critical",
+      "novelty_required": true,
+      "policy_coverage_status": "gap_supported",
+      "sources": [
+        {
+          "source": "insurance_sales_rules",
+          "role": "supports",
+          "origin_group": "insurance-sales-rules",
+          "source_level": 1,
+          "primary_source": true,
+          "notes": "证明一般披露、保单和可回溯义务已经存在，新建议只能作场景化执行细化。"
+        },
+        {
+          "source": "internet_insurance_rules",
+          "role": "supports",
+          "origin_group": "internet-insurance-rules",
+          "source_level": 1,
+          "primary_source": true,
+          "notes": "证明互联网销售页面、电子保单和查询渠道已有原则性要求。"
+        },
+        {
+          "source": "bjfc_penetration_case",
+          "role": "supports",
+          "origin_group": "bjfc-penetration-case",
+          "source_level": 1,
+          "primary_source": true,
+          "notes": "证明名义投保人和多层交易可能使一般义务无法直接触达实际付款骑手。"
+        },
+        {
+          "source": "jiangsu_difference_case",
+          "role": "supports",
+          "origin_group": "jiangsu-xinyi-medical-expense-case",
+          "source_level": 1,
+          "primary_source": true,
+          "notes": "证明2025年事故中仍出现新职伤与商业保险全部免责争议。"
+        },
+        {
+          "source": "beijing_trial_notice",
+          "role": "supports",
+          "origin_group": "beijing-occupational-injury-notice",
+          "source_level": 1,
+          "primary_source": true,
+          "notes": "证明北京公开政策只提出优化、衔接商业保险的原则，地方具有开展执行细化的政策基础。"
+        }
+      ]
+    },
+    {
+      "id": "daily-accident-claim-10",
+      "claim_text": "北京金融监管部门已有规范保险营销宣传、信息披露、理赔服务和财险中介数据真实性的监管职责与工作载体",
+      "claim_type": "authority",
+      "importance": "critical",
+      "sources": [
+        {
+          "source": "beijing_financial_plan",
+          "role": "supports",
+          "origin_group": "beijing-financial-regulatory-plan",
+          "source_level": 1,
+          "primary_source": true
+        },
+        {
+          "source": "beijing_trial_notice",
+          "role": "supports",
+          "origin_group": "beijing-occupational-injury-notice",
+          "source_level": 1,
+          "primary_source": true
+        }
+      ]
+    },
+    {
+      "id": "daily-accident-claim-11",
+      "claim_text": "北京现有职业伤害报案、平台客户端和保险公司官方查询渠道可作为提示和验真的现有载体，不必为商业保险衔接新建信息平台",
+      "claim_type": "implementation",
+      "importance": "supporting",
+      "sources": [
+        {
+          "source": "beijing_trial_notice",
+          "role": "supports",
+          "origin_group": "beijing-occupational-injury-notice",
+          "source_level": 1,
+          "primary_source": true
+        },
+        {
+          "source": "internet_insurance_rules",
+          "role": "supports",
+          "origin_group": "internet-insurance-rules",
+          "source_level": 1,
+          "primary_source": true
+        },
+        {
+          "source": "insurance_sales_rules",
+          "role": "supports",
+          "origin_group": "insurance-sales-rules",
+          "source_level": 1,
+          "primary_source": true
+        }
+      ]
+    },
+    {
+      "id": "daily-accident-claim-12",
+      "claim_text": "北京生效判决已促使案涉保险公司和解部分批量纠纷并调整产品入市模式和条款，因此不能把旧案件描述为所有平台和保险公司的当前普遍状态；后续机制应针对仍采用同类交易结构的产品",
+      "claim_type": "counterevidence",
+      "importance": "critical",
+      "sources": [
+        {
+          "source": "worker_daily_protection",
+          "role": "supports",
+          "origin_group": "worker-daily-protection-followup",
+          "source_level": 1,
+          "primary_source": true
+        },
+        {
+          "source": "jiangsu_difference_case",
+          "role": "supports",
+          "origin_group": "jiangsu-xinyi-medical-expense-case",
+          "source_level": 1,
+          "primary_source": true,
+          "notes": "证明个别产品整改后，2025年事故中仍有相似的职业伤害待遇与商业保险拒赔争议，制定定向而非全行业一刀切规则仍有必要。"
+        }
+      ]
+    }
+  ]
+}

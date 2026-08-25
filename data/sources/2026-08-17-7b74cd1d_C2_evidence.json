@@ -1,0 +1,592 @@
+{
+  "topic_id": "beijing-hidden-employment-evidence-triage-2026-08",
+  "sources": [
+    {
+      "key": "beijing_worker_operation_manual",
+      "source_name": "北京市劳动人事争议调解仲裁网上服务平台",
+      "page_title": "劳动者操作手册",
+      "url": "https://fuwu.rsj.beijing.gov.cn/zhrs/api4/arbitration/public/doc/%E5%8A%B3%E5%8A%A8%E8%80%85%E6%93%8D%E4%BD%9C%E6%89%8B%E5%86%8C.pdf",
+      "publisher": "北京市人力资源和社会保障局大数据中心",
+      "fetched_at": "2026-08-17T04:45:25Z",
+      "checked_at": "2026-08-17T04:45:25Z",
+      "excerpt": "申请调解时在被申请人页面输入用人单位名称；调解转仲裁页面自动显示原申请人、被申请人和请求事项，申请人及被申请人信息只能查看、不可修改；上传证据页面可添加新的证据；立案后增加参与人需提前联系案件承办人员开通权限。",
+      "data_scope": "北京市劳动者在线申请调解、调解转仲裁、在线仲裁及立案后增加参与人的公开操作流程；本地证据快照为 data/sources/snapshots/2026-08-17_beijing_labor_arbitration_manual.pdf",
+      "used_at": "现行线上流程、主体字段、转仲裁校正节点和制度新意核验",
+      "content_hash": "eac94c116aee8590b36632fb8119fc73fa6a9c708acd66f487f8333c8a54ee0a",
+      "source_role": "official_process"
+    },
+    {
+      "key": "beijing_online_mediation_notice",
+      "source_name": "北京市劳动人事争议调解仲裁网上服务平台",
+      "page_title": "在线申请劳动人事争议调解须知",
+      "url": "https://fuwu.rsj.beijing.gov.cn/zhrs/api4/arbitration/html/sqtj/sqtj_ydxz",
+      "publisher": "北京市人力资源和社会保障局大数据中心",
+      "fetched_at": "2026-08-17T04:45:25Z",
+      "checked_at": "2026-08-17T04:45:25Z",
+      "excerpt": "调解不成后，申请人可将原调解申请转为仲裁立案申请，系统自动将原调解申请书转化为仲裁申请书；申请人可增加、变更或撤销相关请求。",
+      "data_scope": "北京市劳动者在线调解申请、审核、调解时限和转仲裁规则",
+      "used_at": "确认北京已存在自动转仲裁衔接，排除另建衔接平台的重复建议",
+      "content_hash": "beijing-online-mediation-notice-checked-2026-08-17",
+      "source_role": "official_process"
+    },
+    {
+      "key": "beijing_online_arbitration_notice",
+      "source_name": "北京市劳动人事争议调解仲裁网上服务平台",
+      "page_title": "在线申请劳动人事争议仲裁须知",
+      "url": "https://fuwu.rsj.beijing.gov.cn/zhrs/api4/arbitration//html/fsq/fsq_ydxz",
+      "publisher": "北京市人力资源和社会保障局大数据中心",
+      "fetched_at": "2026-08-17T04:45:25Z",
+      "checked_at": "2026-08-17T04:45:25Z",
+      "excerpt": "在线仲裁申请要求有明确的被申请人；立案后如需增加共同被申请人（非劳务派遣）或变更请求，需联系仲裁委员会开通相应权限后操作。",
+      "data_scope": "北京市在线劳动人事争议仲裁的受理、材料、立案及立案后操作规则",
+      "used_at": "确认正式被申请人要求和现有追加主体纠错路径",
+      "content_hash": "beijing-online-arbitration-notice-checked-2026-08-17",
+      "source_role": "official_process"
+    },
+    {
+      "key": "beijing_one_stop_notice",
+      "source_name": "北京市人力资源和社会保障局等六部门",
+      "page_title": "关于加强本市新就业形态劳动纠纷一站式调解工作的通知",
+      "url": "https://rsj.beijing.gov.cn/xxgk/2024zcwj/202501/t20250122_3996364.html",
+      "publisher": "北京市人力资源和社会保障局",
+      "published_at": "2025-01-22",
+      "effective_at": "2025-01-10",
+      "fetched_at": "2026-08-17T04:45:25Z",
+      "checked_at": "2026-08-17T04:45:25Z",
+      "excerpt": "北京已建立人社牵头、部门协同、行业参与的一站式调解格局，要求指导当事人填写个人、用人单位、请求和事实理由，并利用现有平台开展全流程在线调解及救济衔接。",
+      "data_scope": "北京市新就业形态劳动纠纷一站式调解组织、受理、流程和部门协同",
+      "used_at": "现有政策覆盖、执行载体和权限边界",
+      "content_hash": "beijing-one-stop-mediation-2025-current-2026-08-17",
+      "source_role": "official_policy"
+    },
+    {
+      "key": "beijing_2025_rule_of_law_report",
+      "source_name": "北京市人力资源和社会保障局",
+      "page_title": "2025年法治政府建设年度情况报告",
+      "url": "https://rsj.beijing.gov.cn/xxgk/zfxxgk/ghjh_1/202602/t20260228_4545356.html",
+      "publisher": "北京市人力资源和社会保障局",
+      "published_at": "2026-02-28",
+      "fetched_at": "2026-08-17T04:45:25Z",
+      "checked_at": "2026-08-17T04:45:25Z",
+      "excerpt": "2025年新建新业态劳动纠纷一站式解纷站点150余家，就近就地调解纠纷1万余件。",
+      "data_scope": "2025年度北京市人社法治建设工作；站点数和调解件数为汇总口径，未分列隐蔽用工或主体补正情况",
+      "used_at": "证明现有承载网络规模并限定统计外推边界",
+      "content_hash": "beijing-hrss-rule-of-law-report-2025-v1",
+      "source_role": "official_data"
+    },
+    {
+      "key": "haidian_qinghe_coordination",
+      "source_name": "北京市海淀区人民政府",
+      "page_title": "北京市劳动人事争议仲裁委清河派出庭联合海淀法院、海淀仲裁院开展劳动争议巡回审判暨三方联动座谈活动",
+      "url": "https://www.bjhd.gov.cn/ztzx/2022/zwxmt/zxxx/202605/t20260514_4815041.shtml",
+      "publisher": "北京市海淀区人民政府（来源：清河街道）",
+      "published_at": "2026-05-13",
+      "fetched_at": "2026-08-17T04:45:25Z",
+      "checked_at": "2026-08-17T04:45:25Z",
+      "excerpt": "清河已打通派出庭、街道调解室、新就业形态一站式调解站和社区观测站之间的层级联动渠道，形成信息互通、资源共享、调裁衔接机制。",
+      "data_scope": "海淀区清河街道劳动争议调解、仲裁和审判衔接实践",
+      "used_at": "最强反证、海淀试点基础和避免重复建设",
+      "content_hash": "haidian-qinghe-coordination-2026-05-13-v1",
+      "source_role": "official_practice"
+    },
+    {
+      "key": "fangshan_hidden_employment_cases",
+      "source_name": "中国青年报客户端",
+      "page_title": "毕业季用工花式“障眼法”频出 法院通报典型案例敲警钟",
+      "url": "https://news.cyol.com/gb/jiaoyu/articles/2026-07/17/content_6zpV83TdKn.html",
+      "publisher": "中国青年报",
+      "published_at": "2026-07-17",
+      "fetched_at": "2026-08-17T04:45:25Z",
+      "checked_at": "2026-08-17T04:45:25Z",
+      "excerpt": "房山法院发布四起隐蔽用工典型案例；其中骑手案例的报酬代发主体、平台显示主体和实际排班考勤管理主体并不一致。",
+      "data_scope": "房山区法院2026年7月新闻通报会披露的四起典型案例；典型案例不能用于推算发生率",
+      "used_at": "证明多主体错位的现实场景与受影响群体",
+      "content_hash": "fangshan-hidden-employment-cases-2026-07-17-v1",
+      "source_role": "media_investigation"
+    },
+    {
+      "key": "beijing_2023_arbitration_case",
+      "source_name": "北京市人力资源和社会保障局",
+      "page_title": "2023年北京市劳动人事争议仲裁典型案例",
+      "url": "https://rsj.beijing.gov.cn/bm/ztzl/dxal/202312/t20231229_3518105.html",
+      "publisher": "北京市人力资源和社会保障局",
+      "published_at": "2023-12-29",
+      "fetched_at": "2026-08-17T04:45:25Z",
+      "checked_at": "2026-08-17T04:45:25Z",
+      "excerpt": "平台加盟商与另一人力资源公司均否认劳动关系；工资名义上由后者发放，但工资来源、明细和考勤管理均指向加盟商，仲裁最终认定劳动关系主体为加盟商。",
+      "data_scope": "北京市2023年仲裁典型案例中的平台加盟商用工主体认定个案",
+      "used_at": "交叉验证协议方、付款方和实际管理方分离的多主体场景",
+      "content_hash": "beijing-arbitration-typical-case-2023-platform-v1",
+      "source_role": "court_case"
+    },
+    {
+      "key": "beijing_third_court_chain_outsourcing_case",
+      "source_name": "北京政法网",
+      "page_title": "劳动关系“绕弯弯” 用工主体责任不能“躲猫猫”",
+      "url": "https://www.bj148.org/wq/szfdw/bjsfy/202311/t20231122_1659633.html",
+      "publisher": "中共北京市委政法委员会（供稿：北京市第三中级人民法院）",
+      "published_at": "2023-11-22",
+      "fetched_at": "2026-08-17T04:45:25Z",
+      "checked_at": "2026-08-17T04:45:25Z",
+      "excerpt": "外卖业务经连环外包，工资由多家公司接替支付，劳动者又被登记为个体工商户；法院结合平台显示、保险和实际管理认定真实用工主体。",
+      "data_scope": "北京市第三中级人民法院审结的一起连环外包新就业形态劳动争议个案",
+      "used_at": "交叉验证多层外包和主体错位并非单一最新个案",
+      "content_hash": "beijing-third-court-chain-outsourcing-2023-v1",
+      "source_role": "court_case"
+    },
+    {
+      "key": "spc_new_employment_guiding_cases",
+      "source_name": "最高人民法院",
+      "page_title": "最高人民法院发布首批新就业形态劳动争议专题指导性案例",
+      "url": "https://www.court.gov.cn/zixun/xiangqing/450651.html",
+      "publisher": "最高人民法院",
+      "published_at": "2024-12-23",
+      "fetched_at": "2026-08-17T04:45:25Z",
+      "checked_at": "2026-08-17T04:45:25Z",
+      "excerpt": "劳动关系须按实际履行、支配性劳动管理、实际管理主体和报酬来源判断；同时，平台必要运营管理不当然构成劳动关系。",
+      "data_scope": "全国新就业形态劳动关系认定的指导性案例237至240号",
+      "used_at": "实体规则、正常外包防误伤和地方权限边界",
+      "content_hash": "spc-guiding-cases-237-240-2024-v1",
+      "source_role": "court_case"
+    },
+    {
+      "key": "labor_dispute_mediation_arbitration_law",
+      "source_name": "全国人民代表大会常务委员会",
+      "page_title": "中华人民共和国劳动争议调解仲裁法",
+      "url": "https://www.beijing.gov.cn/zhengce/zhengcefagui/qtwj/201912/t20191219_1307906.html",
+      "publisher": "北京市人民政府门户网站",
+      "published_at": "2007-12-29",
+      "effective_at": "2008-05-01",
+      "fetched_at": "2026-08-17T04:45:25Z",
+      "checked_at": "2026-08-17T04:45:25Z",
+      "excerpt": "用人单位掌握的争议证据应当提供；仲裁申请应载明用人单位信息及证据来源；有利害关系的第三人可申请或由仲裁委员会通知参加。",
+      "data_scope": "全国劳动争议调解与仲裁程序、举证责任及当事人规则",
+      "used_at": "证据责任、正式当事人认定和地方流程边界",
+      "content_hash": "labor-dispute-mediation-arbitration-law-current-2026-08-17",
+      "source_role": "official_policy"
+    },
+    {
+      "key": "labor_security_supervision_regulation",
+      "source_name": "国务院",
+      "page_title": "劳动保障监察条例",
+      "url": "https://www.samr.gov.cn/zw/zfxxgk/fdzdgknr/bgt/art/2023/art_88c06f0e9d2e4653b74ebd1409854ecd.html",
+      "publisher": "国家市场监督管理总局（法规转载）",
+      "published_at": "2004-11-01",
+      "effective_at": "2004-12-01",
+      "fetched_at": "2026-08-17T04:45:25Z",
+      "checked_at": "2026-08-17T04:45:25Z",
+      "excerpt": "劳动保障监察机构可进入场所、询问、要求提供相关文件资料并复制；隐匿、毁灭证据等不配合行为承担相应责任。",
+      "data_scope": "劳动保障监察职责、调查检查措施与法律责任",
+      "used_at": "区分调解提示、仲裁调查与监察强制调查权限",
+      "content_hash": "labor-security-supervision-regulation-current-2026-08-17",
+      "source_role": "official_policy"
+    },
+    {
+      "key": "personal_information_protection_law",
+      "source_name": "全国人民代表大会常务委员会",
+      "page_title": "中华人民共和国个人信息保护法",
+      "url": "https://www.cac.gov.cn/2021-08/20/c_1631050028355286.htm",
+      "publisher": "中央网络安全和信息化委员会办公室（来源：中国人大网）",
+      "published_at": "2021-08-20",
+      "effective_at": "2021-11-01",
+      "fetched_at": "2026-08-17T04:45:25Z",
+      "checked_at": "2026-08-17T04:45:25Z",
+      "excerpt": "处理个人信息应具有明确、合理目的并限于最小范围；国家机关处理个人信息不得超出履行法定职责所必需的范围和限度。",
+      "data_scope": "全国个人信息处理的一般原则和国家机关处理边界",
+      "used_at": "多主体线索字段、访问权限、保存期限和数据共享边界",
+      "content_hash": "personal-information-protection-law-current-2026-08-17",
+      "source_role": "official_policy"
+    },
+    {
+      "key": "beijing_2026_labor_service_plan",
+      "source_name": "北京市人力资源和社会保障局、北京市人才工作局",
+      "page_title": "人才服务与劳动者权益保障领域2026年全面打造国际一流“北京服务”持续优化营商环境工作方案",
+      "url": "https://www.beijing.gov.cn/zhengce/zhengcefagui/202605/t20260519_4657461.html",
+      "publisher": "北京市人民政府门户网站",
+      "published_at": "2026-05-18",
+      "fetched_at": "2026-08-17T04:45:25Z",
+      "checked_at": "2026-08-17T04:45:25Z",
+      "excerpt": "北京2026年将新设50个调解服务站，推进智慧仲裁和全市“AI+仲裁”，并对符合条件的新业态劳动争议快速移交仲裁、进入速裁程序。",
+      "data_scope": "北京市2026年劳动争议调解、智慧仲裁和新业态快速移交安排",
+      "used_at": "政策窗口和在现有系统中小范围改造的执行载体",
+      "content_hash": "beijing-labor-service-plan-2026-v1",
+      "source_role": "official_policy"
+    },
+    {
+      "key": "tibet_new_employment_green_channel",
+      "source_name": "西藏自治区人力资源和社会保障厅等四部门",
+      "page_title": "关于开通新就业群体劳动纠纷调处绿色通道的通知",
+      "url": "https://hrss.xizang.gov.cn/xwzx/tzgg/202605/t20260528_542576.html",
+      "publisher": "西藏自治区人力资源和社会保障厅",
+      "published_at": "2026-05-28",
+      "fetched_at": "2026-08-17T04:45:25Z",
+      "checked_at": "2026-08-17T04:45:25Z",
+      "excerpt": "职业伤害纠纷指引将平台运营企业、劳务合作企业、用工分包企业等列为可能的实际用工及管理主体，并列明协议、派单、报酬、考勤等材料；每增加一个被申请人或第三人需增加材料副本。",
+      "data_scope": "西藏新就业形态职业伤害纠纷绿色通道，属于窄场景比较案例，不能直接替代北京一般劳动争议规则",
+      "used_at": "验证场景化主体角色和证据清单具有可实施先例",
+      "content_hash": "tibet-new-employment-green-channel-2026-v1",
+      "source_role": "comparative_policy"
+    }
+  ],
+  "claims": [
+    {
+      "id": "hidden-employment-c2-claim-01",
+      "claim_text": "北京已实现调解申请自动转为仲裁申请，但现行公开流程要求明确被申请人；操作手册显示转仲裁时申请人和被申请人信息自动带入且只能查看、不可修改，立案后增加共同被申请人需联系仲裁委员会开通权限",
+      "claim_type": "process",
+      "importance": "critical",
+      "novelty_required": false,
+      "policy_coverage_status": "covered",
+      "epistemic_status": "verified_fact",
+      "confidence": "high",
+      "uncertainty_reason": "公开手册和须知能够证明面向办事人的当前操作路径，但不能展示后台全部内部操作权限或线下补正惯例",
+      "falsifier": "北京市人社部门更新公开平台、操作手册或正式说明，显示转仲裁前已可直接校正被申请人或结构化填写多个待核主体",
+      "as_of_date": "2026-08-17T04:45:25Z",
+      "conflicts": [],
+      "sources": [
+        {
+          "source": "beijing_worker_operation_manual",
+          "role": "supports",
+          "origin_group": "beijing-labor-online-service-current",
+          "source_level": 1,
+          "primary_source": true
+        },
+        {
+          "source": "beijing_online_mediation_notice",
+          "role": "supports",
+          "origin_group": "beijing-labor-online-service-current",
+          "source_level": 1,
+          "primary_source": true
+        },
+        {
+          "source": "beijing_online_arbitration_notice",
+          "role": "supports",
+          "origin_group": "beijing-labor-online-service-current",
+          "source_level": 1,
+          "primary_source": true
+        }
+      ]
+    },
+    {
+      "id": "hidden-employment-c2-claim-02",
+      "claim_text": "北京不同年份和程序的公开案例反复出现协议或外包主体、报酬支付主体、平台显示主体与实际排班考勤管理主体不一致的情形，真实用工主体需结合实际管理、报酬来源和平台记录判断",
+      "claim_type": "mechanism",
+      "importance": "critical",
+      "novelty_required": false,
+      "policy_coverage_status": "covered",
+      "epistemic_status": "verified_fact",
+      "confidence": "high",
+      "uncertainty_reason": "典型案例能证明机制在北京持续出现，但具有选案偏差，不能推算此类案件在全部新就业形态劳动争议中的发生率",
+      "falsifier": "相关发布机构正式撤回或更正案例，或核验表明各案例不存在主体错位和穿透识别事实",
+      "as_of_date": "2026-08-17T04:45:25Z",
+      "conflicts": [],
+      "sources": [
+        {
+          "source": "fangshan_hidden_employment_cases",
+          "role": "supports",
+          "origin_group": "fangshan-court-hidden-employment-press-conference-2026",
+          "source_level": 2,
+          "primary_source": true,
+          "notes": "媒体直接报道法院新闻通报会，用于证明具体案例机制，不用于估算规模。"
+        },
+        {
+          "source": "beijing_2023_arbitration_case",
+          "role": "supports",
+          "origin_group": "beijing-arbitration-platform-case-2023",
+          "source_level": 1,
+          "primary_source": true
+        },
+        {
+          "source": "beijing_third_court_chain_outsourcing_case",
+          "role": "supports",
+          "origin_group": "beijing-third-court-chain-outsourcing-case-2023",
+          "source_level": 1,
+          "primary_source": true
+        }
+      ]
+    },
+    {
+      "id": "hidden-employment-c2-claim-03",
+      "claim_text": "北京及海淀已经建立新就业形态劳动纠纷一站式调解、部门协同、在线调解、信息互通和调裁衔接机制，因此“北京缺少联动机制”这一宽泛前提不成立",
+      "claim_type": "counterevidence",
+      "importance": "critical",
+      "novelty_required": false,
+      "policy_coverage_status": "covered",
+      "epistemic_status": "verified_fact",
+      "confidence": "high",
+      "uncertainty_reason": "公开文件能证明制度和部分实践存在，但不能单独证明各站点在多主体隐蔽用工案件中的执行质量一致",
+      "falsifier": "相关政策被废止，或北京市、海淀区正式确认所述一站式及调裁衔接机制已停止运行",
+      "as_of_date": "2026-08-17T04:45:25Z",
+      "conflicts": [],
+      "sources": [
+        {
+          "source": "beijing_one_stop_notice",
+          "role": "supports",
+          "origin_group": "beijing-one-stop-mediation-policy-2025",
+          "source_level": 1,
+          "primary_source": true
+        },
+        {
+          "source": "haidian_qinghe_coordination",
+          "role": "supports",
+          "origin_group": "haidian-qinghe-coordination-practice-2026",
+          "source_level": 1,
+          "primary_source": true
+        },
+        {
+          "source": "beijing_online_mediation_notice",
+          "role": "supports",
+          "origin_group": "beijing-labor-online-service-current",
+          "source_level": 1,
+          "primary_source": true
+        }
+      ]
+    },
+    {
+      "id": "hidden-employment-c2-claim-04",
+      "claim_text": "北京市人社部门公开报告称，2025年新建新业态劳动纠纷一站式解纷站点150余家，就近就地调解纠纷1万余件",
+      "claim_type": "statistic",
+      "importance": "supporting",
+      "novelty_required": false,
+      "policy_coverage_status": "not_applicable",
+      "epistemic_status": "verified_fact",
+      "confidence": "high",
+      "uncertainty_reason": "报告只给出汇总数和“余”数，未公布隐蔽用工、多主体、补正或转仲裁的分项口径",
+      "falsifier": "北京市人社部门正式更正或撤回该年度报告数据",
+      "as_of_date": "2026-08-17T04:45:25Z",
+      "scope": {
+        "time_period": "2025年度",
+        "region": "北京市",
+        "population": "新业态劳动纠纷一站式解纷站点及其就近就地调解的纠纷",
+        "unit": "家、件",
+        "definition": "新建站点150余家，调解纠纷1万余件；未分列案件类型和处理结果"
+      },
+      "conflicts": [],
+      "sources": [
+        {
+          "source": "beijing_2025_rule_of_law_report",
+          "role": "supports",
+          "origin_group": "beijing-hrss-rule-of-law-report-2025",
+          "source_level": 1,
+          "primary_source": true
+        }
+      ]
+    },
+    {
+      "id": "hidden-employment-c2-claim-05",
+      "claim_text": "截至2026年8月17日可核验的北京公开线上办事流程，尚未显示专门面向真实用工主体不清案件的可选标记、多类潜在主体角色字段或转仲裁前主体校正步骤；公开路径把主体追加放在仲裁立案后并需人工开通权限",
+      "claim_type": "novelty",
+      "importance": "critical",
+      "novelty_required": true,
+      "policy_coverage_status": "gap_supported",
+      "epistemic_status": "evidence_based_inference",
+      "confidence": "medium",
+      "uncertainty_reason": "这是对当前公开平台须知和操作手册的限定性判断，不能排除后台功能、线下指引或未公开内部办案规则已经部分覆盖",
+      "falsifier": "北京或海淀公布或提供现行规则，证明调解申请阶段已可结构化记录多类待核主体，且转仲裁前可复核校正正式被申请人并有稳定执行数据",
+      "as_of_date": "2026-08-17T04:45:25Z",
+      "reasoning": "北京案例证明复杂案件需要同时观察合同、付款、平台账号和实际管理主体；北京现行公开手册却以用人单位名称作为被申请人入口，转仲裁时该字段锁定，增加共同被申请人位于立案后。既有一站式和调裁衔接已经覆盖宏观制度，因此剩余增量只能限定为多主体线索与转仲裁前校正的流程适配，而不能表述为联动机制空白。",
+      "conflicts": [
+        {
+          "description": "北京和海淀已经建立一站式调解及信息互通、资源共享、调裁衔接机制",
+          "resolved": true,
+          "resolution": "该反证否定另建平台或笼统加强联动，但没有否定公开线上流程中固定被申请人字段与多主体案件之间的具体适配问题。"
+        },
+        {
+          "description": "北京平台已经允许仲裁立案后增加共同被申请人",
+          "resolved": true,
+          "resolution": "现有纠错渠道被保留；建议的增量仅是把待核线索与主体确认前移到转仲裁提交前，减少依赖立案后逐案联系开权限。"
+        }
+      ],
+      "sources": [
+        {
+          "source": "beijing_worker_operation_manual",
+          "role": "supports",
+          "origin_group": "beijing-labor-online-service-current",
+          "source_level": 1,
+          "primary_source": true
+        },
+        {
+          "source": "beijing_online_arbitration_notice",
+          "role": "supports",
+          "origin_group": "beijing-labor-online-service-current",
+          "source_level": 1,
+          "primary_source": true
+        },
+        {
+          "source": "fangshan_hidden_employment_cases",
+          "role": "supports",
+          "origin_group": "fangshan-court-hidden-employment-press-conference-2026",
+          "source_level": 2,
+          "primary_source": true
+        },
+        {
+          "source": "beijing_2023_arbitration_case",
+          "role": "supports",
+          "origin_group": "beijing-arbitration-platform-case-2023",
+          "source_level": 1,
+          "primary_source": true
+        },
+        {
+          "source": "beijing_one_stop_notice",
+          "role": "supports",
+          "origin_group": "beijing-one-stop-mediation-policy-2025",
+          "source_level": 1,
+          "primary_source": true,
+          "notes": "用于限定既有覆盖，避免把窄流程适配夸大为制度空白。"
+        }
+      ]
+    },
+    {
+      "id": "hidden-employment-c2-claim-06",
+      "claim_text": "北京市可在既有一站式调解和网上调解仲裁系统内，通过统一受理指引、表单字段、转仲裁确认步骤和小范围试点优化服务流程，无需新建跨部门平台",
+      "claim_type": "authority",
+      "importance": "critical",
+      "novelty_required": false,
+      "policy_coverage_status": "covered",
+      "epistemic_status": "evidence_based_inference",
+      "confidence": "high",
+      "uncertainty_reason": "具体系统改造权限、技术成本和部门分工未公开，实施前仍需由北京市人社部门进行技术与合法性评估",
+      "falsifier": "现有系统权属、上位规则或正式技术评估表明，北京无权或无法在不改变法定仲裁受理标准的前提下调整上述服务字段和确认步骤",
+      "as_of_date": "2026-08-17T04:45:25Z",
+      "reasoning": "北京市六部门通知已经授权和要求各区细化一站式调解流程并使用北京市网上服务平台；2026年方案又明确推进智慧仲裁和新业态快速移交。因而最小方案应复用这些现成组织与系统，只调整办事辅助信息和确认节点。",
+      "conflicts": [],
+      "sources": [
+        {
+          "source": "beijing_one_stop_notice",
+          "role": "supports",
+          "origin_group": "beijing-one-stop-mediation-policy-2025",
+          "source_level": 1,
+          "primary_source": true
+        },
+        {
+          "source": "beijing_2026_labor_service_plan",
+          "role": "supports",
+          "origin_group": "beijing-labor-service-plan-2026",
+          "source_level": 1,
+          "primary_source": true
+        },
+        {
+          "source": "haidian_qinghe_coordination",
+          "role": "supports",
+          "origin_group": "haidian-qinghe-coordination-practice-2026",
+          "source_level": 1,
+          "primary_source": true
+        }
+      ]
+    },
+    {
+      "id": "hidden-employment-c2-claim-07",
+      "claim_text": "多主体线索只能作为办事辅助信息，不能由地方表单自动认定劳动关系、自动把所有线索主体列为被申请人或赋予调解组织强制调取权；正式主体、证据责任和调查措施仍应由仲裁、监察或法院依现行权限处理",
+      "claim_type": "authority_boundary",
+      "importance": "critical",
+      "novelty_required": false,
+      "policy_coverage_status": "covered",
+      "epistemic_status": "evidence_based_inference",
+      "confidence": "high",
+      "uncertainty_reason": "不同争议可能同时涉及劳动仲裁、劳动保障监察或民事诉讼，具体分流和调查权限仍须按个案请求与法定受案范围判断",
+      "falsifier": "上位法或有权机关正式授权基层调解组织直接认定劳动关系、确定仲裁当事人或强制平台和合作企业提供全部相关数据",
+      "as_of_date": "2026-08-17T04:45:25Z",
+      "reasoning": "最高法要求依据实际履行和支配性管理个案判断，并明确必要运营管理不当然成立劳动关系；调解仲裁法规定正式当事人和举证规则，监察条例把强制调查措施赋予劳动保障行政部门。因此，表单只能记录线索并支持有权机构判断。",
+      "conflicts": [],
+      "sources": [
+        {
+          "source": "spc_new_employment_guiding_cases",
+          "role": "supports",
+          "origin_group": "spc-new-employment-guiding-cases-2024",
+          "source_level": 1,
+          "primary_source": true
+        },
+        {
+          "source": "labor_dispute_mediation_arbitration_law",
+          "role": "supports",
+          "origin_group": "labor-dispute-mediation-arbitration-law",
+          "source_level": 1,
+          "primary_source": true
+        },
+        {
+          "source": "labor_security_supervision_regulation",
+          "role": "supports",
+          "origin_group": "labor-security-supervision-regulation",
+          "source_level": 1,
+          "primary_source": true
+        }
+      ]
+    },
+    {
+      "id": "hidden-employment-c2-claim-08",
+      "claim_text": "多主体线索处理必须限定于个案办理所需的最小范围，明确目的、访问权限和保存期限，国家机关不得超出履行法定职责所必需的范围处理个人信息",
+      "claim_type": "privacy",
+      "importance": "critical",
+      "novelty_required": false,
+      "policy_coverage_status": "covered",
+      "epistemic_status": "verified_fact",
+      "confidence": "high",
+      "uncertainty_reason": "具体字段和保存期限应依据案件阶段、法定档案要求和系统现状分别确定，本研究不能直接给出统一期限",
+      "falsifier": "个人信息保护法被修改并取消最小必要原则或国家机关履职范围限制",
+      "as_of_date": "2026-08-17T04:45:25Z",
+      "conflicts": [],
+      "sources": [
+        {
+          "source": "personal_information_protection_law",
+          "role": "supports",
+          "origin_group": "national-personal-information-protection-law",
+          "source_level": 1,
+          "primary_source": true
+        }
+      ]
+    },
+    {
+      "id": "hidden-employment-c2-claim-09",
+      "claim_text": "北京2026年推进智慧仲裁、新就业形态劳动争议快速移交和速裁，为把多主体线索确认嵌入现有系统、先试点后评估提供了现实政策窗口",
+      "claim_type": "policy_window",
+      "importance": "critical",
+      "novelty_required": false,
+      "policy_coverage_status": "covered",
+      "epistemic_status": "evidence_based_inference",
+      "confidence": "high",
+      "uncertainty_reason": "工作方案未专门承诺多主体线索功能，是否纳入本年度系统迭代仍取决于业务优先级和技术评估",
+      "falsifier": "北京市撤销智慧仲裁和新业态快速移交安排，或现有系统已完成同等功能且执行数据证明无需调整",
+      "as_of_date": "2026-08-17T04:45:25Z",
+      "reasoning": "现行方案正在改造仲裁流程并强调新业态案件快速移交，此时在既有转交节点增加一次主体线索确认的边际成本通常低于另行改造或新建系统；具体成本仍需试点评估。",
+      "conflicts": [],
+      "sources": [
+        {
+          "source": "beijing_2026_labor_service_plan",
+          "role": "supports",
+          "origin_group": "beijing-labor-service-plan-2026",
+          "source_level": 1,
+          "primary_source": true
+        },
+        {
+          "source": "beijing_online_mediation_notice",
+          "role": "supports",
+          "origin_group": "beijing-labor-online-service-current",
+          "source_level": 1,
+          "primary_source": true
+        }
+      ]
+    },
+    {
+      "id": "hidden-employment-c2-claim-10",
+      "claim_text": "外地现行专项指引已经能够按平台运营、劳务合作、用工分包等角色列明潜在主体，并以协议、派单、报酬和考勤等形成场景化证据清单，说明在窄场景使用角色化线索表具有可操作先例",
+      "claim_type": "comparative",
+      "importance": "supporting",
+      "novelty_required": false,
+      "policy_coverage_status": "partial",
+      "epistemic_status": "verified_fact",
+      "confidence": "high",
+      "uncertainty_reason": "西藏指引聚焦职业伤害纠纷，案件结构、系统条件和执行资源与北京不同，不能直接证明北京一般劳动争议采用同一清单必然有效",
+      "falsifier": "西藏人社部门撤回或更正该指引，或正式说明相关主体和证据清单未实际适用",
+      "as_of_date": "2026-08-17T04:45:25Z",
+      "conflicts": [],
+      "sources": [
+        {
+          "source": "tibet_new_employment_green_channel",
+          "role": "supports",
+          "origin_group": "tibet-new-employment-green-channel-2026",
+          "source_level": 1,
+          "primary_source": true
+        }
+      ]
+    }
+  ]
+}

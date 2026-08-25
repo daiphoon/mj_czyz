@@ -1,0 +1,236 @@
+{
+  "topic_id": "beijing-platform-subsidy-disclosure-2026-07",
+  "sources": [
+    {
+      "key": "beijing_second_batch",
+      "source_name": "北京市市场监督管理局",
+      "page_title": "‘6·18百亿补贴’并非真百亿——北京市市场监督管理局通报第二批平台‘内卷式’竞争典型问题",
+      "url": "https://scjgj.beijing.gov.cn/zwxx/scjgdt/202606/t20260611_4696365.html",
+      "publisher": "北京市市场监督管理局",
+      "published_at": "2026-06-11",
+      "fetched_at": "2026-07-21",
+      "excerpt": "约谈淘宝（天猫）、京东、拼多多、抖音、小红书5家平台；多家平台未明确实际补贴金额及平台、商家出资比例，部分无法提供证明材料。",
+      "data_scope": "2026年6·18期间北京对5家大型电商平台的官方监管通报",
+      "used_at": "问题事实、受影响平台、证据不可核验",
+      "content_hash": "beijing-platform-second-batch-20260611"
+    },
+    {
+      "key": "internet_price_rules",
+      "source_name": "国家发展改革委、市场监管总局、国家网信办",
+      "page_title": "互联网平台价格行为规则",
+      "url": "https://www.samr.gov.cn/zw/zfxxgk/fdzdgknr/jjjzs/art/2025/art_eef66659c9624c5091bd3acd050b1710.html",
+      "publisher": "国家市场监督管理总局",
+      "published_at": "2025-12-20",
+      "fetched_at": "2026-07-21",
+      "excerpt": "自2026年4月10日起施行；禁止虚假、夸大宣传补贴金额和力度，要求明确补贴对象、方式、条件、起止时间，并妥善保存有关价格和交易信息。",
+      "data_scope": "全国互联网平台价格行为规则",
+      "used_at": "现有政策覆盖、证据保存义务、监管权限",
+      "content_hash": "internet-platform-price-rules-2025"
+    },
+    {
+      "key": "platform_rule_measures",
+      "source_name": "国家市场监督管理总局、国家网信办",
+      "page_title": "网络交易平台规则监督管理办法",
+      "url": "https://www.samr.gov.cn/zw/zfxxgk/fdzdgknr/fgs/art/2026/art_85b474fc5a08494bb60ca6a280b98d7d.html",
+      "publisher": "国家市场监督管理总局",
+      "published_at": "2026-01-07",
+      "fetched_at": "2026-07-21",
+      "excerpt": "自2026年2月1日起施行；要求平台规则公开征求意见、留存意见处理资料和历史版本，禁止强制或变相强制商家参加促销或低于成本销售。",
+      "data_scope": "全国网络交易平台规则制定、修改和执行",
+      "used_at": "商家自主权、规则留痕、现有覆盖",
+      "content_hash": "platform-rule-supervision-measures-2026"
+    },
+    {
+      "key": "beijing_first_batch",
+      "source_name": "北京市市场监督管理局等三部门",
+      "page_title": "北京市市场监督管理局等三部门联合约谈12家平台企业 通报第一批‘内卷式’竞争综合整治发现的问题",
+      "url": "https://scjgj.beijing.gov.cn/zwxx/scjgdt/202603/t20260323_4564090.html",
+      "publisher": "北京市市场监督管理局",
+      "published_at": "2026-03-23",
+      "fetched_at": "2026-07-21",
+      "excerpt": "北京已建立负面清单、季度自查、暗访、飞行检查和体验调查机制；通报了平台擅自为商家报名促销、修改价格并令商家异常低实收的案例。",
+      "data_scope": "2025年10月以来北京平台竞争综合整治第一批问题",
+      "used_at": "制度现状、商家真实痛点、问题连续性",
+      "content_hash": "beijing-platform-first-batch-20260323"
+    },
+    {
+      "key": "takeaway_draft",
+      "source_name": "国家市场监督管理总局",
+      "page_title": "市场监管总局就《外卖平台补贴行为规范十条》公开征求意见",
+      "url": "https://www.samr.gov.cn/xw/zj/art/2026/art_a5745c4dd7124ac697521f345418cc5d.html",
+      "publisher": "国家市场监督管理总局",
+      "published_at": "2026-06-17",
+      "fetched_at": "2026-07-21",
+      "excerpt": "征求意见稿提出外卖补贴活动前和实施后向社会公开主要信息，禁止强制商家参加或承担补贴成本。",
+      "data_scope": "外卖平台补贴专项规则征求意见稿，征求意见截至2026-07-17",
+      "used_at": "政策窗口、替代方案、重复政策边界",
+      "content_hash": "takeaway-subsidy-draft-20260617"
+    },
+    {
+      "key": "beijing_dialogue",
+      "source_name": "北京市市场监督管理局",
+      "page_title": "北京市率先建立平台经济‘破卷向善’协商对话机制",
+      "url": "https://scjgj.beijing.gov.cn/zwxx/scjgdt/202606/t20260629_4733520.html",
+      "publisher": "北京市市场监督管理局",
+      "published_at": "2026-06-29",
+      "fetched_at": "2026-07-21",
+      "excerpt": "北京已搭建平台、商家、劳动者、消费者和行业协会的常态化协商机制，首次聚焦餐饮外卖商家降本增利。",
+      "data_scope": "北京平台经济协商共治现有机制",
+      "used_at": "方案去重、现有执行载体",
+      "content_hash": "beijing-platform-dialogue-20260629"
+    },
+    {
+      "key": "price_marking_rules",
+      "source_name": "国家市场监督管理总局",
+      "page_title": "明码标价和禁止价格欺诈规定",
+      "url": "https://www.samr.gov.cn/zw/zfxxgk/fdzdgknr/jls/art/2023/art_72865dc294a14432aff931038b02c210.html",
+      "publisher": "国家市场监督管理总局",
+      "published_at": "2022-06-09",
+      "fetched_at": "2026-07-21",
+      "excerpt": "设区的市级以上市场监管部门对于特定商品和服务可以增加规定明码标价应当标示的内容；网络交易平台应保存价格违规有关信息记录。",
+      "data_scope": "明码标价和价格欺诈通用规章",
+      "used_at": "北京层面试行最小披露字段的权限参考",
+      "content_hash": "price-marking-rules-2022"
+    }
+  ],
+  "claims": [
+    {
+      "id": "platform-subsidy-claim-01",
+      "claim_text": "2026年6月北京市市场监管局通报5家大型电商平台的补贴宣传、促销规则和经营者信息公示问题",
+      "claim_type": "event",
+      "importance": "critical",
+      "sources": [
+        {
+          "source": "beijing_second_batch",
+          "role": "supports",
+          "origin_group": "beijing-market-regulation-second-batch",
+          "source_level": 1,
+          "primary_source": true
+        }
+      ]
+    },
+    {
+      "id": "platform-subsidy-claim-02",
+      "claim_text": "北京通报的部分量化补贴活动未明确实际补贴金额和平台、商家出资比例，且存在无法提供证明材料的情形",
+      "claim_type": "mechanism",
+      "importance": "critical",
+      "sources": [
+        {
+          "source": "beijing_second_batch",
+          "role": "supports",
+          "origin_group": "beijing-market-regulation-second-batch",
+          "source_level": 1,
+          "primary_source": true
+        }
+      ]
+    },
+    {
+      "id": "platform-subsidy-claim-03",
+      "claim_text": "现行互联网平台价格规则已禁止虚假夸大补贴，要求公示补贴对象、方式、条件和起止时间，并保存有关价格和交易信息",
+      "claim_type": "policy",
+      "importance": "critical",
+      "sources": [
+        {
+          "source": "internet_price_rules",
+          "role": "supports",
+          "origin_group": "internet-platform-price-rules",
+          "source_level": 1,
+          "primary_source": true
+        }
+      ]
+    },
+    {
+      "id": "platform-subsidy-claim-04",
+      "claim_text": "现行平台规则监管办法已要求征求意见和保存历史版本，并禁止强制商家参加促销或低于成本销售",
+      "claim_type": "policy",
+      "importance": "critical",
+      "sources": [
+        {
+          "source": "platform_rule_measures",
+          "role": "supports",
+          "origin_group": "platform-rule-supervision-measures",
+          "source_level": 1,
+          "primary_source": true
+        }
+      ]
+    },
+    {
+      "id": "platform-subsidy-claim-05",
+      "claim_text": "北京已经建立平台内卷式竞争负面清单、自查、暗访、飞行检查和协商对话机制，新建议应复用这些载体",
+      "claim_type": "policy",
+      "importance": "supporting",
+      "sources": [
+        {
+          "source": "beijing_first_batch",
+          "role": "supports",
+          "origin_group": "beijing-platform-governance",
+          "source_level": 1,
+          "primary_source": true
+        },
+        {
+          "source": "beijing_dialogue",
+          "role": "supports",
+          "origin_group": "beijing-platform-governance",
+          "source_level": 1,
+          "primary_source": true
+        }
+      ]
+    },
+    {
+      "id": "platform-subsidy-claim-06",
+      "claim_text": "国家层面正在就外卖平台补贴的活动前后信息公开机制制定专项规则，该文件截至2026年7月21日仍为征求意见稿且范围限于外卖平台",
+      "claim_type": "policy_window",
+      "importance": "critical",
+      "sources": [
+        {
+          "source": "takeaway_draft",
+          "role": "supports",
+          "origin_group": "takeaway-subsidy-draft",
+          "source_level": 1,
+          "primary_source": true
+        }
+      ]
+    },
+    {
+      "id": "platform-subsidy-claim-07",
+      "claim_text": "北京公开规则可能尚未对一般电商量化补贴宣传形成统一的核算底稿、商家分摊确认和整改回访标准",
+      "claim_type": "novelty",
+      "importance": "critical",
+      "novelty_required": true,
+      "policy_coverage_status": "needs_review",
+      "sources": [
+        {
+          "source": "beijing_second_batch",
+          "role": "supports",
+          "origin_group": "beijing-market-regulation-second-batch",
+          "source_level": 1,
+          "primary_source": true,
+          "notes": "只能证明通报时存在无法提供证明材料等问题，不能据此断言监管内部没有核查标准。"
+        },
+        {
+          "source": "internet_price_rules",
+          "role": "supports",
+          "origin_group": "internet-platform-price-rules",
+          "source_level": 1,
+          "primary_source": true,
+          "notes": "现行规则是政策覆盖反证，后续必须核对北京具体指南和整改材料。"
+        }
+      ]
+    },
+    {
+      "id": "platform-subsidy-claim-08",
+      "claim_text": "设区的市级以上市场监管部门对于特定商品和服务可以增加规定明码标价应当标示的内容",
+      "claim_type": "authority",
+      "importance": "supporting",
+      "sources": [
+        {
+          "source": "price_marking_rules",
+          "role": "supports",
+          "origin_group": "price-marking-rules",
+          "source_level": 1,
+          "primary_source": true
+        }
+      ]
+    }
+  ]
+}
