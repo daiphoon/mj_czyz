@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import os
 from pathlib import Path
 import shutil
+import uuid
 
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -15,13 +17,53 @@ def _set_font(style, name: str, size: float, bold: bool = False, color: str = "0
     style.font.size = Pt(size)
     style.font.bold = bold
     style.font.color.rgb = __import__("docx").shared.RGBColor.from_string(color)
-    style.element.get_or_add_rPr().get_or_add_rFonts().set(qn("w:eastAsia"), name)
+    fonts = style.element.get_or_add_rPr().get_or_add_rFonts()
+    for attribute in ("ascii", "hAnsi", "eastAsia", "cs"):
+        fonts.set(qn(f"w:{attribute}"), name)
+
+
+def _set_run_font(run, name: str) -> None:
+    run.font.name = name
+    fonts = run._element.get_or_add_rPr().get_or_add_rFonts()
+    for attribute in ("ascii", "hAnsi", "eastAsia", "cs"):
+        fonts.set(qn(f"w:{attribute}"), name)
+
+
+def _apply_run_fonts(doc, name: str) -> None:
+    for paragraph in doc.paragraphs:
+        for run in paragraph.runs:
+            _set_run_font(run, name)
+
+
+def _temporary_output(output: Path) -> Path:
+    return output.with_name(f".{output.name}.{uuid.uuid4().hex}.tmp")
+
+
+def _save_atomic(doc, output: Path) -> None:
+    output.parent.mkdir(parents=True, exist_ok=True)
+    temporary = _temporary_output(output)
+    try:
+        doc.save(temporary)
+        os.replace(temporary, output)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def atomic_copy(source: Path, output: Path) -> None:
+    output.parent.mkdir(parents=True, exist_ok=True)
+    temporary = _temporary_output(output)
+    try:
+        shutil.copy2(source, temporary)
+        os.replace(temporary, output)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def create_template(reference: Path, output: Path, cfg: dict, signature: str) -> None:
     output.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(reference, output)
-    doc = Document(output)
+    temporary = _temporary_output(output)
+    shutil.copy2(reference, temporary)
+    doc = Document(temporary)
     body = doc._element.body
     for child in list(body):
         if child.tag != qn("w:sectPr"):
@@ -52,7 +94,12 @@ def create_template(reference: Path, output: Path, cfg: dict, signature: str) ->
         doc.add_paragraph(heading, style="Heading 2")
         p = doc.add_paragraph(slot, style="First Paragraph")
         p.paragraph_format.first_line_indent = Pt(cfg["body_size_pt"] * 2)
-    doc.save(output)
+    _apply_run_fonts(doc, font)
+    try:
+        doc.save(temporary)
+        os.replace(temporary, output)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def export_submission(template: Path, output: Path, title: str, sections: dict[str, list[str]]) -> None:
@@ -75,5 +122,43 @@ def export_submission(template: Path, output: Path, title: str, sections: dict[s
             target.text = text
             target.style = "First Paragraph"
         p._element.getparent().remove(p._element)
+    _apply_run_fonts(doc, doc.styles["Normal"].font.name or "DengXian")
     output.parent.mkdir(parents=True, exist_ok=True)
-    doc.save(output)
+    _save_atomic(doc, output)
+
+
+def parse_submission_markdown(path: Path) -> tuple[str, dict[str, list[str]]]:
+    required = ("一、现状", "二、问题和分析", "三、政策建议")
+    title = ""
+    sections = {name: [] for name in required}
+    current: str | None = None
+    paragraph: list[str] = []
+
+    def flush() -> None:
+        if current and paragraph:
+            text = "".join(item.strip() for item in paragraph).strip()
+            if text:
+                sections[current].append(text)
+        paragraph.clear()
+
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if line.startswith("# ") and not title:
+            title = line[2:].strip()
+            continue
+        heading = line.lstrip("#").strip()
+        if heading in required:
+            flush()
+            current = heading
+            continue
+        if not line:
+            flush()
+        elif current:
+            paragraph.append(line)
+    flush()
+    if not title:
+        raise ValueError("正式稿 Markdown 缺少一级标题")
+    missing = [name for name in required if not sections[name]]
+    if missing:
+        raise ValueError(f"正式稿 Markdown 缺少内容：{', '.join(missing)}")
+    return title, sections

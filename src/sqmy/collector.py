@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 import hashlib
@@ -86,20 +87,185 @@ class SourceCollector:
         self.cfg = settings["discovery"]
         with (root / "config/sources.toml").open("rb") as fh:
             self.sources = tomllib.load(fh)["sources"]
+        self.collection_stats: list[dict] = []
 
-    def collect(self, run_id: str, *, fixture: Path | None = None) -> list[EventItem]:
+    def collect(
+        self,
+        run_id: str,
+        *,
+        fixture: Path | None = None,
+        clue_file: Path | None = None,
+    ) -> list[EventItem]:
         if fixture:
-            return self._items_from_payloads(json.loads(fixture.read_text(encoding="utf-8")))
-        payloads = []
-        for source in self.sources:
-            try:
-                payloads.append({"source": source, "xml": self._fetch(source)})
-            except Exception as exc:
-                payloads.append({"source": source, "error": f"{type(exc).__name__}: {exc}"})
+            payloads = json.loads(fixture.read_text(encoding="utf-8"))
+        else:
+            payloads: list[dict | None] = [None] * len(self.sources)
+            workers = max(1, int(self.cfg.get("max_parallel_fetches", 6)))
+            with ThreadPoolExecutor(max_workers=min(workers, len(self.sources) or 1)) as executor:
+                futures = {
+                    executor.submit(self._fetch, source): (index, source)
+                    for index, source in enumerate(self.sources)
+                }
+                for future in as_completed(futures):
+                    index, source = futures[future]
+                    try:
+                        payloads[index] = {"source": source, "xml": future.result()}
+                    except Exception as exc:
+                        payloads[index] = {
+                            "source": source,
+                            "error": f"{type(exc).__name__}: {exc}",
+                        }
+            payloads = [payload for payload in payloads if payload is not None]
         audit = self.root / "data/runs" / run_id / "collection_audit.json"
         audit.parent.mkdir(parents=True, exist_ok=True)
-        self._atomic_json(audit, [{"source": p["source"], "error": p.get("error")} for p in payloads])
-        return self._items_from_payloads(payloads)
+        stats: list[dict] = []
+        events = self._items_from_payloads(payloads, _stats=stats)
+        clue_snapshot = None
+        if clue_file:
+            clue_events, clue_stats, clue_snapshot = self._items_from_clue_file(
+                run_id, clue_file
+            )
+            events.extend(clue_events)
+            stats.extend(clue_stats)
+        self.collection_stats = stats
+        count_keys = (
+            "fetched_count", "within_window_count", "collected_count",
+            "invalid_metadata_count", "outside_window_count",
+        )
+        self._atomic_json(audit, {
+            "run_id": run_id,
+            "fixture": bool(fixture),
+            "clue_snapshot": str(clue_snapshot) if clue_snapshot else None,
+            "sources": stats,
+            "totals": {key: sum(int(item[key]) for item in stats) for key in count_keys},
+        })
+        return events
+
+    def _items_from_clue_file(
+        self, run_id: str, clue_file: Path
+    ) -> tuple[list[EventItem], list[dict], Path]:
+        """导入由受控网页/社交检索生成的元数据线索，不保存网页全文。"""
+        path = clue_file.expanduser().resolve()
+        if not path.exists() or not path.is_file():
+            raise ValueError(f"线索文件不存在：{path}")
+        records = []
+        for line_number, raw_line in enumerate(
+            path.read_text(encoding="utf-8").splitlines(), 1
+        ):
+            line = raw_line.strip()
+            if not line:
+                continue
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError as exc:
+                raise ValueError(
+                    f"线索文件第{line_number}行不是有效JSON：{exc}"
+                ) from exc
+            if not isinstance(record, dict):
+                raise ValueError(f"线索文件第{line_number}行必须是JSON对象")
+            records.append((line_number, record))
+
+        cutoff = datetime.now(timezone.utc) - timedelta(days=self.cfg["lookback_days"])
+        items: list[EventItem] = []
+        stats_by_source: dict[str, dict] = {}
+        normalized: list[dict] = []
+        sensitive_keys = {
+            "access_token", "api_key", "apikey", "auth", "authorization",
+            "cookie", "password", "secret", "session", "sessionid", "token",
+        }
+        required = {"title", "url", "published_at", "summary", "source_name", "source_level"}
+        for line_number, record in records:
+            missing = sorted(required - set(record))
+            if missing:
+                raise ValueError(
+                    f"线索文件第{line_number}行缺少字段：{','.join(missing)}"
+                )
+            title = _clean_html(str(record["title"]))
+            summary = _clean_html(str(record["summary"]))[:700]
+            url = canonical_url(str(record["url"]))
+            parsed_url = urlparse(url)
+            if parsed_url.scheme not in {"http", "https"} or not parsed_url.netloc:
+                raise ValueError(f"线索文件第{line_number}行URL必须是公开HTTP(S)地址")
+            query_keys = {key.lower() for key in parse_qs(parsed_url.query)}
+            if query_keys & sensitive_keys:
+                raise ValueError(f"线索文件第{line_number}行URL包含敏感查询参数")
+            published = parse_date(str(record["published_at"]))
+            if published is None:
+                raise ValueError(f"线索文件第{line_number}行缺少可验证的发布时间")
+            configured_level = record["source_level"]
+            if isinstance(configured_level, bool) or configured_level not in {2, 3}:
+                raise ValueError(f"线索文件第{line_number}行source_level只能是2或3")
+            source_name = _clean_html(str(record["source_name"]))
+            source_id = str(record.get("source_id") or "clue_" + hashlib.sha256(
+                (parsed_url.netloc + "\n" + source_name).encode()
+            ).hexdigest()[:12])
+            stat = stats_by_source.setdefault(source_id, {
+                "source_id": source_id,
+                "source_name": source_name,
+                "expansion_tier": 4,
+                "fetched_count": 0,
+                "within_window_count": 0,
+                "collected_count": 0,
+                "invalid_metadata_count": 0,
+                "outside_window_count": 0,
+                "fetch_error": None,
+                "parse_error": None,
+            })
+            stat["fetched_count"] += 1
+            if published < cutoff:
+                stat["outside_window_count"] += 1
+                continue
+            stat["within_window_count"] += 1
+            if not title or not summary:
+                stat["invalid_metadata_count"] += 1
+                continue
+            inferred_region, inferred_evidence = infer_event_region(
+                title, summary, url, str(record.get("source_region") or "全国")
+            )
+            declared_region = str(record.get("region") or inferred_region)
+            if declared_region not in {"海淀", "北京", "全国"}:
+                raise ValueError(f"线索文件第{line_number}行region只能是海淀、北京或全国")
+            if declared_region in {"海淀", "北京"} and inferred_region == "全国":
+                supplied_evidence = str(record.get("region_evidence") or "")
+                if not supplied_evidence:
+                    raise ValueError(f"线索文件第{line_number}行地方地域缺少region_evidence")
+                region_evidence = "clue_import:" + supplied_evidence[:160]
+            else:
+                region_evidence = inferred_evidence
+            digest = hashlib.sha256((title + "\n" + url).encode()).hexdigest()
+            item = EventItem(
+                id=digest[:16], source_id=source_id, source_name=source_name,
+                source_level=infer_source_level(url, int(configured_level)),
+                title=title, url=url, published_at=published.isoformat(),
+                summary=summary, region=declared_region,
+                source_region=str(record.get("source_region") or "全国"),
+                region_evidence=region_evidence, expansion_tier=4,
+                collected_at=datetime.now(timezone.utc).isoformat(),
+            )
+            items.append(item)
+            stat["collected_count"] += 1
+            normalized.append({
+                "title": item.title,
+                "url": item.url,
+                "published_at": item.published_at,
+                "summary": item.summary,
+                "source_id": item.source_id,
+                "source_name": item.source_name,
+                "source_level": item.source_level,
+                "region": item.region,
+                "source_region": item.source_region,
+                "region_evidence": item.region_evidence,
+            })
+
+        snapshot = self.root / "data/runs" / run_id / "discovery_clues.jsonl"
+        snapshot.parent.mkdir(parents=True, exist_ok=True)
+        temp = snapshot.with_suffix(snapshot.suffix + ".tmp")
+        temp.write_text(
+            "".join(json.dumps(item, ensure_ascii=False) + "\n" for item in normalized),
+            encoding="utf-8",
+        )
+        os.replace(temp, snapshot)
+        return items, list(stats_by_source.values()), snapshot
 
     def _fetch(self, source: dict) -> str:
         return self._fetch_query(source["query"], "feeds")
@@ -108,7 +274,8 @@ class SourceCollector:
         url = "https://www.bing.com/news/search?q=" + quote_plus(query) + "&format=rss&setlang=zh-cn"
         cache_key = hashlib.sha256(url.encode()).hexdigest()
         cache = self.root / "data/cache" / namespace / f"{cache_key}.xml"
-        if cache.exists() and datetime.now().timestamp() - cache.stat().st_mtime < 6 * 3600:
+        cache_ttl_seconds = int(self.cfg["cache_ttl_hours"]) * 3600
+        if cache.exists() and datetime.now().timestamp() - cache.stat().st_mtime < cache_ttl_seconds:
             return cache.read_text(encoding="utf-8")
         request = Request(url, headers={"User-Agent": self.cfg["user_agent"], "Accept": "application/rss+xml, application/xml"})
         with urlopen(request, timeout=self.cfg["request_timeout_seconds"], context=ssl.create_default_context()) as response:
@@ -120,33 +287,70 @@ class SourceCollector:
         os.replace(temp, cache)
         return text
 
-    def search_query(self, query: str, *, limit: int = 3) -> list[EventItem]:
+    def search_query(
+        self,
+        query: str,
+        *,
+        limit: int = 3,
+        lookback_days: int | None = None,
+    ) -> list[EventItem]:
         """Run one cached metadata-only counterevidence search."""
         source = {
             "id": "novelty_counterevidence", "name": "制度新意反证检索",
             "level": 2, "region": "全国", "type": "rss_search", "query": query,
         }
         payload = {"source": source, "xml": self._fetch_query(query, "counterevidence")}
-        return self._items_from_payloads([payload])[:limit]
+        return self._items_from_payloads([payload], lookback_days=lookback_days)[:limit]
 
-    def _items_from_payloads(self, payloads: list[dict]) -> list[EventItem]:
-        cutoff = datetime.now(timezone.utc) - timedelta(days=self.cfg["lookback_days"])
+    def _items_from_payloads(
+        self,
+        payloads: list[dict],
+        *,
+        lookback_days: int | None = None,
+        _stats: list[dict] | None = None,
+    ) -> list[EventItem]:
+        window_days = self.cfg["lookback_days"] if lookback_days is None else lookback_days
+        if window_days < 0:
+            raise ValueError("检索回看天数不得为负数")
+        cutoff = datetime.now(timezone.utc) - timedelta(days=window_days)
         items = []
         for payload in payloads:
-            if not payload.get("xml"):
-                continue
             source = payload["source"]
+            stat = {
+                "source_id": source["id"],
+                "source_name": source["name"],
+                "expansion_tier": int(source.get("expansion_tier", 1)),
+                "fetched_count": 0,
+                "within_window_count": 0,
+                "collected_count": 0,
+                "invalid_metadata_count": 0,
+                "outside_window_count": 0,
+                "fetch_error": payload.get("error"),
+                "parse_error": None,
+            }
+            if not payload.get("xml"):
+                if _stats is not None:
+                    _stats.append(stat)
+                continue
             try:
                 root = ET.fromstring(payload["xml"])
-            except ET.ParseError:
+            except ET.ParseError as exc:
+                stat["parse_error"] = f"{type(exc).__name__}: {exc}"
+                if _stats is not None:
+                    _stats.append(stat)
                 continue
-            for node in root.findall(".//item"):
+            nodes = root.findall(".//item")
+            stat["fetched_count"] = len(nodes)
+            for node in nodes:
                 published = parse_date(_text(node, "pubDate"))
                 if published and published < cutoff:
+                    stat["outside_window_count"] += 1
                     continue
+                stat["within_window_count"] += 1
                 title = _clean_html(_text(node, "title"))
                 url = canonical_url(_text(node, "link"))
                 if not title or not url:
+                    stat["invalid_metadata_count"] += 1
                     continue
                 digest = hashlib.sha256((title + "\n" + url).encode()).hexdigest()
                 summary = _clean_html(_text(node, "description"))[:700]
@@ -158,6 +362,9 @@ class SourceCollector:
                     expansion_tier=int(source.get("expansion_tier", 1)),
                     collected_at=datetime.now(timezone.utc).isoformat(),
                 ))
+                stat["collected_count"] += 1
+            if _stats is not None:
+                _stats.append(stat)
         return items
 
     @staticmethod

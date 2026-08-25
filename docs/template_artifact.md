@@ -9,5 +9,10 @@
 - 源正文：12 pt，主题正文字体；`Body Text` 段前/后 9 pt；首行通过两个全角空格表达。
 - 源署名：`First Paragraph`，使用 25 个全角空格模拟右对齐。
 - 项目模板的有意固化：中文字体使用等线（OOXML 字体名 `DengXian`），黑色标题，正文 1.5 倍行距，标题居中，署名真正右对齐，正文使用 2 字符首行缩进。标题、一级标题和正文仍分别保持 20、16、12 pt，不因字体调整改变字号。
+- 导出器同时在样式和每个可见文本 run 上写入 `ascii`、`hAnsi`、`eastAsia`、`cs=DengXian`，避免 LibreOffice 或跨应用导出时把粗体标题替换为其他中文字体。
 - 固定槽位：标题、署名、一、现状、二、问题和分析、三、政策建议。
 - 保留项：三级结构、标题层级、默认署名、正文无图表/脚注/参考文献。
+
+## macOS 渲染说明
+
+本机等线字体由 Microsoft Word 以私有字体形式放在 `/Applications/Microsoft Word.app/Contents/Resources/DFonts/`。直接运行隔离版 LibreOffice 时可能显示方框。逐页QA时应把 `Deng.ttf`、`Dengb.ttf`、`Dengl.ttf` 临时复制到本次 LibreOffice profile 的 `Library/Fonts/`，并将 `FONTCONFIG_FILE` 指向所用 LibreOffice 包内的 `Resources/fontconfig/fonts.conf`。字体只放临时目录，不修改用户字体库。验收时除检查页面PNG，还应使用 `pdffonts` 确认正文和标题分别嵌入 `DengXian-Regular`、`DengXian-Bold`。

@@ -4,6 +4,8 @@ timezone = "Asia/Shanghai"
 signature = "中关村支部：李智"
 candidate_count = 5
 max_formal_topics = 2
+candidate_pool_days = 30
+refresh_after_hours = 24
 
 [model]
 provider = "auto"
@@ -27,23 +29,52 @@ deepseek_output_price_cny_per_million = 6.0
 
 [discovery]
 lookback_days = 90
+scan_all_source_tiers = true
 initial_min = 15
 initial_max = 30
 screened_min = 8
 screened_max = 12
+premodel_clue_reserve = 2
+premodel_max_per_source = 2
 candidate_count = 5
 request_timeout_seconds = 20
+max_parallel_fetches = 6
+cache_ttl_hours = 6
 user_agent = "sqmy-research/0.2 (+local policy research)"
 title_similarity_threshold = 0.88
 min_new_events_for_model = 4
+pending_batch_max_wait_hours = 48
 urgent_rule_score_threshold = 90
 urgent_keywords = ["突发", "事故", "紧急", "重大风险", "征求意见", "专项通报"]
+
+[observability]
+enabled = true
+exclusion_sample_per_stage = 2
+rolling_evaluation_days = 21
+minimum_live_runs_for_comparison = 3
+minimum_observation_span_days = 14
+
+[shadow_verification]
+enabled = true
+mode = "shadow"
+max_events = 12
+max_live_queries_per_run = 6
+max_hits_per_query = 2
+search_lookback_days = 730
+original_title_similarity_threshold = 0.55
+official_domains = ["bjhd.gov.cn", "beijing.gov.cn", "tjj.beijing.gov.cn", "bjcourt.gov.cn", "bjjc.gov.cn", "scjgj.beijing.gov.cn", "court.gov.cn", "jcy.gov.cn", "gov.cn"]
+problem_signals = ["问题", "困难", "风险", "纠纷", "负担", "投诉", "不足", "短缺", "障碍", "争议"]
+policy_signals = ["政策", "办法", "规定", "机制", "试点", "意见", "条例", "通知", "征求意见"]
+data_signals = ["数据", "统计", "调查", "抽检", "同比", "环比", "占比"]
+case_signals = ["案例", "案件", "判决", "司法建议", "检察建议", "处罚", "通报"]
+coverage_signals = ["建立", "完善", "出台", "印发", "实施", "试点", "指引", "司法建议", "协同机制"]
 
 [novelty]
 enabled = true
 audit_pool_size = 8
 max_queries_per_candidate = 2
 max_hits_per_query = 3
+counterevidence_lookback_days = 730
 local_mechanism_min_keyword_matches = 3
 mechanism_max_age_days = 180
 likely_covered_score_penalty = 12
@@ -54,18 +85,27 @@ minimum_reviewed_blocks_for_precision = 3
 minimum_observed_outcome_rate = 0.5
 official_counterevidence_domains = ["beijing.gov.cn", "bjcourt.gov.cn", "court.gov.cn", "gov.cn", "bj148.org", "bjjubao.org.cn"]
 
+[quality]
+production_evaluation_weeks = 5
+stable_production_weeks = 4
+minimum_drafts_per_week = 1
+stretch_drafts_per_week = 2
+
 [budget]
-weekly_token_limit = 120000
+weekly_token_limit = 240000
+weekly_discovery_token_limit = 100000
 weekly_cost_limit_cny = 100.0
 discovery_tokens = 15000
-screening_tokens = 26000
+screening_tokens = 55000
 codex_cli_fixed_overhead_tokens = 15000
 api_fixed_overhead_tokens = 1000
+codex_cli_estimate_multiplier = 1.5
+api_estimate_multiplier = 1.1
 preflight_stale_running_hours = 2
 pre_research_tokens = 30000
 deep_research_tokens = 40000
 writing_tokens = 15000
-reserve_tokens = 5000
+research_writing_reserve_tokens = 90000
 
 [scoring]
 haidian_relevance = 15
@@ -95,6 +135,7 @@ blocking_statuses = ["unverified", "single_source", "conflicted", "needs_review"
 official_primary_source_can_stand_alone = true
 same_origin_reprints_count_once = true
 novelty_requires_policy_coverage_audit = true
+critical_source_max_age_days = 30
 
 [document]
 reference_path = "/Users/lizhi/Documents/民建工作/社情民意/完善北京市新就业形态劳动者平台算法判罚与申诉纠错机制的建议.docx"

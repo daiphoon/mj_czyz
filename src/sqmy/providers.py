@@ -77,15 +77,21 @@ class CodexCliClient:
             schema_path = temp / "schema.json"
             output_path = temp / "result.json"
             schema_path.write_text(json.dumps(schema, ensure_ascii=False), encoding="utf-8")
+            isolated_prompt = (
+                "这是纯结构化元数据分析任务。不得调用任何工具，不得读取工作区文件，"
+                "不得访问网络；只依据下列输入直接完成判断。\n" + prompt
+            )
             command = [
                 "codex", "exec", "--ephemeral", "--sandbox", "read-only",
-                "--ignore-user-config", "--json",
+                "--ignore-user-config", "--skip-git-repo-check", "--json",
                 "--output-schema", str(schema_path), "--output-last-message", str(output_path),
-                "--cd", str(self.root),
+                # 初筛不依赖仓库文件。使用空临时目录，避免把项目 AGENTS.md 和仓库上下文
+                # 重复带入订阅调用；提示和 Schema 已包含完成任务所需的全部信息。
+                "--cd", str(temp),
             ]
             if self.model:
                 command += ["--model", self.model]
-            command += [prompt]
+            command += [isolated_prompt]
             completed = self.runner(command, capture_output=True, text=True, timeout=180)
             if completed.returncode != 0:
                 message = (completed.stderr or completed.stdout or "Codex CLI failed")[-4000:]
@@ -166,15 +172,16 @@ class ProviderRouter:
             return self.fallback.analyze(prompt, schema), exc.code
 
 
-def build_router(root: Path, config: dict) -> ProviderRouter | None:
+def build_router(root: Path, config: dict, *, codex_model: str | None = None) -> ProviderRouter | None:
     provider = config["provider"]
+    selected_codex_model = config.get("codex_model", "") if codex_model is None else codex_model
     if provider == "mock":
         return None
     if provider == "codex_cli":
-        return ProviderRouter(CodexCliClient(root, config.get("codex_model", "")), None, [])
+        return ProviderRouter(CodexCliClient(root, selected_codex_model), None, [])
     if provider == "deepseek":
         return ProviderRouter(DeepSeekClient(config["deepseek_model"], config["screening_max_output_tokens"], thinking=config["deepseek_thinking"], reasoning_effort=config["deepseek_reasoning_effort"]), None, [])
     if provider == "auto":
         fallback = DeepSeekClient(config["deepseek_model"], config["screening_max_output_tokens"], thinking=config["deepseek_thinking"], reasoning_effort=config["deepseek_reasoning_effort"]) if os.environ.get("DEEPSEEK_API_KEY") else None
-        return ProviderRouter(CodexCliClient(root, config.get("codex_model", "")), fallback, config["fallback_on"])
+        return ProviderRouter(CodexCliClient(root, selected_codex_model), fallback, config["fallback_on"])
     raise ValueError(f"不支持的provider：{provider}")

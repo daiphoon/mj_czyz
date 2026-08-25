@@ -27,6 +27,9 @@ CREATE TABLE IF NOT EXISTS run_efficiency (
   screening_cache_hit INTEGER NOT NULL DEFAULT 0,
   screening_tokens_saved INTEGER NOT NULL DEFAULT 0,
   deferred_count INTEGER NOT NULL DEFAULT 0,
+  new_event_count INTEGER NOT NULL DEFAULT 0,
+  reopened_event_count INTEGER NOT NULL DEFAULT 0,
+  pending_before_count INTEGER NOT NULL DEFAULT 0,
   expansion_tier INTEGER NOT NULL DEFAULT 1,
   candidate_count INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL
 );
@@ -47,20 +50,27 @@ CREATE TABLE IF NOT EXISTS topics (
   affected_group TEXT, core_problem TEXT, mechanism_entry TEXT,
   recommendation_summary TEXT, data_used TEXT, final_path TEXT,
   actually_submitted INTEGER NOT NULL DEFAULT 0, adopted INTEGER,
-  feedback TEXT, later_changes TEXT, similarity REAL, suitable_for_reresearch INTEGER
+  feedback TEXT, later_changes TEXT, similarity REAL, suitable_for_reresearch INTEGER,
+  run_id TEXT, candidate_id TEXT, draft_source_path TEXT, review_path TEXT,
+  approval_status TEXT NOT NULL DEFAULT 'not_reviewed', approved_at TEXT
 );
 CREATE TABLE IF NOT EXISTS sources (
   id INTEGER PRIMARY KEY AUTOINCREMENT, topic_id TEXT, source_name TEXT NOT NULL,
   page_title TEXT NOT NULL, url TEXT NOT NULL, publisher TEXT, published_at TEXT,
   fetched_at TEXT NOT NULL, excerpt TEXT, data_scope TEXT, used_at TEXT,
   second_verified INTEGER NOT NULL DEFAULT 0, second_source_json TEXT,
-  content_hash TEXT, UNIQUE(url, content_hash)
+  content_hash TEXT, source_role TEXT NOT NULL DEFAULT 'unclassified',
+  checked_at TEXT, effective_at TEXT, UNIQUE(url, content_hash)
 );
 CREATE TABLE IF NOT EXISTS claims (
   id TEXT PRIMARY KEY, topic_id TEXT NOT NULL, claim_text TEXT NOT NULL,
   claim_type TEXT NOT NULL, importance TEXT NOT NULL,
   novelty_required INTEGER NOT NULL DEFAULT 0,
   policy_coverage_status TEXT NOT NULL DEFAULT 'unchecked',
+  epistemic_status TEXT NOT NULL DEFAULT 'unclassified',
+  confidence TEXT NOT NULL DEFAULT 'unrated', uncertainty_reason TEXT,
+  falsifier TEXT, as_of_date TEXT, scope_json TEXT, reasoning TEXT,
+  conflicts_json TEXT,
   created_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS claim_sources (
@@ -94,8 +104,31 @@ CREATE TABLE IF NOT EXISTS model_calls (
   id INTEGER PRIMARY KEY AUTOINCREMENT, run_id TEXT NOT NULL, task_id TEXT,
   provider TEXT NOT NULL, model TEXT NOT NULL, prompt_hash TEXT NOT NULL,
   input_tokens INTEGER NOT NULL, output_tokens INTEGER NOT NULL,
-  estimated_cost_cny REAL NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL
+  estimated_cost_cny REAL NOT NULL, status TEXT NOT NULL,
+  estimated_tokens INTEGER, stage_limit INTEGER,
+  over_budget INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS research_reviews (
+  id TEXT PRIMARY KEY, run_id TEXT NOT NULL REFERENCES runs(id),
+  candidate_id TEXT NOT NULL, topic_id TEXT NOT NULL, input_hash TEXT NOT NULL,
+  decision TEXT NOT NULL, confidence TEXT NOT NULL,
+  research_allowed INTEGER NOT NULL DEFAULT 0,
+  data_json TEXT NOT NULL, report_path TEXT NOT NULL,
+  human_decision TEXT, human_note TEXT, reviewed_at TEXT,
+  created_at TEXT NOT NULL, UNIQUE(run_id,candidate_id,input_hash)
+);
+CREATE INDEX IF NOT EXISTS idx_research_reviews_latest
+  ON research_reviews(run_id,candidate_id,created_at DESC);
+CREATE TABLE IF NOT EXISTS budget_adjustments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, run_id TEXT,
+  stage TEXT NOT NULL, old_limit INTEGER NOT NULL, new_limit INTEGER NOT NULL,
+  reason TEXT NOT NULL, expected_benefit TEXT NOT NULL,
+  actual_tokens INTEGER NOT NULL DEFAULT 0, actual_benefit TEXT,
+  decision TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL,
+  completed_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_budget_adjustments_created
+  ON budget_adjustments(created_at DESC);
 CREATE TABLE IF NOT EXISTS event_items (
   id TEXT PRIMARY KEY, run_id TEXT NOT NULL REFERENCES runs(id), source_id TEXT NOT NULL,
   source_name TEXT NOT NULL, source_level INTEGER NOT NULL, title TEXT NOT NULL,
@@ -106,6 +139,68 @@ CREATE TABLE IF NOT EXISTS event_items (
   UNIQUE(run_id, content_hash)
 );
 CREATE INDEX IF NOT EXISTS idx_event_items_run_score ON event_items(run_id, rule_score DESC);
+CREATE TABLE IF NOT EXISTS discovery_queue (
+  event_key TEXT PRIMARY KEY, content_hash TEXT NOT NULL,
+  status TEXT NOT NULL, event_json TEXT NOT NULL,
+  first_seen_at TEXT NOT NULL, last_seen_at TEXT NOT NULL,
+  first_run_id TEXT NOT NULL, last_run_id TEXT NOT NULL,
+  screened_run_id TEXT, screened_at TEXT,
+  reopen_count INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_discovery_queue_status_seen
+  ON discovery_queue(status, first_seen_at);
+CREATE TABLE IF NOT EXISTS source_funnel (
+  run_id TEXT NOT NULL REFERENCES runs(id), source_id TEXT NOT NULL,
+  source_name TEXT NOT NULL, expansion_tier INTEGER NOT NULL,
+  included_in_scan INTEGER NOT NULL DEFAULT 0,
+  raw_item_count INTEGER NOT NULL DEFAULT 0,
+  within_window_count INTEGER NOT NULL DEFAULT 0,
+  collected_count INTEGER NOT NULL DEFAULT 0,
+  invalid_metadata_count INTEGER NOT NULL DEFAULT 0,
+  outside_window_count INTEGER NOT NULL DEFAULT 0,
+  rule_qualified_count INTEGER NOT NULL DEFAULT 0,
+  rule_excluded_count INTEGER NOT NULL DEFAULT 0,
+  rule_cap_excluded_count INTEGER NOT NULL DEFAULT 0,
+  history_excluded_count INTEGER NOT NULL DEFAULT 0,
+  premodel_count INTEGER NOT NULL DEFAULT 0,
+  pool_cap_excluded_count INTEGER NOT NULL DEFAULT 0,
+  model_input_count INTEGER NOT NULL DEFAULT 0,
+  model_selected_count INTEGER NOT NULL DEFAULT 0,
+  candidate_count INTEGER NOT NULL DEFAULT 0,
+  fetch_error TEXT, parse_error TEXT, updated_at TEXT NOT NULL,
+  PRIMARY KEY(run_id, source_id)
+);
+CREATE INDEX IF NOT EXISTS idx_source_funnel_updated
+  ON source_funnel(updated_at DESC, source_id);
+CREATE TABLE IF NOT EXISTS discovery_exclusion_samples (
+  id TEXT PRIMARY KEY, run_id TEXT NOT NULL REFERENCES runs(id),
+  event_hash TEXT NOT NULL, source_id TEXT NOT NULL,
+  stage TEXT NOT NULL, reason_code TEXT NOT NULL,
+  title TEXT NOT NULL, url TEXT NOT NULL, published_at TEXT,
+  region TEXT, rule_score INTEGER NOT NULL DEFAULT 0,
+  sample_rank INTEGER NOT NULL, review_outcome TEXT,
+  review_note TEXT, reviewed_at TEXT, created_at TEXT NOT NULL,
+  UNIQUE(run_id, stage, event_hash)
+);
+CREATE INDEX IF NOT EXISTS idx_discovery_exclusion_samples_run
+  ON discovery_exclusion_samples(run_id, stage, sample_rank);
+CREATE TABLE IF NOT EXISTS discovery_shadow_reviews (
+  id TEXT PRIMARY KEY, run_id TEXT NOT NULL REFERENCES runs(id),
+  event_id TEXT NOT NULL, source_id TEXT NOT NULL,
+  input_hash TEXT NOT NULL,
+  title TEXT NOT NULL, url TEXT NOT NULL,
+  event_role TEXT NOT NULL, original_source_status TEXT NOT NULL,
+  original_source_url TEXT, local_landing_status TEXT NOT NULL,
+  coverage_status TEXT NOT NULL, recommendation TEXT NOT NULL,
+  reason_codes_json TEXT NOT NULL, policy_matches_json TEXT NOT NULL,
+  search_hits_json TEXT NOT NULL, model_selected INTEGER NOT NULL DEFAULT 0,
+  candidate_selected INTEGER NOT NULL DEFAULT 0, novelty_decision TEXT,
+  enforced INTEGER NOT NULL DEFAULT 0, error TEXT,
+  created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+  UNIQUE(run_id, event_id)
+);
+CREATE INDEX IF NOT EXISTS idx_discovery_shadow_reviews_run
+  ON discovery_shadow_reviews(run_id, recommendation);
 """
 
 
@@ -132,10 +227,18 @@ class Database:
         with self.connect() as conn:
             conn.executescript(SCHEMA)
             efficiency_columns = {row[1] for row in conn.execute("PRAGMA table_info(run_efficiency)")}
-            if "deferred_count" not in efficiency_columns:
-                conn.execute("ALTER TABLE run_efficiency ADD COLUMN deferred_count INTEGER NOT NULL DEFAULT 0")
-            if "expansion_tier" not in efficiency_columns:
-                conn.execute("ALTER TABLE run_efficiency ADD COLUMN expansion_tier INTEGER NOT NULL DEFAULT 1")
+            efficiency_migrations = {
+                "deferred_count": "INTEGER NOT NULL DEFAULT 0",
+                "new_event_count": "INTEGER NOT NULL DEFAULT 0",
+                "reopened_event_count": "INTEGER NOT NULL DEFAULT 0",
+                "pending_before_count": "INTEGER NOT NULL DEFAULT 0",
+                "expansion_tier": "INTEGER NOT NULL DEFAULT 1",
+            }
+            for column, declaration in efficiency_migrations.items():
+                if column not in efficiency_columns:
+                    conn.execute(
+                        f"ALTER TABLE run_efficiency ADD COLUMN {column} {declaration}"
+                    )
             event_columns = {row[1] for row in conn.execute("PRAGMA table_info(event_items)")}
             if "source_region" not in event_columns:
                 conn.execute("ALTER TABLE event_items ADD COLUMN source_region TEXT NOT NULL DEFAULT ''")
@@ -143,6 +246,82 @@ class Database:
                 conn.execute("ALTER TABLE event_items ADD COLUMN region_evidence TEXT NOT NULL DEFAULT ''")
             if "expansion_tier" not in event_columns:
                 conn.execute("ALTER TABLE event_items ADD COLUMN expansion_tier INTEGER NOT NULL DEFAULT 1")
+            topic_columns = {row[1] for row in conn.execute("PRAGMA table_info(topics)")}
+            topic_migrations = {
+                "run_id": "TEXT",
+                "candidate_id": "TEXT",
+                "draft_source_path": "TEXT",
+                "review_path": "TEXT",
+                "approval_status": "TEXT NOT NULL DEFAULT 'not_reviewed'",
+                "approved_at": "TEXT",
+            }
+            for column, declaration in topic_migrations.items():
+                if column not in topic_columns:
+                    conn.execute(f"ALTER TABLE topics ADD COLUMN {column} {declaration}")
+            source_columns = {row[1] for row in conn.execute("PRAGMA table_info(sources)")}
+            source_migrations = {
+                "source_role": "TEXT NOT NULL DEFAULT 'unclassified'",
+                "checked_at": "TEXT",
+                "effective_at": "TEXT",
+            }
+            for column, declaration in source_migrations.items():
+                if column not in source_columns:
+                    conn.execute(f"ALTER TABLE sources ADD COLUMN {column} {declaration}")
+            claim_columns = {row[1] for row in conn.execute("PRAGMA table_info(claims)")}
+            claim_migrations = {
+                "epistemic_status": "TEXT NOT NULL DEFAULT 'unclassified'",
+                "confidence": "TEXT NOT NULL DEFAULT 'unrated'",
+                "uncertainty_reason": "TEXT",
+                "falsifier": "TEXT",
+                "as_of_date": "TEXT",
+                "scope_json": "TEXT",
+                "reasoning": "TEXT",
+                "conflicts_json": "TEXT",
+            }
+            for column, declaration in claim_migrations.items():
+                if column not in claim_columns:
+                    conn.execute(f"ALTER TABLE claims ADD COLUMN {column} {declaration}")
+            model_call_columns = {row[1] for row in conn.execute("PRAGMA table_info(model_calls)")}
+            model_call_migrations = {
+                "estimated_tokens": "INTEGER",
+                "stage_limit": "INTEGER",
+                "over_budget": "INTEGER NOT NULL DEFAULT 0",
+            }
+            for column, declaration in model_call_migrations.items():
+                if column not in model_call_columns:
+                    conn.execute(f"ALTER TABLE model_calls ADD COLUMN {column} {declaration}")
+            shadow_columns = {
+                row[1] for row in conn.execute("PRAGMA table_info(discovery_shadow_reviews)")
+            }
+            if "input_hash" not in shadow_columns:
+                conn.execute(
+                    "ALTER TABLE discovery_shadow_reviews ADD COLUMN input_hash TEXT NOT NULL DEFAULT ''"
+                )
+            conn.execute(
+                """UPDATE topics SET approval_status='approved'
+                   WHERE approval_status='not_reviewed'
+                     AND (actually_submitted=1 OR final_path LIKE '%/outputs/submission/%')"""
+            )
+            unlinked_topics = conn.execute(
+                "SELECT id FROM topics WHERE run_id IS NULL"
+            ).fetchall()
+            run_checkpoints = conn.execute(
+                "SELECT id,checkpoint_json FROM runs ORDER BY updated_at"
+            ).fetchall()
+            topic_runs: dict[str, str] = {}
+            for run in run_checkpoints:
+                try:
+                    topic_id = json.loads(run["checkpoint_json"] or "{}").get("topic_id")
+                except json.JSONDecodeError:
+                    continue
+                if topic_id:
+                    topic_runs[topic_id] = run["id"]
+            for topic in unlinked_topics:
+                if topic["id"] in topic_runs:
+                    conn.execute(
+                        "UPDATE topics SET run_id=? WHERE id=?",
+                        (topic_runs[topic["id"]], topic["id"]),
+                    )
             # Backfill legacy runs so old fixture/mock candidates cannot pollute
             # real-run history and rolling quality metrics.
             conn.execute(

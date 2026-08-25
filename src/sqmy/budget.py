@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+import math
 
-from .db import Database
+from .db import Database, now
 
 
 class BudgetExceeded(RuntimeError):
@@ -15,32 +16,147 @@ class BudgetGuard:
     weekly_limit: int
     used: int = 0
     stage_limit: int | None = None
+    protected_reserve: int = 0
+    scope_limit: int | None = None
+    scope_used: int = 0
 
     def reserve(self, estimated_tokens: int) -> None:
         if self.stage_limit is not None and estimated_tokens > self.stage_limit:
             raise BudgetExceeded(f"阶段预算不足：预计 {estimated_tokens}，阶段上限 {self.stage_limit}")
-        if self.used + estimated_tokens > self.weekly_limit:
-            raise BudgetExceeded(f"预算不足：已用 {self.used}，申请 {estimated_tokens}，上限 {self.weekly_limit}")
+        usable_weekly = max(0, self.weekly_limit - self.protected_reserve)
+        if self.used + estimated_tokens > usable_weekly:
+            raise BudgetExceeded(
+                f"预算不足：已用 {self.used}，申请 {estimated_tokens}，周上限 {self.weekly_limit}，"
+                f"研究写作预留 {self.protected_reserve}"
+            )
+        if self.scope_limit is not None and self.scope_used + estimated_tokens > self.scope_limit:
+            raise BudgetExceeded(
+                f"发现阶段周预算不足：已用 {self.scope_used}，申请 {estimated_tokens}，"
+                f"发现阶段上限 {self.scope_limit}"
+            )
 
     def record(self, actual_tokens: int) -> None:
         self.used += actual_tokens
 
+    def actual_overrun_reasons(self, actual_tokens: int) -> list[str]:
+        reasons = []
+        if self.stage_limit is not None and actual_tokens > self.stage_limit:
+            reasons.append(f"实际 {actual_tokens} 超过阶段上限 {self.stage_limit}")
+        usable_weekly = max(0, self.weekly_limit - self.protected_reserve)
+        if self.used + actual_tokens > usable_weekly:
+            reasons.append(
+                f"调用前已用 {self.used}，本次实际 {actual_tokens}，超过周上限扣除研究写作预留后的"
+                f"可用周额度 {usable_weekly}"
+            )
+        if self.scope_limit is not None and self.scope_used + actual_tokens > self.scope_limit:
+            reasons.append(
+                f"发现阶段调用前已用 {self.scope_used}，本次实际 {actual_tokens}，"
+                f"超过发现阶段周上限 {self.scope_limit}"
+            )
+        return reasons
 
-def weekly_usage(db: Database, days: int = 7) -> dict:
+
+def weekly_usage(db: Database, days: int = 7, *, task_id: str | None = None) -> dict:
     cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
     db.initialize()
+    task_filter = " AND task_id=?" if task_id is not None else ""
+    params = (cutoff, task_id) if task_id is not None else (cutoff,)
     with db.connect() as conn:
         row = conn.execute(
-            """SELECT COALESCE(SUM(input_tokens+output_tokens),0),
+            f"""SELECT COALESCE(SUM(input_tokens+output_tokens),0),
                       COALESCE(SUM(estimated_cost_cny),0),COUNT(*)
-               FROM model_calls WHERE created_at>=?""",
-            (cutoff,),
+               FROM model_calls WHERE created_at>=?{task_filter}""",
+            params,
         ).fetchone()
-    return {"window_days": days, "token_used": int(row[0]), "estimated_cost_cny": float(row[1]), "model_calls": int(row[2])}
+        overruns = conn.execute(
+            f"SELECT COUNT(*) FROM model_calls WHERE created_at>=? AND over_budget=1{task_filter}",
+            params,
+        ).fetchone()[0]
+    return {
+        "window_days": days,
+        "task_id": task_id,
+        "token_used": int(row[0]),
+        "estimated_cost_cny": float(row[1]),
+        "model_calls": int(row[2]),
+        "over_budget_calls": int(overruns),
+    }
 
 
 def estimate_model_call_tokens(prompt: str, model_cfg: dict, budget_cfg: dict) -> int:
     provider = model_cfg.get("primary_provider") if model_cfg.get("provider") == "auto" else model_cfg.get("provider")
     overhead_key = "codex_cli_fixed_overhead_tokens" if provider == "codex_cli" else "api_fixed_overhead_tokens"
+    multiplier_key = "codex_cli_estimate_multiplier" if provider == "codex_cli" else "api_estimate_multiplier"
     estimated_input = max(1, len(prompt) // 2) + int(budget_cfg[overhead_key])
-    return estimated_input + int(model_cfg["screening_max_output_tokens"])
+    base = estimated_input + int(model_cfg["screening_max_output_tokens"])
+    return math.ceil(base * float(budget_cfg[multiplier_key]))
+
+
+def record_budget_adjustment(
+    db: Database,
+    *,
+    stage: str,
+    old_limit: int,
+    new_limit: int,
+    reason: str,
+    expected_benefit: str,
+    run_id: str | None = None,
+) -> int:
+    if old_limit < 0 or new_limit < 0 or old_limit == new_limit:
+        raise ValueError("预算调整必须记录两个不同的非负额度")
+    if not reason.strip() or not expected_benefit.strip():
+        raise ValueError("必须记录提高或降低预算的原因和预期收益")
+    db.initialize()
+    with db.connect() as conn:
+        if run_id and conn.execute("SELECT 1 FROM runs WHERE id=?", (run_id,)).fetchone() is None:
+            raise ValueError(f"未找到运行：{run_id}")
+        cursor = conn.execute(
+            """INSERT INTO budget_adjustments(
+                 run_id,stage,old_limit,new_limit,reason,expected_benefit,created_at
+               ) VALUES(?,?,?,?,?,?,?)""",
+            (
+                run_id,
+                stage.strip(),
+                old_limit,
+                new_limit,
+                reason.strip(),
+                expected_benefit.strip(),
+                now(),
+            ),
+        )
+    return int(cursor.lastrowid)
+
+
+def review_budget_adjustment(
+    db: Database,
+    adjustment_id: int,
+    *,
+    actual_tokens: int,
+    actual_benefit: str,
+    decision: str,
+) -> None:
+    if decision not in {"retain", "revert", "reassess"}:
+        raise ValueError("预算复盘结论只能是 retain、revert 或 reassess")
+    if actual_tokens < 0 or not actual_benefit.strip():
+        raise ValueError("必须记录非负实际Token和实际收益")
+    db.initialize()
+    with db.connect() as conn:
+        row = conn.execute(
+            "SELECT 1 FROM budget_adjustments WHERE id=?", (adjustment_id,)
+        ).fetchone()
+        if row is None:
+            raise ValueError(f"未找到预算调整记录：{adjustment_id}")
+        conn.execute(
+            """UPDATE budget_adjustments SET actual_tokens=?,actual_benefit=?,
+                 decision=?,completed_at=? WHERE id=?""",
+            (actual_tokens, actual_benefit.strip(), decision, now(), adjustment_id),
+        )
+
+
+def budget_adjustments(db: Database, limit: int = 20) -> list[dict]:
+    db.initialize()
+    with db.connect() as conn:
+        rows = conn.execute(
+            "SELECT * FROM budget_adjustments ORDER BY created_at DESC,id DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+    return [dict(row) for row in rows]

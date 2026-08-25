@@ -1,0 +1,14 @@
+[
+  {
+    "source": {
+      "id": "fixture_official",
+      "name": "离线一级信源",
+      "level": 1,
+      "region": "北京",
+      "type": "rss_search",
+      "query": "fixture",
+      "expansion_tier": 1
+    },
+    "xml": "<rss><channel><item><title>北京市养老服务政策执行问题</title><link>https://example.gov.cn/fixture/养老</link><description>公开数据反映养老服务存在制度执行问题和群体负担。</description></item><item><title>北京市人工智能数据治理问题</title><link>https://example.gov.cn/fixture/人工智能</link><description>公开调查反映人工智能数据治理存在制度责任问题。</description></item><item><title>北京市青年就业政策衔接问题</title><link>https://example.gov.cn/fixture/就业</link><description>公开数据反映青年就业政策衔接存在执行问题。</description></item><item><title>北京市校园餐食品安全抽检机制问题</title><link>https://example.gov.cn/fixture/食品安全</link><description>食品抽检数据反映校园餐流程存在风险和核验问题。</description></item><item><title>北京市社区物业纠纷协同治理问题</title><link>https://example.gov.cn/fixture/社区</link><description>公开调查反映社区物业纠纷存在责任衔接和纠错问题。</description></item><item><title>北京市中小企业政策兑现问题</title><link>https://example.gov.cn/fixture/企业</link><description>公开数据反映中小企业政策兑现存在信息不对称和负担。</description></item><item><title>北京市住房租赁资金风险确认问题</title><link>https://example.gov.cn/fixture/住房</link><description>公开调查反映住房租赁资金流程存在风险和信息不对称。</description></item><item><title>北京市停车治理政策执行问题</title><link>https://example.gov.cn/fixture/停车</link><description>公开数据反映停车治理存在政策执行和核验问题。</description></item></channel></rss>"
+  }
+]

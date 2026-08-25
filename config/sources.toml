@@ -195,3 +195,165 @@ region = "全国"
 type = "rss_search"
 query = "site:court.gov.cn 司法建议 纠纷 治理"
 expansion_tier = 3
+
+[[sources]]
+id = "national_education"
+name = "教育部民生议题"
+level = 1
+region = "全国"
+type = "rss_search"
+query = "site:moe.gov.cn (学生 OR 教师 OR 入学 OR 校园) (问题 OR 征求意见 OR 通报 OR 调查)"
+expansion_tier = 3
+
+[[sources]]
+id = "national_health"
+name = "国家卫生健康委民生议题"
+level = 1
+region = "全国"
+type = "rss_search"
+query = "site:nhc.gov.cn (医疗 OR 生育 OR 托育 OR 老年健康) (政策 OR 通报 OR 数据 OR 调查)"
+expansion_tier = 3
+
+[[sources]]
+id = "national_healthcare_security"
+name = "国家医保局民生议题"
+level = 1
+region = "全国"
+type = "rss_search"
+query = "site:nhsa.gov.cn (医保 OR 药价 OR 医疗费用 OR 异地就医) (政策 OR 通报 OR 数据 OR 问题)"
+expansion_tier = 3
+
+[[sources]]
+id = "national_civil_affairs"
+name = "民政部养老救助与社区治理"
+level = 1
+region = "全国"
+type = "rss_search"
+query = "site:mca.gov.cn (养老 OR 社会救助 OR 残疾人 OR 社区) (政策 OR 数据 OR 问题 OR 试点)"
+expansion_tier = 3
+
+[[sources]]
+id = "national_market_regulation"
+name = "市场监管总局消费与市场秩序"
+level = 1
+region = "全国"
+type = "rss_search"
+query = "site:samr.gov.cn (投诉 OR 抽检 OR 消费 OR 价格) (通报 OR 数据 OR 风险 OR 调查)"
+expansion_tier = 3
+
+[[sources]]
+id = "national_housing"
+name = "住房城乡建设部公共服务议题"
+level = 1
+region = "全国"
+type = "rss_search"
+query = "site:mohurd.gov.cn (住房 OR 物业 OR 城市更新 OR 无障碍) (政策 OR 问题 OR 数据 OR 试点)"
+expansion_tier = 3
+
+[[sources]]
+id = "national_transport"
+name = "交通运输部出行与物流议题"
+level = 1
+region = "全国"
+type = "rss_search"
+query = "site:mot.gov.cn (出行 OR 网约车 OR 货运 OR 快递) (政策 OR 问题 OR 数据 OR 风险)"
+expansion_tier = 3
+
+[[sources]]
+id = "national_emergency"
+name = "应急管理部公共安全议题"
+level = 1
+region = "全国"
+type = "rss_search"
+query = "site:mem.gov.cn (安全生产 OR 消防 OR 灾害预警) (通报 OR 政策 OR 数据 OR 调查)"
+expansion_tier = 3
+
+[[sources]]
+id = "national_cyberspace"
+name = "国家网信部门平台与个人信息议题"
+level = 1
+region = "全国"
+type = "rss_search"
+query = "site:cac.gov.cn (算法 OR 个人信息 OR 未成年人网络 OR 平台) (规定 OR 通报 OR 专项治理 OR 问题)"
+expansion_tier = 3
+
+[[sources]]
+id = "national_procuratorate"
+name = "最高人民检察院公共利益治理线索"
+level = 1
+region = "全国"
+type = "rss_search"
+query = "site:spp.gov.cn (公益诉讼 OR 检察建议) (未成年人 OR 消费者 OR 个人信息 OR 无障碍)"
+expansion_tier = 3
+
+[[sources]]
+id = "national_audit"
+name = "审计署民生资金和政策执行线索"
+level = 1
+region = "全国"
+type = "rss_search"
+query = "site:audit.gov.cn (医疗 OR 养老 OR 教育 OR 惠民 OR 就业) 审计 整改"
+expansion_tier = 3
+
+[[sources]]
+id = "national_consumers_association"
+name = "中国消费者协会调查与投诉数据"
+level = 2
+region = "全国"
+type = "rss_search"
+query = "site:cca.org.cn (投诉 OR 消费提示 OR 调查 OR 维权)"
+expansion_tier = 3
+
+[[sources]]
+id = "national_workers_investigation"
+name = "工人日报劳动权益调查"
+level = 2
+region = "全国"
+type = "rss_search"
+query = "site:workercn.cn (调查 OR 权益 OR 困境) (就业 OR 欠薪 OR 平台劳动 OR 灵活就业)"
+expansion_tier = 3
+
+[[sources]]
+id = "national_legal_investigation"
+name = "法治日报制度与维权调查"
+level = 2
+region = "全国"
+type = "rss_search"
+query = "site:legaldaily.com.cn (调查 OR 案例 OR 维权) (消费者 OR 物业 OR 网络 OR 未成年人)"
+expansion_tier = 3
+
+[[sources]]
+id = "national_youth_investigation"
+name = "中国青年报青年民生调查"
+level = 2
+region = "全国"
+type = "rss_search"
+query = "site:cyol.com (调查 OR 困境 OR 痛点) (青年 OR 就业 OR 教育 OR 未成年人)"
+expansion_tier = 3
+
+[[sources]]
+id = "national_12345_signals"
+name = "全国12345热线公开数据和高频诉求"
+level = 2
+region = "全国"
+type = "rss_search"
+query = "12345 热线 (投诉 OR 高频诉求 OR 数据报告 OR 民生问题)"
+expansion_tier = 3
+
+[[sources]]
+id = "people_message_clues"
+name = "人民网领导留言板群众诉求线索"
+level = 3
+region = "全国"
+type = "rss_search"
+query = "site:liuyan.people.com.cn (留言 OR 建议 OR 回复) (医疗 OR 教育 OR 养老 OR 住房 OR 就业 OR 交通)"
+expansion_tier = 4
+
+[[sources]]
+id = "blackcat_complaint_clues"
+name = "黑猫投诉消费痛点线索"
+level = 3
+region = "全国"
+type = "rss_search"
+query = "site:tousu.sina.com.cn (投诉 OR 退费 OR 收费 OR 维权 OR 虚假宣传)"
+expansion_tier = 4

@@ -1,6 +1,17 @@
+from pathlib import Path
+import subprocess
+import tempfile
 import unittest
 
-from sqmy.providers import ModelResult, ProviderError, ProviderRouter, QuotaExceeded, extract_codex_usage
+from sqmy.providers import (
+    CodexCliClient,
+    ModelResult,
+    ProviderError,
+    ProviderRouter,
+    QuotaExceeded,
+    build_router,
+    extract_codex_usage,
+)
 
 
 class FakeClient:
@@ -41,3 +52,43 @@ class ProviderRouterTest(unittest.TestCase):
         with self.assertRaises(ProviderError):
             ProviderRouter(FakeClient(error=ProviderError("bad json")), fallback, ["quota_exceeded"]).analyze("p", {})
         self.assertEqual(fallback.calls, 0)
+
+    def test_stage_can_override_codex_model(self):
+        router = build_router(
+            Path("."),
+            {"provider": "codex_cli", "codex_model": "full-model"},
+            codex_model="screening-model",
+        )
+        self.assertEqual(router.primary.model, "screening-model")
+
+    def test_codex_analysis_uses_isolated_workspace_and_forbids_tools(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "project"
+            root.mkdir()
+            (root / "AGENTS.md").write_text("very large project context", encoding="utf-8")
+            observed = {}
+
+            def runner(command, **kwargs):
+                workspace = Path(command[command.index("--cd") + 1])
+                output = Path(command[command.index("--output-last-message") + 1])
+                observed["workspace"] = workspace
+                observed["command"] = command
+                observed["prompt"] = command[-1]
+                self.assertNotEqual(workspace, root)
+                self.assertFalse((workspace / "AGENTS.md").exists())
+                output.write_text('{"ok": true}', encoding="utf-8")
+                return subprocess.CompletedProcess(
+                    command,
+                    0,
+                    stdout='{"type":"turn.completed","usage":{"input_tokens":20,"output_tokens":5}}\n',
+                    stderr="",
+                )
+
+            result = CodexCliClient(root, "screening-model", runner=runner).analyze(
+                "分析以下元数据", {"type": "object"}
+            )
+
+        self.assertEqual(result.data, {"ok": True})
+        self.assertIn("--skip-git-repo-check", observed["command"])
+        self.assertIn("不得调用任何工具", observed["prompt"])
+        self.assertIn("不得读取工作区文件", observed["prompt"])
