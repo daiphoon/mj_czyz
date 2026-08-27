@@ -113,3 +113,24 @@ def test_monday_cli_runs_observable_shadow_workflow_offline(capsys):
             assert conn.execute("SELECT COUNT(*) FROM source_funnel").fetchone()[0] == 1
             assert conn.execute("SELECT COUNT(*) FROM discovery_shadow_reviews").fetchone()[0] == 8
             assert conn.execute("SELECT COALESCE(SUM(enforced),0) FROM discovery_shadow_reviews").fetchone()[0] == 0
+
+
+def test_cli_reports_a_safe_discovery_pause_without_claiming_candidates(capsys):
+    with tempfile.TemporaryDirectory() as temp:
+        root = Path(temp)
+        (root / "config").mkdir()
+        shutil.copy(ROOT / "config/sources.toml", root / "config/sources.toml")
+        shutil.copy(ROOT / "config/policy_mechanisms.toml", root / "config/policy_mechanisms.toml")
+        raw = deepcopy(Settings.load(ROOT / "config/settings.toml").raw)
+        raw["model"]["provider"] = "codex_cli"
+        raw["budget"]["weekly_token_limit"] = 0
+        settings = Settings(root, raw)
+
+        with patch("sqmy.cli.Settings.load", return_value=settings), patch(
+            "sqmy.discovery.build_router"
+        ):
+            assert main(["--config", "unused.toml", "scan", "--fixture", str(ROOT / "tests/fixtures/monday_observability.json")]) == 0
+
+        output = capsys.readouterr().out
+        assert "已完成零模型采集" in output
+        assert "已生成" not in output

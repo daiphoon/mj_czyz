@@ -156,8 +156,12 @@ def main(argv: list[str] | None = None) -> int:
             resume_run_id=args.resume_run_id,
         )
         print(run_id)
-        print(f"已生成 {len(candidates)} 个候选：outputs/candidates/{run_id}.md")
-        if not candidates:
+        run_status = wf.status(run_id, include_all=True)[0]["status"]
+        if run_status in {"paused_budget", "paused_quota"}:
+            print("已完成零模型采集；模型筛选已安全暂停。请按运行状态中的恢复命令继续。")
+        else:
+            print(f"已生成 {len(candidates)} 个候选：outputs/candidates/{run_id}.md")
+        if not candidates and run_status not in {"paused_budget", "paused_quota"}:
             pool = wf.candidate_pool()
             print(f"近期候选池仍有 {len(pool)} 个未选候选；查看命令：sqmy candidate-pool")
     elif args.command in {"scan-mock", "monday-mock"}:

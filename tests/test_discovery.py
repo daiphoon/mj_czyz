@@ -829,6 +829,35 @@ class DiscoveryTest(unittest.TestCase):
             self.assertEqual(checkpoint["start_tier"], 3)
             self.assertEqual(checkpoint["resume_next"], f"sqmy scan --resume {run_id}")
 
+    def test_run_returns_cleanly_when_pre_model_budget_blocks_screening(self):
+        with tempfile.TemporaryDirectory() as temp:
+            test_root = Path(temp)
+            (test_root / "config").mkdir()
+            shutil.copy(self.root / "config/sources.toml", test_root / "config/sources.toml")
+            shutil.copy(self.root / "config/policy_mechanisms.toml", test_root / "config/policy_mechanisms.toml")
+            raw = deepcopy(self.settings.raw)
+            raw["model"]["provider"] = "codex_cli"
+            raw["budget"]["weekly_token_limit"] = 0
+            settings = Settings(test_root, raw)
+            discovery = LiveDiscovery(settings)
+
+            with patch("sqmy.discovery.build_router", return_value=FakeRouter({"selections": []})):
+                run_id, candidates = discovery.run(
+                    self.root / "tests/fixtures/monday_observability.json"
+                )
+
+            status = discovery.wf.status(run_id, include_all=True)[0]
+            checkpoint = json.loads(status["checkpoint_json"])
+            self.assertEqual(candidates, [])
+            self.assertEqual(status["phase"], "discovery")
+            self.assertEqual(status["status"], "paused_budget")
+            self.assertEqual(checkpoint["resume_next"], f"sqmy scan --resume {run_id}")
+            with discovery.wf.db.connect() as conn:
+                calls = conn.execute(
+                    "SELECT COUNT(*) FROM model_calls WHERE run_id=?", (run_id,)
+                ).fetchone()[0]
+            self.assertEqual(calls, 0)
+
     def test_actual_token_overrun_saves_result_then_pauses_following_calls(self):
         with tempfile.TemporaryDirectory() as temp:
             test_root = Path(temp)

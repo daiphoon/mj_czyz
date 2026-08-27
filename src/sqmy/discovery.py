@@ -236,7 +236,14 @@ class LiveDiscovery:
                 "next": "model_screening" if model_pool else "finalize_discovery",
             },
         )
-        screened, cache_hit, tokens_saved = self._model_rank(run_id, model_pool, use_cache=not force)
+        try:
+            screened, cache_hit, tokens_saved = self._model_rank(
+                run_id, model_pool, use_cache=not force
+            )
+        except (BudgetExceeded, QuotaExceeded, RateLimited):
+            # _model_rank has already written a resumable discovery checkpoint.
+            # Do not continue into ranking or overwrite that paused state.
+            return run_id, []
         if mode == "live" and model_pool:
             self._mark_queue_screened(run_id, model_pool)
             deferred_count = self._pending_queue_count()
