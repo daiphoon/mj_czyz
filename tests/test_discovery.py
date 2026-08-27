@@ -800,6 +800,7 @@ class DiscoveryTest(unittest.TestCase):
             raw = deepcopy(self.settings.raw)
             raw["model"]["provider"] = "codex_cli"
             raw["budget"]["weekly_token_limit"] = 0
+            raw["budget"]["complete_started_task_on_budget_exhaustion"] = False
             settings = Settings(test_root, raw)
             discovery = LiveDiscovery(settings)
             run_id = discovery.wf.init_run("live")
@@ -838,6 +839,7 @@ class DiscoveryTest(unittest.TestCase):
             raw = deepcopy(self.settings.raw)
             raw["model"]["provider"] = "codex_cli"
             raw["budget"]["weekly_token_limit"] = 0
+            raw["budget"]["complete_started_task_on_budget_exhaustion"] = False
             settings = Settings(test_root, raw)
             discovery = LiveDiscovery(settings)
 
@@ -858,6 +860,36 @@ class DiscoveryTest(unittest.TestCase):
                 ).fetchone()[0]
             self.assertEqual(calls, 0)
 
+    def test_started_scan_finishes_then_records_budget_action(self):
+        with tempfile.TemporaryDirectory() as temp:
+            test_root = Path(temp)
+            (test_root / "config").mkdir()
+            shutil.copy(self.root / "config/sources.toml", test_root / "config/sources.toml")
+            shutil.copy(self.root / "config/policy_mechanisms.toml", test_root / "config/policy_mechanisms.toml")
+            raw = deepcopy(self.settings.raw)
+            raw["model"]["provider"] = "codex_cli"
+            raw["budget"]["weekly_token_limit"] = 0
+            raw["budget"]["complete_started_task_on_budget_exhaustion"] = True
+            settings = Settings(test_root, raw)
+            discovery = LiveDiscovery(settings)
+
+            with patch("sqmy.discovery.build_router", return_value=FakeRouter({"selections": []})):
+                run_id, candidates = discovery.run(
+                    self.root / "tests/fixtures/monday_observability.json"
+                )
+
+            self.assertEqual(candidates, [])
+            status = discovery.wf.status(run_id, include_all=True)[0]
+            checkpoint = json.loads(status["checkpoint_json"])
+            self.assertEqual(status["status"], "skipped")
+            self.assertIn("budget_overrun", checkpoint)
+            self.assertIn("提额", checkpoint["budget_action_required"])
+            with discovery.wf.db.connect() as conn:
+                calls = conn.execute(
+                    "SELECT COUNT(*) FROM model_calls WHERE run_id=?", (run_id,)
+                ).fetchone()[0]
+            self.assertEqual(calls, 1)
+
     def test_actual_token_overrun_saves_result_then_pauses_following_calls(self):
         with tempfile.TemporaryDirectory() as temp:
             test_root = Path(temp)
@@ -868,6 +900,7 @@ class DiscoveryTest(unittest.TestCase):
             raw["model"]["provider"] = "codex_cli"
             raw["budget"]["weekly_token_limit"] = 200_000
             raw["budget"]["screening_tokens"] = 45_000
+            raw["budget"]["complete_started_task_on_budget_exhaustion"] = False
             settings = Settings(test_root, raw)
             discovery = LiveDiscovery(settings)
             run_id = discovery.wf.init_run("live")

@@ -59,7 +59,9 @@
 
 ## 扫描前维护
 
-`preflight` 是零模型调用的只读预检，按 `scan`、`refresh`、`research`、`writing` 分别核对SQLite完整性、残留任务、TOML解析、必需文件、写入目录、提供商、`.env` 权限和相应预算。`scan` 在筛选额度不足时仍可完成零模型元数据入队，但会在模型前安全暂停；`refresh` 默认零模型，因此不会因筛选Token、调用成本或Codex CLI不可用而阻断。
+`preflight` 是零模型调用的只读预检，按 `scan`、`refresh`、`research`、`writing` 分别核对SQLite完整性、残留任务、TOML解析、必需文件、写入目录、提供商、`.env` 权限和相应预算。`scan` 在筛选额度不足时仍可完成零模型元数据入队；未启用已开始任务完成策略时在模型前安全暂停，启用后则完成当前有界步骤并记录超额。`refresh` 默认零模型，因此不会因筛选 Token、调用成本或 Codex CLI 不可用而阻断。
+
+预算在新题或新阶段启动前作为范围闸门。当 `complete_started_task_on_budget_exhaustion=true` 时，人工已发起的单个有界步骤只因周额度或发现阶段累计额度不足时，先完成当前步骤，在检查点记录 `budget_overrun` 和后续提额提示，不自动转入备选题或新阶段。单次阶段上限、最大调用次数和真实订阅/API额度仍是硬边界。
 
 `cleanup` 默认只产生清理计划。`--apply` 先调用SQLite backup API写入 `data/history/backups/`，再按外键顺序删除无价值运行数据和临时路径，最后 `VACUUM` 并运行 `integrity_check`。保留范围为所有真实运行、最新回放、提供商诊断、源数据、缓存、模板和耐久研究记录。
 

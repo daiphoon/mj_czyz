@@ -161,6 +161,11 @@ def main(argv: list[str] | None = None) -> int:
             print("已完成零模型采集；模型筛选已安全暂停。请按运行状态中的恢复命令继续。")
         else:
             print(f"已生成 {len(candidates)} 个候选：outputs/candidates/{run_id}.md")
+            checkpoint = json.loads(
+                wf.status(run_id, include_all=True)[0]["checkpoint_json"] or "{}"
+            )
+            if checkpoint.get("budget_overrun"):
+                print("当前有界步骤已完成，但已超出配置预算；启动下一个新模型任务前请提额或等待额度释放。")
         if not candidates and run_status not in {"paused_budget", "paused_quota"}:
             pool = wf.candidate_pool()
             print(f"近期候选池仍有 {len(pool)} 个未选候选；查看命令：sqmy candidate-pool")

@@ -1,0 +1,257 @@
+{
+  "run_id": "2026-08-27-cc870c0f",
+  "candidate_id": "C3",
+  "topic_id": "recruitment-background-check-adverse-action-review-2026-08",
+  "working_title": "关于在《用人单位招聘指南》制定中完善背景调查不利结论告知与异议复核机制的建议",
+  "decision": "reframe",
+  "decision_reason": "reframe_required",
+  "confidence": "medium",
+  "confidence_reason": "已核实《劳动合同法》只允许了解与劳动合同直接相关的基本情况，个人信息保护制度已覆盖最小必要、更正、说明理由和自动化决策权利；因此原题不能继续宣称背调‘没有法定边界’。但是，2025年北京丰台法院案例和2026年新近调查均显示，未核实的主观评价或与岗位关联性存疑的民事涉诉信息可被标为风险，并实际影响薪酬或录用。2026年新立项的《用人单位招聘指南》正式把背景调查纳入附录，且多家北京单位参与起草，存在把一般权利转化为招聘场景可执行程序的现实窗口。尚未获得标准完整征求意见稿，不能断言它已经遗漏相关条款。",
+  "sources": [
+    {
+      "key": "legal_daily_overbroad_checks_2026",
+      "url": "http://www.legaldaily.com.cn/index/content/2026-08/26/content_9446414.html",
+      "publisher": "法治日报・法治网",
+      "published_at": "2026-08-26",
+      "checked_at": "2026-08-27T08:00:00Z",
+      "source_level": 2,
+      "source_role": "media_investigation",
+      "origin_group": "legal-daily-background-check-investigation-2026-08",
+      "excerpt": "报道以求职者因已处理民事诉讼被第三方背调标注风险并中止录用为线索，讨论信息与岗位关联性、授权范围和异议复核。"
+    },
+    {
+      "key": "fengtai_court_background_check_case",
+      "url": "https://epaper.legaldaily.com.cn/fzrb/PDF/20250727/05.pdf",
+      "publisher": "法治日报（北京市丰台区人民法院案例）",
+      "published_at": "2025-07-27",
+      "checked_at": "2026-08-27T08:00:00Z",
+      "source_level": 2,
+      "source_role": "court_case",
+      "origin_group": "beijing-fengtai-court-background-check-case",
+      "excerpt": "背调公司未核实访谈信息，将价值观和生活作风负面评价标为黄灯后发送给拟入职单位，求职者入职薪酬降低；法院认定背调公司未尽合理核实义务并构成侵权，二审维持。"
+    },
+    {
+      "key": "employer_recruitment_guideline_project",
+      "url": "https://std.samr.gov.cn/gb/search/gbDetailed?id=45F8AAB227AFFE99E06397BE0A0A0B64",
+      "publisher": "全国标准信息公共服务平台",
+      "published_at": "2026-05-22",
+      "checked_at": "2026-08-27T08:00:00Z",
+      "source_level": 1,
+      "source_role": "official_policy",
+      "origin_group": "national-employer-recruitment-guideline-2026",
+      "excerpt": "国家标准计划20262648-T-316《用人单位招聘指南》为推荐性国家标准，周期12个月，修改采用ISO 30405:2023；附录B明确涉及背景调查，多家北京人力资源机构及朝阳区人社部门参与起草。"
+    },
+    {
+      "key": "labor_contract_law_article_8",
+      "url": "https://www.mohrss.gov.cn/xxgk2020/fdzdgknr/zcfg/fl/202011/t20201102_394622.html",
+      "publisher": "人力资源和社会保障部",
+      "published_at": "2012-12-28",
+      "checked_at": "2026-08-27T08:00:00Z",
+      "source_level": 1,
+      "source_role": "official_policy",
+      "origin_group": "labor-contract-law",
+      "excerpt": "第八条规定，用人单位有权了解劳动者与劳动合同直接相关的基本情况，劳动者应当如实说明。"
+    },
+    {
+      "key": "personal_information_audit_guideline",
+      "url": "https://www.cac.gov.cn/2025-02/14/c_1741233507681519.htm",
+      "publisher": "中央网信办",
+      "published_at": "2025-02-14",
+      "checked_at": "2026-08-27T08:00:00Z",
+      "source_level": 1,
+      "source_role": "official_policy",
+      "origin_group": "personal-information-compliance-audit-rules-2025",
+      "excerpt": "合规审计指引要求核查最小必要、处理规则告知、查阅更正途径、自动化决策说明和拒绝机制，以及拒绝个人行使权利时的理由说明。"
+    },
+    {
+      "key": "online_recruitment_service_standard",
+      "url": "https://std.samr.gov.cn/hb/search/stdHBDetailed?id=0BABB9815343CE08E06397BE0A0AF483",
+      "publisher": "全国标准信息公共服务平台",
+      "published_at": "2023-11-20",
+      "checked_at": "2026-08-27T08:00:00Z",
+      "source_level": 1,
+      "source_role": "official_policy",
+      "origin_group": "ldt-3001-2023-online-recruitment",
+      "excerpt": "LD/T 3001—2023《网络招聘服务规范》自2024年1月1日实施，适用于开展网络招聘服务的人力资源服务机构。"
+    }
+  ],
+  "verified_facts": [
+    {
+      "statement": "《劳动合同法》将用人单位的了解权限定为与劳动合同直接相关的基本情况，不是无限制背调授权。",
+      "source_keys": ["labor_contract_law_article_8"]
+    },
+    {
+      "statement": "现行个人信息保护合规审计规则已覆盖最小必要、告知、更正、权利请求响应和自动化决策说明等一般要求。",
+      "source_keys": ["personal_information_audit_guideline"]
+    },
+    {
+      "statement": "2025年北京市丰台区人民法院相关案例中，背调公司将未审慎核实的主观负面评价标注为黄灯并发送给拟入职单位，实际影响求职者薪酬；法院认定背调公司未尽合理核实义务并构成侵权。",
+      "source_keys": ["fengtai_court_background_check_case"]
+    },
+    {
+      "statement": "2026年的新近调查线索显示，已处理的交通事故民事诉讼被第三方背调标为中等风险后，可能实际影响录用。",
+      "source_keys": ["legal_daily_overbroad_checks_2026"]
+    },
+    {
+      "statement": "2026年国家标准项目《用人单位招聘指南》已立项，计划周期12个月，附录B专门涉及背景调查，参与起草单位包括多家北京人力资源机构及朝阳区人社部门。",
+      "source_keys": ["employer_recruitment_guideline_project"]
+    },
+    {
+      "statement": "我国已有适用于网络招聘服务机构的LD/T 3001—2023《网络招聘服务规范》。",
+      "source_keys": ["online_recruitment_service_standard"]
+    }
+  ],
+  "evidence_based_inferences": [
+    {
+      "statement": "原候选应从‘背调缺少法定边界’改写为：一般法律权利如何在招聘背调中转化为不利结论告知、关联性说明、事实更正和录用复核程序。",
+      "basis": "法律和合规审计规则已有一般性边界和更正权，但北京法院案例和新近调查仍显示风险标签可直接影响薪酬或录用。",
+      "uncertainty": "尚未核对主要背调机构和用人单位的现行异议流程，也未取得新国家标准完整草案。",
+      "falsifier": "如果新国家标准完整草案、现行行业标准和主要机构规则已一致要求不利结论告知、异议复核、录用暂缓和责任留痕，且问题只是孤立违规，则改写后的缺口不成立。",
+      "source_keys": ["labor_contract_law_article_8", "personal_information_audit_guideline", "fengtai_court_background_check_case", "legal_daily_overbroad_checks_2026"]
+    },
+    {
+      "statement": "在正在制定的《用人单位招聘指南》中增加最小程序，比立即建议制定新法、建新平台或设新审批更低成本。",
+      "basis": "新国家标准已将背景调查纳入附录，且计划尚处于制定周期内。",
+      "uncertainty": "推荐性标准的约束力有限，可能需要北京行业试点、行政指导或合规抽查才能形成实际效果。",
+      "falsifier": "如果标准制定程序已实质定稿，或附录不允许纳入相关程序，则需调整为北京试点或向人社部门反映。",
+      "source_keys": ["employer_recruitment_guideline_project"]
+    },
+    {
+      "statement": "北京具有试点和向上反映的双重落点，但不宜宣称北京可以单方改变全国招聘标准或民事责任规则。",
+      "basis": "起草单位中包括多家北京人力资源机构和朝阳区人社部门，北京也有背调侵权司法案例。",
+      "uncertainty": "尚需核实北京市人力资源市场监管和个人信息执法的具体分工。",
+      "falsifier": "如果北京参与单位无法反馈标准制定，且地方人社部门对用人单位和背调服务的流程引导也无权限，则只能作为中央事权向上反映。",
+      "source_keys": ["employer_recruitment_guideline_project", "fengtai_court_background_check_case", "online_recruitment_service_standard"]
+    }
+  ],
+  "unverified_hypotheses": [
+    {
+      "statement": "《用人单位招聘指南》当前草案尚未完整规定背调不利结论的告知内容、异议复核期限和录用决策暂缓条件。",
+      "verification_plan": "取得完整征求意见稿、编制说明或向起草相关公开渠道核实，逐条检查附录B及决策环节。",
+      "discard_if": "草案已经完整覆盖不利结论告知、事实更正、关联性复核、处理时限和不当录用决策的纠正。"
+    },
+    {
+      "statement": "求职者在实务中通常无法在不利录用决定前获得风险项目的充分摘要并提出有效异议。",
+      "verification_plan": "核对至少三家主要背调机构的授权文本、候选人报告查阅权、更正入口和处理时限，并补充独立裁判或调解样本。",
+      "discard_if": "主要机构已广泛、稳定执行不利项目告知和先更正后决策流程，现有案例只是孤立违规。"
+    },
+    {
+      "statement": "与岗位无直接关联的民事涉诉、劳动仲裁或主观品行评价被风险化标注的问题具有一定重复性，而不是两个孤立个案。",
+      "verification_plan": "定向查找法院、劳动仲裁、人社执法、网信执法和权威调查中的独立样本，区分虚假履历、岗位必需风险与无关信息。",
+      "discard_if": "无法找到第二个独立原始信息链，或多数案例实际涉及求职者隐瞒与岗位直接相关的重要事实。"
+    }
+  ],
+  "analyst_judgments": [
+    {
+      "statement": "应将政策工具锁定为新国家标准条款和北京小范围流程试点，不建议新建背调信息平台或审批制度。",
+      "rationale": "现有法律框架已经存在，当前高价值问题是把原则变成可执行的招聘流程；新建平台会增加敏感信息集中和寻租风险。"
+    },
+    {
+      "statement": "异议权应聚焦事实准确性、岗位关联性和风险标签转化，不应变成强制用人单位录用的实体权利。",
+      "rationale": "企业仍有核验履历、竞业限制、规制资格和诚信风险的正当需求；政策应纠正错误或无关标签，不代替用人单位的合法选择。"
+    },
+    {
+      "statement": "有限预研支持按改写后题目提交人工深研确认，但不支持直接成稿。",
+      "rationale": "案例、一般法律边界和标准制定窗口已形成，但国家标准完整草案、主要背调机构规则和更多独立样本仍是成稿前必须核验的证据。"
+    }
+  ],
+  "counterevidence": [
+    {
+      "statement": "个人信息保护法律框架和合规审计指引已要求最小必要、查阅更正、权利请求响应和自动化决策说明。",
+      "implication": "不能宣称求职者完全没有告知、更正和说明权；建议必须证明招聘场景缺少可操作转化。",
+      "source_keys": ["personal_information_audit_guideline"]
+    },
+    {
+      "statement": "《劳动合同法》明确允许用人单位了解与劳动合同直接相关的基本情况。",
+      "implication": "背调并非当然不当；过于严格的限制可能放大简历造假、竞业冲突、金融或安全敏感岗位的真实用工风险。",
+      "source_keys": ["labor_contract_law_article_8"]
+    },
+    {
+      "statement": "新国家标准项目已将背景调查纳入附录，现行网络招聘服务也已有行业标准。",
+      "implication": "不能以‘没有任何标准’为前提；深研必须对照完整文本，只提尚未覆盖的最小增量。",
+      "source_keys": ["employer_recruitment_guideline_project", "online_recruitment_service_standard"]
+    }
+  ],
+  "alternative_explanations": [
+    {
+      "statement": "部分不录用结果可能是求职者隐瞒与岗位直接相关的履历、诚信、竞业或从业限制，而不是过度背调。",
+      "test": "逐案比较背调信息、岗位任职条件、求职者披露情况和用人单位说明的不录用原因。"
+    },
+    {
+      "statement": "现有制度可能已经足够，真实问题只是个别背调机构未尽核实义务。",
+      "test": "比较法律、标准、机构规则和案件实际操作；若规则已完整但只有少数违规，就应转向执法或放弃题目。"
+    },
+    {
+      "statement": "用人单位可能存在与背调无关的真实录用变动，只是事后以背调作为简化说法。",
+      "test": "核对录用通知、背调报告、内部决策时间线和沟通记录，不把时间先后直接写成因果。"
+    }
+  ],
+  "critical_unknowns": [
+    {
+      "question": "《用人单位招聘指南》完整草案是否已覆盖不利结论告知、异议复核和录用决策暂缓？",
+      "blocking": false,
+      "resolution_plan": "作为深研第一闸门获取并逐条核对标准草案；如已完整覆盖，立即停止，不扩大检索。"
+    },
+    {
+      "question": "主要背调机构目前向候选人提供哪些报告摘要、更正入口和处理时限？",
+      "blocking": false,
+      "resolution_plan": "只抽取至少三家主要机构的公开授权文本和异议规则，不批量抓取商业网站。"
+    },
+    {
+      "question": "除已核验两个样本外，是否存在独立裁判、监管或调解材料证明问题具有重复性？",
+      "blocking": false,
+      "resolution_plan": "定向检索北京法院、人社、网信和全国相关原始材料；如无第二条独立原始链，降低问题规模表述或放弃成稿。"
+    },
+    {
+      "question": "北京人社、网信和市场监管部门对用人单位、人力资源服务机构与第三方背调的职责边界如何？",
+      "blocking": false,
+      "resolution_plan": "核对人力资源市场管理、个人信息保护执法和标准化工作职责，正文不强行罗列无法确认的部门。"
+    }
+  ],
+  "discard_conditions": [
+    "新国家标准完整草案已经可执行地覆盖不利结论告知、更正、关联性复核、处理时限和责任留痕。",
+    "主要背调机构已稳定执行先告知和先复核后决策流程，已知案例只是孤立违规。",
+    "无法取得第二个独立的裁判、监管或权威调查链，不足以证明制度性问题。",
+    "建议必须新设审批、集中数据库或对所有岗位统一执行，无法将成本控制在合理范围。",
+    "北京无试点、行业引导或向上反映的可执行路径。"
+  ],
+  "authority": {
+    "actor": "建议由人力资源社会保障领域标准化工作机制吸收；北京可依托参与起草的在京机构和人社部门开展小范围流程试点并向上反映。",
+    "power": "国家层面可在正在制定的招聘指南中增加背调最小程序；北京可通过行政指导、行业倡议、合规评估和试点测试告知、异议复核与留痕模板。",
+    "boundary": "地方无权单方修改国家标准、个人信息保护法律或民事责任规则；不宜强制企业披露商业秘密、证明人身份或安全敏感内容，也不能把异议复核变成强制录用。"
+  },
+  "research_questions": [
+    "取得并逐条核对《用人单位招聘指南》草案中背景调查、招聘决策、数据保护和候选人体验相关条款。",
+    "核对至少三家主要背调机构的授权范围、风险标签标准、候选人查阅更正权、处理时限和不利决策前复核流程。",
+    "补充独立司法、监管或调解样本，区分错误信息、与岗位无关信息、已公开但不必要信息和求职者应当如实说明的重要信息。",
+    "比较‘只补标准条款’、‘北京小范围流程试点’和‘强化执法’三种方案的成本、权限、误伤与可核验效果。"
+  ],
+  "budget": {
+    "token_limit": 18000,
+    "reason": "有限预研只核验一般法律边界、两个具体样本和新国家标准制定窗口，用于改写题目和设置深研放弃条件，不批量抓取机构页面。",
+    "expected_benefit": "排除‘没有法定边界’这一过宽前提，把后续Token集中在标准草案、机构现行流程和独立样本三个决定性未知。"
+  },
+  "mechanism_cards": [
+    {
+      "proposal": "在招聘背调中建立‘最小范围—不利结论摘要—异议复核—责任留痕’的轻量流程",
+      "actor": "国家人力资源服务标准化工作机制制定推荐条款；北京人社部门可会同参与起草的在京机构开展试点",
+      "target": "用人单位和受托开展招聘背调的人力资源服务或第三方背调机构",
+      "trigger": "背调信息将被标为风险，并可能导致取消录用、降低薪酬、改变岗位或其他对求职者有实质影响的不利决定",
+      "information": "背调前列明与岗位直接相关的核验类别和敏感信息项；不利决定前向候选人提供不利项目、事实摘要、与岗位的关联理由及更正入口，但可对证明人身份、商业秘密和安全敏感信息作必要遮蔽",
+      "cost_bearer": "用人单位承担录用决策和岗位关联性判断责任；背调机构承担事实核验、报告留痕和错误更正成本；求职者承担提供可核验更正材料的合理成本",
+      "beneficiary": "受背调影响的求职者、需要准确用工风险信息的守规企业、专业背调机构和处理相关争议的监管及司法部门",
+      "expected_behavior": "用人单位在委托前收窄核验范围，不再将‘有诉讼’或主观评价自动等同用工风险；背调机构提高负面信息核实质量；求职者可在不泄露必要保密信息的前提下纠正明显错误",
+      "evasion_risk": "企业可能改用‘综合匹配度不足’或口头通知规避告知，背调机构可能将风险标签改为不透明分数，或仅让求职者更正原始事实而不复核与岗位的关联性",
+      "cost_transfer_risk": "用人单位可能延长招聘周期、减少正式offer或将复核成本压低给背调机构，最终导致服务质量下降或将费用转嫁给求职者",
+      "verification": "不以告知书数量或异议受理率作为单一指标；抽查背调类别与岗位的关联性、负面信息核实记录、异议改正率、不当标签取消率、处理时间和招聘周期变化，并分析未录用的其他正当原因",
+      "correction": "候选人在规定时限内提交更正或关联性异议；背调机构复核事实，用人单位独立复核与岗位的关联性；在非紧急、非安全敏感岗位中，复核期内暂缓依该争议项作最终不利决定，并保留更正前后记录",
+      "exit_condition": "试点显著延长招聘周期、导致企业回避正式录用通知、求职者大量滥用异议拖延招聘，或无法有效降低错误标签和争议时，收窄触发范围或停止扩围",
+      "lower_cost_alternative": "不要求公开完整背调报告，只就可能导致实质不利决定的项目提供标准化摘要和更正入口；先由参与国家标准起草的在京机构小范围试点，不新建平台或审批",
+      "scenarios": {
+        "baseline": "继续依靠个人信息保护和劳动合同一般规则，候选人往往在结果发生后通过诉讼或投诉纠正，事前流程由企业和背调机构自行设定",
+        "most_likely": "在国家标准和北京试点中加入最小程序后，明显错误或无关风险标签可在录用决策前被纠正，企业仍保留基于真实、相关信息的用人选择权，但招聘时间略有增加",
+        "adverse": "规则过密导致企业不再发正式录用通知、使用模糊理由规避或把背调转向非正式渠道；复核大量占用企业和机构资源，却不能减少实质争议"
+      }
+    }
+  ]
+}

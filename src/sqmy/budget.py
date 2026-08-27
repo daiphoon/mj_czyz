@@ -20,20 +20,29 @@ class BudgetGuard:
     scope_limit: int | None = None
     scope_used: int = 0
 
-    def reserve(self, estimated_tokens: int) -> None:
+    def reserve(
+        self,
+        estimated_tokens: int,
+        *,
+        allow_started_task_overrun: bool = False,
+    ) -> list[str]:
         if self.stage_limit is not None and estimated_tokens > self.stage_limit:
             raise BudgetExceeded(f"阶段预算不足：预计 {estimated_tokens}，阶段上限 {self.stage_limit}")
+        reasons = []
         usable_weekly = max(0, self.weekly_limit - self.protected_reserve)
         if self.used + estimated_tokens > usable_weekly:
-            raise BudgetExceeded(
+            reasons.append(
                 f"预算不足：已用 {self.used}，申请 {estimated_tokens}，周上限 {self.weekly_limit}，"
                 f"研究写作预留 {self.protected_reserve}"
             )
         if self.scope_limit is not None and self.scope_used + estimated_tokens > self.scope_limit:
-            raise BudgetExceeded(
+            reasons.append(
                 f"发现阶段周预算不足：已用 {self.scope_used}，申请 {estimated_tokens}，"
                 f"发现阶段上限 {self.scope_limit}"
             )
+        if reasons and not allow_started_task_overrun:
+            raise BudgetExceeded(reasons[0])
+        return reasons
 
     def record(self, actual_tokens: int) -> None:
         self.used += actual_tokens

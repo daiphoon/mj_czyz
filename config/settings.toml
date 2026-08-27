@@ -106,6 +106,8 @@ pre_research_tokens = 30000
 deep_research_tokens = 40000
 writing_tokens = 15000
 research_writing_reserve_tokens = 90000
+# 预算用于防止扩题和无目的调研；人工已发起的单个有界步骤允许完成后再提示调整。
+complete_started_task_on_budget_exhaustion = true
 
 [scoring]
 haidian_relevance = 15

@@ -57,6 +57,26 @@ def test_screening_budget_protects_research_reserve_and_discovery_scope():
         assert "发现阶段周预算不足" in str(exc)
 
 
+def test_started_task_can_finish_across_weekly_but_not_stage_limit():
+    guard = BudgetGuard(
+        240_000,
+        used=124_000,
+        stage_limit=55_000,
+        protected_reserve=90_000,
+        scope_limit=100_000,
+        scope_used=124_000,
+    )
+    reasons = guard.reserve(36_000, allow_started_task_overrun=True)
+    assert len(reasons) == 2
+    assert "周上限" in reasons[0]
+    assert "发现阶段上限" in reasons[1]
+    try:
+        guard.reserve(55_001, allow_started_task_overrun=True)
+        assert False, "expected stage safety limit to remain enforced"
+    except BudgetExceeded as exc:
+        assert "阶段上限" in str(exc)
+
+
 def test_weekly_usage_reads_all_calls_not_last_ten_runs():
     project = Path(__file__).parents[1]
     base = Settings.load(project / "config/settings.toml")

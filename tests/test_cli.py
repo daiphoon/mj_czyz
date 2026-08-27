@@ -124,6 +124,7 @@ def test_cli_reports_a_safe_discovery_pause_without_claiming_candidates(capsys):
         raw = deepcopy(Settings.load(ROOT / "config/settings.toml").raw)
         raw["model"]["provider"] = "codex_cli"
         raw["budget"]["weekly_token_limit"] = 0
+        raw["budget"]["complete_started_task_on_budget_exhaustion"] = False
         settings = Settings(root, raw)
 
         with patch("sqmy.cli.Settings.load", return_value=settings), patch(
