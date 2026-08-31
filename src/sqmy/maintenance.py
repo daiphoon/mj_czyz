@@ -10,7 +10,7 @@ import sqlite3
 import stat
 import tomllib
 
-from .budget import weekly_usage
+from .budget import recent_usage
 from .config import Settings
 from .db import Database
 from .evidence import assess_topic
@@ -327,70 +327,53 @@ def preflight(
     else:
         add("env_permissions", True, "no .env file", blocking=False)
 
-    usage = weekly_usage(db)
-    discovery_usage = weekly_usage(db, task_id="screening")
+    usage = recent_usage(db)
+    screening_usage = recent_usage(db, task_id="screening")
     budget_cfg = settings.section("budget")
-    remaining = budget_cfg["weekly_token_limit"] - usage["token_used"]
-    reserves = {
+    action_limits = {
         "scan": budget_cfg["screening_tokens"],
         "refresh": 0,
         "pre_research": budget_cfg["pre_research_tokens"],
         "research": budget_cfg["deep_research_tokens"],
         "writing": budget_cfg["writing_tokens"],
     }
-    if stage not in reserves:
+    if stage not in action_limits:
         raise ValueError(f"不支持的预检阶段：{stage}")
-    reserve = reserves[stage]
-    bounded_context_ok = False
-    bounded_context_detail = "run_id未提供，按普通预算闸门检查"
-    if stage in {"pre_research", "research", "writing"} and run_id:
-        bounded_context_ok, bounded_context_detail = _bounded_stage_context(
-            settings, db, run_id, stage
-        )
-        add(
-            "bounded_stage_context",
-            bounded_context_ok,
-            bounded_context_detail,
-        )
-    bounded_completion_authorized = bool(
-        bounded_context_ok
-        and budget_cfg.get("complete_started_task_on_budget_exhaustion", False)
+    action_limit = action_limits[stage]
+    action_limit_ok = zero_model_stage or (
+        isinstance(action_limit, int)
+        and not isinstance(action_limit, bool)
+        and action_limit > 0
     )
-    if stage == "scan":
-        non_discovery_used = max(
-            0, usage["token_used"] - discovery_usage["token_used"]
+    model_call_limit = model_cfg.get("max_calls_per_action")
+    call_limit_ok = (
+        isinstance(model_call_limit, int)
+        and not isinstance(model_call_limit, bool)
+        and model_call_limit > 0
+    )
+    action_scope_ok = stage in {"scan", "refresh"}
+    action_scope_detail = "扫描或零模型复核的行为边界由命令确定"
+    if stage in {"pre_research", "research", "writing"}:
+        if run_id:
+            action_scope_ok, action_scope_detail = _bounded_stage_context(
+                settings, db, run_id, stage
+            )
+        else:
+            action_scope_ok = False
+            action_scope_detail = "必须提供run_id，才能确认人工选题及当前有界行为"
+        add(
+            "action_scope",
+            action_scope_ok,
+            action_scope_detail,
         )
-        remaining_research_reserve = max(
-            0,
-            budget_cfg["research_writing_reserve_tokens"] - non_discovery_used,
-        )
-        protected_available = (
-            budget_cfg["weekly_token_limit"]
-            - remaining_research_reserve
-            - usage["token_used"]
-        )
-        discovery_available = (
-            budget_cfg["weekly_discovery_token_limit"]
-            - discovery_usage["token_used"]
-        )
-        screening_ready = min(protected_available, discovery_available) >= reserve
-        headroom_detail = (
-            f"stage=scan, total_used={usage['token_used']}, protected_available={protected_available}, "
-            f"research_reserve_remaining={remaining_research_reserve}, "
-            f"discovery_used={discovery_usage['token_used']}, discovery_available={discovery_available}, "
-            f"reserve={reserve}"
-        )
-    else:
-        screening_ready = remaining >= reserve
-        headroom_detail = (
-            f"stage={stage}, used={usage['token_used']}, remaining={remaining}, reserve={reserve}"
-        )
-    stage_headroom_ok = screening_ready or bounded_completion_authorized
-    if not screening_ready and bounded_completion_authorized:
-        headroom_detail += "; 已由人工闸门限定范围，允许完成当前有界步骤并记录超额"
+    screening_ready = action_limit_ok and call_limit_ok
+    action_limit_detail = (
+        f"stage={stage}, action_limit={action_limit}, max_calls={model_call_limit}; "
+        f"recent_{usage['window_days']}d_usage={usage['token_used']} is report_only"
+    )
     add(
-        "stage_token_headroom", stage_headroom_ok,
-        headroom_detail,
+        "action_token_limit", action_limit_ok and (zero_model_stage or call_limit_ok),
+        action_limit_detail,
         # 发现元数据与入队为零模型步骤；额度不足时仍允许扫描并在模型前安全暂停。
         blocking=stage != "scan",
     )
@@ -405,12 +388,12 @@ def preflight(
         "stage": stage,
         "run_id": run_id,
         "screening_ready": screening_ready if stage == "scan" else None,
-        "bounded_completion_authorized": bounded_completion_authorized,
-        "bounded_stage_detail": bounded_context_detail,
+        "action_scope_confirmed": action_scope_ok,
+        "action_scope_detail": action_scope_detail,
         "model_calls": 0,
         "checks": checks,
-        "weekly_usage": usage,
-        "discovery_usage": discovery_usage,
+        "recent_usage": usage,
+        "recent_screening_usage": screening_usage,
     }
 
 

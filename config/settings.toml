@@ -20,7 +20,7 @@ deepseek_reasoning_effort = "max"
 research_model = "mock-research"
 writing_model = "mock-writing"
 max_retries = 2
-max_calls_per_task = 3
+max_calls_per_action = 3
 screening_max_output_tokens = 6000
 input_price_cny_per_million = 2.0
 output_price_cny_per_million = 12.0
@@ -103,10 +103,8 @@ minimum_drafts_per_week = 1
 stretch_drafts_per_week = 2
 
 [budget]
-weekly_token_limit = 240000
-weekly_discovery_token_limit = 100000
+# Token硬闸门按单一有界行为计算；近7日用量只做观察和复盘。
 weekly_cost_limit_cny = 100.0
-discovery_tokens = 15000
 screening_tokens = 55000
 codex_cli_fixed_overhead_tokens = 15000
 api_fixed_overhead_tokens = 1000
@@ -116,9 +114,6 @@ preflight_stale_running_hours = 2
 pre_research_tokens = 30000
 deep_research_tokens = 40000
 writing_tokens = 15000
-research_writing_reserve_tokens = 90000
-# 预算用于防止扩题和无目的调研；人工已发起的单个有界步骤允许完成后再提示调整。
-complete_started_task_on_budget_exhaustion = true
 
 [scoring]
 haidian_relevance = 15

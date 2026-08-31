@@ -7,23 +7,23 @@ from sqmy.budget import (
     BudgetGuard,
     budget_adjustments,
     estimate_model_call_tokens,
+    recent_usage,
     record_budget_adjustment,
     record_stage_usage,
     review_budget_adjustment,
-    weekly_usage,
 )
 from sqmy.config import Settings
 from sqmy.db import Database, now
 
 
-def test_stage_budget_is_enforced():
-    guard = BudgetGuard(120_000, used=10_000, stage_limit=26_000)
+def test_action_budget_is_enforced_cumulatively():
+    guard = BudgetGuard(26_000, used=1_000, max_calls=3, calls_used=1)
     guard.reserve(25_000)
     try:
-        guard.reserve(26_001)
+        guard.reserve(25_001)
         assert False, "expected BudgetExceeded"
-    except BudgetExceeded:
-        pass
+    except BudgetExceeded as exc:
+        assert "单一行为预算不足" in str(exc)
 
 
 def test_codex_estimate_includes_fixed_overhead():
@@ -33,52 +33,24 @@ def test_codex_estimate_includes_fixed_overhead():
     assert estimate >= 22_000
 
 
-def test_actual_overrun_detects_stage_and_weekly_limits():
-    guard = BudgetGuard(100_000, used=70_000, stage_limit=25_000)
+def test_actual_overrun_detects_action_limit():
+    guard = BudgetGuard(100_000, used=70_000)
     reasons = guard.actual_overrun_reasons(35_000)
-    assert len(reasons) == 2
-    assert "阶段上限" in reasons[0]
-    assert "周上限" in reasons[1]
+    assert len(reasons) == 1
+    assert "行为上限" in reasons[0]
+    assert "105000" in reasons[0]
 
 
-def test_screening_budget_protects_research_reserve_and_discovery_scope():
-    guard = BudgetGuard(
-        240_000,
-        used=100_000,
-        stage_limit=55_000,
-        protected_reserve=90_000,
-        scope_limit=100_000,
-        scope_used=60_000,
-    )
-    guard.reserve(40_000)
+def test_action_call_limit_prevents_repeated_expansion():
+    guard = BudgetGuard(240_000, used=100_000, max_calls=3, calls_used=3)
     try:
-        guard.reserve(40_001)
+        guard.reserve(1)
         assert False, "expected BudgetExceeded"
     except BudgetExceeded as exc:
-        assert "发现阶段周预算不足" in str(exc)
+        assert "调用次数已达上限" in str(exc)
 
 
-def test_started_task_can_finish_across_weekly_but_not_stage_limit():
-    guard = BudgetGuard(
-        240_000,
-        used=124_000,
-        stage_limit=55_000,
-        protected_reserve=90_000,
-        scope_limit=100_000,
-        scope_used=124_000,
-    )
-    reasons = guard.reserve(36_000, allow_started_task_overrun=True)
-    assert len(reasons) == 2
-    assert "周上限" in reasons[0]
-    assert "发现阶段上限" in reasons[1]
-    try:
-        guard.reserve(55_001, allow_started_task_overrun=True)
-        assert False, "expected stage safety limit to remain enforced"
-    except BudgetExceeded as exc:
-        assert "阶段上限" in str(exc)
-
-
-def test_weekly_usage_reads_all_calls_not_last_ten_runs():
+def test_recent_usage_reads_all_calls_in_reporting_window():
     project = Path(__file__).parents[1]
     base = Settings.load(project / "config/settings.toml")
     with tempfile.TemporaryDirectory() as temp:
@@ -92,8 +64,10 @@ def test_weekly_usage_reads_all_calls_not_last_ten_runs():
                 conn.execute("INSERT INTO runs(id,phase,status,config_hash,created_at,updated_at) VALUES(?,?,?,?,?,?)", (run_id, "discovery", "completed", "x", stamp, stamp))
                 task_id = "screening" if index < 5 else "research"
                 conn.execute("INSERT INTO model_calls(run_id,task_id,provider,model,prompt_hash,input_tokens,output_tokens,estimated_cost_cny,status,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)", (run_id, task_id, "test", "test", str(index), 10, 2, 0.0, "completed", stamp))
-        assert weekly_usage(db)["token_used"] == 144
-        assert weekly_usage(db, task_id="screening")["token_used"] == 60
+        usage = recent_usage(db)
+        assert usage["token_used"] == 144
+        assert recent_usage(db, task_id="screening")["token_used"] == 60
+        assert "不作为Token硬闸门" in usage["accounting_note"]
 
 
 def test_budget_adjustment_records_expected_and_actual_benefit():
@@ -152,7 +126,7 @@ def test_interactive_stage_usage_is_idempotent_and_separated_from_measured_calls
             model="gpt-test",
             note="输入变化但同一阶段不重复累计",
         )
-        usage = weekly_usage(db)
+        usage = recent_usage(db)
         assert (first, repeated) == (30_000, 0)
         assert usage["measured_model_tokens"] == 0
         assert usage["estimated_interactive_tokens"] == 30_000

@@ -45,10 +45,10 @@ sqmy resume "$RUN_ID"
 sqmy generate-mock "$RUN_ID"
 sqmy status "$RUN_ID"
 sqmy budget
-sqmy budget-adjust --stage screening --old-limit 26000 --new-limit 45000 \
-  --reason "扩大候选池前进行一次受控初筛" \
-  --expected-benefit "发现新增候选并尽早证伪已有政策覆盖的假设"
-sqmy budget-review ADJUSTMENT_ID --actual-tokens 70912 \
+sqmy budget-adjust --stage screening --old-limit 55000 --new-limit 65000 \
+  --reason "本次人工批准将具体新线索从8条增至12条，仅用于一次受控初筛" \
+  --expected-benefit "比较新增线索并尽早证伪已有政策覆盖的假设"
+sqmy budget-review ADJUSTMENT_ID --actual-tokens 61200 \
   --actual-benefit "新增候选并排除伪缺口" --decision reassess
 sqmy provider-check
 sqmy provider-check --simulate-codex-quota
@@ -84,7 +84,7 @@ PYTHONPATH=src python3 -m sqmy.cli init
 - 候选100分评分：规则分只用于模型前低成本筛选。最终候选分实际使用 `config/settings.toml` 的 `[scoring]` 八项权重和 `[penalties]` 扣分；海淀与北京相关性不重复计分。全国题在北京相关性项可为0，但不再仅因缺少北京落点自动扣分；仍须核准有权主体、公共价值和可执行路径。
 - 离线回放：`sqmy scan-replay RUN_ID` 使用已保存的模型结果重新运行标题、历史、新意和报告步骤，新增模型调用为0。
 - 强制重算：只有人工明确要求时使用 `sqmy scan --force`；它会跳过历史排除和模型结果缓存。`--screen-now` 只提前处理队列，不绕过去重、缓存、预算或模型前质量闸门；命中紧急条件的事件仍可小批量处理。
-- 分阶段预检：`sqmy preflight --stage scan|refresh|pre_research|research|writing [--run-id RUN_ID]` 检查SQLite、配置、目录、残留任务、人工闸门和相应阶段预算，模型调用为0。筛选预算不足不会阻止零模型元数据入队；`refresh` 不要求模型额度、Codex CLI或新增调用成本。对已人工选题、已人工放行深研或已通过证据闸门的单个有界步骤，传入 `--run-id` 后，即使滑动周额度暂时不足，也可按配置完成当前步骤并记账，但不会自动扩题或进入下一阶段。
+- 分行为预检：`sqmy preflight --stage scan|refresh|pre_research|research|writing [--run-id RUN_ID]` 检查SQLite、配置、目录、残留任务、人工闸门和对应的单行为额度，模型调用为0。有限预研、深研和写作必须传入 `--run-id`，以确认人工选题和行为边界。筛选额度不足不会阻止零模型元数据入队；`refresh` 不要求模型额度、Codex CLI或新增调用成本。
 - 全部放弃：候选质量不足时使用 `sqmy skip-run RUN_ID --reason "..."`，不让运行长期停在 `needs_review`。
 - 安全清理：`sqmy cleanup` 只预览并逐项给出删除理由；`--apply` 会先使用SQLite在线备份，再清理测试、mock、空运行和临时输出，最后执行完整性检查。DOCX中间渲染默认保留7天，每个QA组中编号最高的最终渲染、逐页图片、PDF和版式摘要长期保留。RSS缓存、真实运行、最新回放、提供商诊断、证据包和研究报告默认保留。
 - 离线回归：`sqmy scan-mock` 生成5个纯 mock 候选；`sqmy scan --fixture PATH` 使用离线RSS夹具。
@@ -113,11 +113,11 @@ DeepSeek密钥可通过终端环境变量或本地 `.env` 提供；`.env` 已被
 
 当前初筛显式使用 `screening_model`，与深研和诊断模型分开配置。备用模型固定为 `deepseek-v4-pro`，显式启用思考模式并设置 `reasoning_effort = "max"`；价格变化时应同步更新配置。
 
-`sqmy budget` 按最近7天同时展示两类账：`measured_model_tokens` 是程序模型调用返回或记录的用量，`estimated_interactive_tokens` 是有限预研、深研和写作在耐久产物落库时按阶段声明上限作出的保守估算；后者不是ChatGPT Plus官方Token统计。两者合计用于项目预算闸门，防止“程序调用有账、交互式研究无账”。缓存检查先于新调用预算预留；确需初筛时同时核对单次阶段上限、发现阶段7日上限、项目7日总上限和研究写作保护性预留。当前默认发现阶段7日上限为100000 Token，并从240000 Token总额度中为后续研究写作保护90000 Token。单次在途调用无法可靠中断；若实际 Token 超出配置预算，系统会保存已取得结果、记录估算值和超限原因。未启用已开始任务完成策略时进入 `paused_budget`；启用后则只完成当前有界步骤，并阻止自动扩展。
+`sqmy budget` 按最近7天同时展示两类账：`measured_model_tokens` 是程序模型调用返回或记录的用量，`estimated_interactive_tokens` 是有限预研、深研和写作在耐久产物落库时按行为上限作出的保守估算；后者不是ChatGPT Plus官方Token统计。近7日数据只用于观察和复盘，不会因前几天用量较高而阻断今天的新任务。硬闸门分别是候选初筛55000、有限预研30000、深研40000和写作15000 Token，并受单行为最大调用次数约束；具体值以 `config/settings.toml` 为准。同一运行内续跑或重试会累计，新运行重新计算。付费备用 API 的周金额上限仍保留为独立安全闸门。
 
-预算的主要作用是在新题或新阶段启动前防止任务扩张。人工已发起的单个有界步骤，如果只是突破周额度或发现阶段累计额度，系统先完成并保存该步骤，再记录超额原因，提示下一个新模型任务前提额或等待释放；不因此自动扩展到备选题或下一阶段。单次阶段上限仍是防止异常输入和任务蔓延的硬边界；真实订阅或 API 额度耗尽仍安全暂停。
+预算的主要作用是防止单一行为扩题、过度调研或反复重试。调用前估算已超上限时，系统在模型前安全暂停；单次在途调用无法可靠中断，若实际用量超限，系统先保存当前行为的有效结果和超额原因，但不自动扩题或进入下一模型阶段。再次执行或扩大范围前，应先复盘并调整对应行为额度。真实订阅或 API 额度耗尽仍安全暂停。
 
-预算提高不是默认动作。使用 `budget-adjust` 记录原额度、新额度、原因和预期收益，任务完成后再用 `budget-review` 补记实际Token、实际收益以及保留、回退或继续评估的结论。这些命令只写审计记录，不会自动改写 `config/settings.toml`。
+预算提高不是默认动作。使用 `budget-adjust` 记录原额度、新额度、原因和预期收益，任务完成后再用 `budget-review` 补记实际Token、实际收益以及保留、回退或继续评估的结论。这些命令只写审计记录，不会自动改写 `config/settings.toml`。旧的 `weekly`、`discovery` 和 `research_reserve` 调整记录保留为历史审计，但不再代表当前Token闸门。
 
 来源配置位于 `config/sources.toml`。搜索RSS只承担发现功能，记录中保存的是还原后的原始页面URL；候选阶段不批量下载网页全文。
 

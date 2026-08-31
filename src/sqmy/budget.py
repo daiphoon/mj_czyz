@@ -13,59 +13,37 @@ class BudgetExceeded(RuntimeError):
 
 @dataclass
 class BudgetGuard:
-    weekly_limit: int
+    action_limit: int
     used: int = 0
-    stage_limit: int | None = None
-    protected_reserve: int = 0
-    scope_limit: int | None = None
-    scope_used: int = 0
+    max_calls: int | None = None
+    calls_used: int = 0
 
-    def reserve(
-        self,
-        estimated_tokens: int,
-        *,
-        allow_started_task_overrun: bool = False,
-    ) -> list[str]:
-        if self.stage_limit is not None and estimated_tokens > self.stage_limit:
-            raise BudgetExceeded(f"阶段预算不足：预计 {estimated_tokens}，阶段上限 {self.stage_limit}")
-        reasons = []
-        usable_weekly = max(0, self.weekly_limit - self.protected_reserve)
-        if self.used + estimated_tokens > usable_weekly:
-            reasons.append(
-                f"预算不足：已用 {self.used}，申请 {estimated_tokens}，周上限 {self.weekly_limit}，"
-                f"研究写作预留 {self.protected_reserve}"
+    def reserve(self, estimated_tokens: int) -> None:
+        if self.max_calls is not None and self.calls_used >= self.max_calls:
+            raise BudgetExceeded(
+                f"单一行为调用次数已达上限：已用 {self.calls_used}，上限 {self.max_calls}"
             )
-        if self.scope_limit is not None and self.scope_used + estimated_tokens > self.scope_limit:
-            reasons.append(
-                f"发现阶段周预算不足：已用 {self.scope_used}，申请 {estimated_tokens}，"
-                f"发现阶段上限 {self.scope_limit}"
+        if self.used + estimated_tokens > self.action_limit:
+            raise BudgetExceeded(
+                f"单一行为预算不足：本行为已用 {self.used}，预计新增 "
+                f"{estimated_tokens}，行为上限 {self.action_limit}"
             )
-        if reasons and not allow_started_task_overrun:
-            raise BudgetExceeded(reasons[0])
-        return reasons
 
     def record(self, actual_tokens: int) -> None:
         self.used += actual_tokens
+        self.calls_used += 1
 
     def actual_overrun_reasons(self, actual_tokens: int) -> list[str]:
-        reasons = []
-        if self.stage_limit is not None and actual_tokens > self.stage_limit:
-            reasons.append(f"实际 {actual_tokens} 超过阶段上限 {self.stage_limit}")
-        usable_weekly = max(0, self.weekly_limit - self.protected_reserve)
-        if self.used + actual_tokens > usable_weekly:
-            reasons.append(
-                f"调用前已用 {self.used}，本次实际 {actual_tokens}，超过周上限扣除研究写作预留后的"
-                f"可用周额度 {usable_weekly}"
-            )
-        if self.scope_limit is not None and self.scope_used + actual_tokens > self.scope_limit:
-            reasons.append(
-                f"发现阶段调用前已用 {self.scope_used}，本次实际 {actual_tokens}，"
-                f"超过发现阶段周上限 {self.scope_limit}"
-            )
-        return reasons
+        total = self.used + actual_tokens
+        if total <= self.action_limit:
+            return []
+        return [
+            f"本行为调用前已用 {self.used}，本次实际 {actual_tokens}，"
+            f"累计 {total} 超过行为上限 {self.action_limit}"
+        ]
 
 
-def weekly_usage(db: Database, days: int = 7, *, task_id: str | None = None) -> dict:
+def recent_usage(db: Database, days: int = 7, *, task_id: str | None = None) -> dict:
     cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
     db.initialize()
     task_filter = " AND task_id=?" if task_id is not None else ""
@@ -102,7 +80,8 @@ def weekly_usage(db: Database, days: int = 7, *, task_id: str | None = None) -> 
         "over_budget_calls": int(overruns),
         "accounting_note": (
             "程序模型调用按返回用量计；交互式Codex按阶段声明上限保守估算，"
-            "不是ChatGPT Plus官方Token统计。"
+            "不是ChatGPT Plus官方Token统计。该时间窗只用于观察和复盘，"
+            "不作为Token硬闸门。"
         ),
     }
 

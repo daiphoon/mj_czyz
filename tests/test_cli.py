@@ -1,4 +1,5 @@
 from copy import deepcopy
+import json
 from pathlib import Path
 import shutil
 import tempfile
@@ -127,8 +128,7 @@ def test_cli_reports_a_safe_discovery_pause_without_claiming_candidates(capsys):
         shutil.copy(ROOT / "config/policy_mechanisms.toml", root / "config/policy_mechanisms.toml")
         raw = deepcopy(Settings.load(ROOT / "config/settings.toml").raw)
         raw["model"]["provider"] = "codex_cli"
-        raw["budget"]["weekly_token_limit"] = 0
-        raw["budget"]["complete_started_task_on_budget_exhaustion"] = False
+        raw["budget"]["screening_tokens"] = 1
         settings = Settings(root, raw)
 
         with patch("sqmy.cli.Settings.load", return_value=settings), patch(
@@ -139,3 +139,25 @@ def test_cli_reports_a_safe_discovery_pause_without_claiming_candidates(capsys):
         output = capsys.readouterr().out
         assert "已完成零模型采集" in output
         assert "已生成" not in output
+
+
+def test_budget_cli_reports_action_limits_and_keeps_recent_tokens_observational(capsys):
+    with tempfile.TemporaryDirectory() as temp:
+        root = Path(temp)
+        raw = deepcopy(Settings.load(ROOT / "config/settings.toml").raw)
+        settings = Settings(root, raw)
+
+        with patch("sqmy.cli.Settings.load", return_value=settings):
+            assert main(["--config", "unused.toml", "budget"]) == 0
+
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["token_window_policy"] == "report_only"
+        assert payload["action_token_limits"] == {
+            "screening": 55_000,
+            "pre_research": 30_000,
+            "deep_research": 40_000,
+            "writing": 15_000,
+        }
+        assert payload["max_calls_per_action"] == 3
+        assert "weekly_token_limit" not in payload
+        assert "不代表当前Token硬闸门" in payload["adjustment_history_note"]

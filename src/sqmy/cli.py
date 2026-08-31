@@ -7,9 +7,9 @@ from pathlib import Path
 from .config import Settings, load_dotenv
 from .budget import (
     budget_adjustments,
+    recent_usage,
     record_budget_adjustment,
     review_budget_adjustment,
-    weekly_usage,
 )
 from .db import Database
 from .document import create_template
@@ -83,12 +83,12 @@ def parser() -> argparse.ArgumentParser:
     pause = sub.add_parser("pause", help="暂停运行"); pause.add_argument("run_id"); pause.add_argument("--quota", action="store_true")
     resume = sub.add_parser("resume", help="恢复运行"); resume.add_argument("run_id")
     retry = sub.add_parser("retry", help="从失败或暂停步骤继续"); retry.add_argument("run_id")
-    sub.add_parser("budget", help="查看本周 Token、成本和预算调整记录")
-    budget_adjust = sub.add_parser("budget-adjust", help="记录阶段预算调整的原因和预期收益")
+    sub.add_parser("budget", help="查看单行为 Token上限、近期用量和调整记录")
+    budget_adjust = sub.add_parser("budget-adjust", help="记录单行为预算调整的原因和预期收益")
     budget_adjust.add_argument(
         "--stage",
         required=True,
-        choices=("weekly", "discovery", "research_reserve", "screening", "pre_research", "deep_research", "writing"),
+        choices=("screening", "pre_research", "deep_research", "writing"),
     )
     budget_adjust.add_argument("--old-limit", type=int, required=True)
     budget_adjust.add_argument("--new-limit", type=int, required=True)
@@ -210,14 +210,23 @@ def main(argv: list[str] | None = None) -> int:
     elif args.command == "pause": wf.pause(args.run_id, args.quota); print(f"恢复命令：sqmy resume {args.run_id}")
     elif args.command in {"resume", "retry"}: print(f"下一步：{wf.resume(args.run_id)}")
     elif args.command == "budget":
-        usage = weekly_usage(wf.db)
+        usage = recent_usage(wf.db)
         budget_cfg = s.section("budget")
         usage.update({
-            "weekly_token_limit": budget_cfg["weekly_token_limit"],
-            "weekly_discovery_token_limit": budget_cfg["weekly_discovery_token_limit"],
-            "research_writing_reserve_tokens": budget_cfg["research_writing_reserve_tokens"],
+            "token_window_policy": "report_only",
+            "action_token_limits": {
+                "screening": budget_cfg["screening_tokens"],
+                "pre_research": budget_cfg["pre_research_tokens"],
+                "deep_research": budget_cfg["deep_research_tokens"],
+                "writing": budget_cfg["writing_tokens"],
+            },
+            "max_calls_per_action": s.section("model")["max_calls_per_action"],
             "weekly_cost_limit_cny": budget_cfg["weekly_cost_limit_cny"],
-            "discovery_usage": weekly_usage(wf.db, task_id="screening"),
+            "recent_screening_usage": recent_usage(wf.db, task_id="screening"),
+            "adjustment_history_note": (
+                "weekly、discovery和research_reserve等旧类型记录仅作历史审计，"
+                "不代表当前Token硬闸门。"
+            ),
         })
         usage["adjustments"] = budget_adjustments(wf.db)
         print(json.dumps(usage, ensure_ascii=False, indent=2))

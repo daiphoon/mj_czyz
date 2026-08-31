@@ -104,7 +104,7 @@ def test_cleanup_delays_intermediate_docx_qa_and_always_keeps_latest_version():
         assert (qa / "render-v3/page-1.png").exists()
 
 
-def test_refresh_preflight_does_not_require_scan_screening_reserve():
+def test_recent_token_usage_is_report_only_in_scan_and_refresh_preflight():
     project = Path(__file__).parents[1]
     base = Settings.load(project / "config/settings.toml")
     with tempfile.TemporaryDirectory() as temp:
@@ -118,22 +118,24 @@ def test_refresh_preflight_does_not_require_scan_screening_reserve():
             (root / name).mkdir()
         settings = Settings(root, deepcopy(base.raw))
         usage = {
-            "token_used": settings.section("budget")["weekly_token_limit"] - 100,
-            "estimated_cost_cny": settings.section("budget")["weekly_cost_limit_cny"],
-            "calls": 0,
+            "window_days": 7,
+            "token_used": 999_999,
+            "estimated_cost_cny": 0.0,
+            "model_calls": 20,
         }
         with (
-            patch("sqmy.maintenance.weekly_usage", return_value=usage),
-            patch("sqmy.maintenance.shutil.which", return_value=None),
+            patch("sqmy.maintenance.recent_usage", return_value=usage),
+            patch("sqmy.maintenance.shutil.which", return_value="/usr/local/bin/codex"),
         ):
             scan = preflight(settings, stage="scan")
             refresh = preflight(settings, stage="refresh")
-        assert scan["screening_ready"] is False
+        assert scan["ready"]
+        assert scan["screening_ready"] is True
         assert refresh["ready"]
-        refresh_budget = next(
-            item for item in refresh["checks"] if item["name"] == "stage_token_headroom"
+        scan_budget = next(
+            item for item in scan["checks"] if item["name"] == "action_token_limit"
         )
-        assert "reserve=0" in refresh_budget["detail"]
+        assert "recent_7d_usage=999999 is report_only" in scan_budget["detail"]
 
 
 def test_pre_research_preflight_uses_distinct_budget_and_bounded_run_context():
@@ -157,24 +159,25 @@ def test_pre_research_preflight_uses_distinct_budget_and_bounded_run_context():
         workflow.scan(run_id)
         workflow.select(run_id, ["C1"])
         usage = {
-            "token_used": settings.section("budget")["weekly_token_limit"] - 5_000,
+            "window_days": 7,
+            "token_used": 999_999,
             "estimated_cost_cny": 0.0,
             "model_calls": 0,
         }
         with (
-            patch("sqmy.maintenance.weekly_usage", return_value=usage),
+            patch("sqmy.maintenance.recent_usage", return_value=usage),
             patch("sqmy.maintenance.shutil.which", return_value="/usr/local/bin/codex"),
         ):
             ordinary = preflight(settings, stage="pre_research")
             bounded = preflight(settings, stage="pre_research", run_id=run_id)
         assert ordinary["ready"] is False
         assert bounded["ready"] is True
-        assert bounded["bounded_completion_authorized"] is True
+        assert bounded["action_scope_confirmed"] is True
         budget_check = next(
-            item for item in bounded["checks"] if item["name"] == "stage_token_headroom"
+            item for item in bounded["checks"] if item["name"] == "action_token_limit"
         )
-        assert "reserve=30000" in budget_check["detail"]
-        assert "允许完成当前有界步骤" in budget_check["detail"]
+        assert "action_limit=30000" in budget_check["detail"]
+        assert "report_only" in budget_check["detail"]
 
 
 def test_monday_preflight_blocks_invalid_candidate_scoring_before_model_use():

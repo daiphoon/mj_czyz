@@ -753,7 +753,7 @@ class DiscoveryTest(unittest.TestCase):
             with patch("sqmy.discovery.build_router", return_value=router):
                 first_run = discovery.wf.init_run("test_fixture")
                 first, first_hit, _ = discovery._model_rank(first_run, [event])
-                settings.raw["budget"]["weekly_token_limit"] = 0
+                settings.raw["budget"]["screening_tokens"] = 0
                 second_run = discovery.wf.init_run("test_fixture")
                 second, second_hit, saved = discovery._model_rank(second_run, [event])
             self.assertEqual([x.id for x in first], ["cache"])
@@ -898,8 +898,7 @@ class DiscoveryTest(unittest.TestCase):
             shutil.copy(self.root / "config/policy_mechanisms.toml", test_root / "config/policy_mechanisms.toml")
             raw = deepcopy(self.settings.raw)
             raw["model"]["provider"] = "codex_cli"
-            raw["budget"]["weekly_token_limit"] = 0
-            raw["budget"]["complete_started_task_on_budget_exhaustion"] = False
+            raw["budget"]["screening_tokens"] = 1
             settings = Settings(test_root, raw)
             discovery = LiveDiscovery(settings)
             run_id = discovery.wf.init_run("live")
@@ -937,8 +936,7 @@ class DiscoveryTest(unittest.TestCase):
             shutil.copy(self.root / "config/policy_mechanisms.toml", test_root / "config/policy_mechanisms.toml")
             raw = deepcopy(self.settings.raw)
             raw["model"]["provider"] = "codex_cli"
-            raw["budget"]["weekly_token_limit"] = 0
-            raw["budget"]["complete_started_task_on_budget_exhaustion"] = False
+            raw["budget"]["screening_tokens"] = 1
             settings = Settings(test_root, raw)
             discovery = LiveDiscovery(settings)
 
@@ -959,7 +957,7 @@ class DiscoveryTest(unittest.TestCase):
                 ).fetchone()[0]
             self.assertEqual(calls, 0)
 
-    def test_started_scan_finishes_then_records_budget_action(self):
+    def test_started_scan_overrun_finishes_then_records_budget_action(self):
         with tempfile.TemporaryDirectory() as temp:
             test_root = Path(temp)
             (test_root / "config").mkdir()
@@ -967,12 +965,14 @@ class DiscoveryTest(unittest.TestCase):
             shutil.copy(self.root / "config/policy_mechanisms.toml", test_root / "config/policy_mechanisms.toml")
             raw = deepcopy(self.settings.raw)
             raw["model"]["provider"] = "codex_cli"
-            raw["budget"]["weekly_token_limit"] = 0
-            raw["budget"]["complete_started_task_on_budget_exhaustion"] = True
+            raw["budget"]["screening_tokens"] = 55_000
             settings = Settings(test_root, raw)
             discovery = LiveDiscovery(settings)
 
-            with patch("sqmy.discovery.build_router", return_value=FakeRouter({"selections": []})):
+            router = FakeRouter(
+                {"selections": []}, input_tokens=60_000, output_tokens=1_000
+            )
+            with patch("sqmy.discovery.build_router", return_value=router):
                 run_id, candidates = discovery.run(
                     self.root / "tests/fixtures/monday_observability.json"
                 )
@@ -982,7 +982,7 @@ class DiscoveryTest(unittest.TestCase):
             checkpoint = json.loads(status["checkpoint_json"])
             self.assertEqual(status["status"], "skipped")
             self.assertIn("budget_overrun", checkpoint)
-            self.assertIn("提额", checkpoint["budget_action_required"])
+            self.assertIn("单行为额度", checkpoint["budget_action_required"])
             with discovery.wf.db.connect() as conn:
                 calls = conn.execute(
                     "SELECT COUNT(*) FROM model_calls WHERE run_id=?", (run_id,)
@@ -997,9 +997,7 @@ class DiscoveryTest(unittest.TestCase):
             shutil.copy(self.root / "config/policy_mechanisms.toml", test_root / "config/policy_mechanisms.toml")
             raw = deepcopy(self.settings.raw)
             raw["model"]["provider"] = "codex_cli"
-            raw["budget"]["weekly_token_limit"] = 200_000
             raw["budget"]["screening_tokens"] = 45_000
-            raw["budget"]["complete_started_task_on_budget_exhaustion"] = False
             settings = Settings(test_root, raw)
             discovery = LiveDiscovery(settings)
             run_id = discovery.wf.init_run("live")
@@ -1038,5 +1036,85 @@ class DiscoveryTest(unittest.TestCase):
             self.assertEqual(call["over_budget"], 1)
             self.assertEqual(task["status"], "completed")
             self.assertIsNotNone(task["result_json"])
+            self.assertEqual(discovery._budget_overrun["action_limit"], 45_000)
+
+    def test_recent_usage_does_not_block_a_new_scan_action(self):
+        with tempfile.TemporaryDirectory() as temp:
+            test_root = Path(temp)
+            (test_root / "config").mkdir()
+            shutil.copy(self.root / "config/sources.toml", test_root / "config/sources.toml")
+            shutil.copy(self.root / "config/policy_mechanisms.toml", test_root / "config/policy_mechanisms.toml")
+            raw = deepcopy(self.settings.raw)
+            raw["model"]["provider"] = "codex_cli"
+            settings = Settings(test_root, raw)
+            discovery = LiveDiscovery(settings)
+            prior_run = discovery.wf.init_run("live")
+            with discovery.wf.db.connect() as conn:
+                conn.execute(
+                    """INSERT INTO model_calls(
+                         run_id,task_id,provider,model,prompt_hash,input_tokens,
+                         output_tokens,estimated_cost_cny,status,created_at
+                       ) VALUES(?,?,?,?,?,?,?,?,?,?)""",
+                    (
+                        prior_run, "screening", "codex_cli", "test", "prior",
+                        500_000, 1_000, 0.0, "completed",
+                        datetime.now(timezone.utc).isoformat(),
+                    ),
+                )
+
+            router = FakeRouter({"selections": []})
+            with patch("sqmy.discovery.build_router", return_value=router):
+                run_id, _ = discovery.run(
+                    self.root / "tests/fixtures/monday_observability.json"
+                )
+
+            with discovery.wf.db.connect() as conn:
+                current_calls = conn.execute(
+                    "SELECT COUNT(*) FROM model_calls WHERE run_id=?", (run_id,)
+                ).fetchone()[0]
+            self.assertEqual(current_calls, 1)
+            self.assertEqual(router.calls, 1)
+
+    def test_same_scan_action_stops_after_configured_call_limit(self):
+        with tempfile.TemporaryDirectory() as temp:
+            test_root = Path(temp)
+            (test_root / "config").mkdir()
+            shutil.copy(self.root / "config/sources.toml", test_root / "config/sources.toml")
+            shutil.copy(self.root / "config/policy_mechanisms.toml", test_root / "config/policy_mechanisms.toml")
+            raw = deepcopy(self.settings.raw)
+            raw["model"]["provider"] = "codex_cli"
+            raw["model"]["max_calls_per_action"] = 3
+            settings = Settings(test_root, raw)
+            discovery = LiveDiscovery(settings)
+            run_id = discovery.wf.init_run("live")
+            with discovery.wf.db.connect() as conn:
+                for index in range(3):
+                    conn.execute(
+                        """INSERT INTO model_calls(
+                             run_id,task_id,provider,model,prompt_hash,input_tokens,
+                             output_tokens,estimated_cost_cny,status,created_at
+                           ) VALUES(?,?,?,?,?,?,?,?,?,?)""",
+                        (
+                            run_id, "screening", "codex_cli", "test", f"prior-{index}",
+                            100, 20, 0.0, "completed",
+                            datetime.now(timezone.utc).isoformat(),
+                        ),
+                    )
+            event = EventItem(
+                id="call-limit", source_id="s", source_name="s", source_level=1,
+                title="全国公共服务政策执行问题",
+                url="https://example.gov.cn/call-limit",
+                published_at=datetime.now(timezone.utc).isoformat(),
+                summary="公开材料反映具体制度执行问题",
+                region="全国", topics=["社区治理"], rule_score=70,
+            )
+            router = FakeRouter({"selections": []})
+
+            with patch("sqmy.discovery.build_router", return_value=router):
+                with self.assertRaises(BudgetExceeded):
+                    discovery._model_rank(run_id, [event])
+
+            self.assertEqual(router.calls, 0)
             status = discovery.wf.status(run_id, include_all=True)[0]
             self.assertEqual(status["status"], "paused_budget")
+            self.assertIn("调用次数已达上限", status["error"])

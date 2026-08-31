@@ -11,7 +11,7 @@ from difflib import SequenceMatcher
 import re
 
 from .collector import SourceCollector
-from .budget import BudgetExceeded, BudgetGuard, estimate_model_call_tokens, weekly_usage
+from .budget import BudgetExceeded, BudgetGuard, estimate_model_call_tokens
 from .config import Settings
 from .db import now
 from .discovery_shadow import ShadowVerifier, write_discovery_evaluation
@@ -300,16 +300,10 @@ class LiveDiscovery:
         )
         metrics_path = write_rolling_evaluation(self.s)
         discovery_metrics_path = write_discovery_evaluation(self.s)
-        complete_started_task = bool(
-            self.s.section("budget").get(
-                "complete_started_task_on_budget_exhaustion", False
-            )
-        )
         exhausted_without_candidates = (
             not candidates
             and not deferred_count
             and expansion_tier == max_tier
-            and (not self._budget_overrun or complete_started_task)
         )
         if candidates:
             next_action = f"sqmy select {run_id} C1"
@@ -359,12 +353,9 @@ class LiveDiscovery:
         if self._budget_overrun:
             checkpoint["budget_overrun"] = self._budget_overrun
             checkpoint["budget_action_required"] = (
-                "当前有界步骤已完成；启动下一个新模型任务前，"
-                "提示人工提额或等待滑动窗口释放。"
+                "当前有界行为已完成并保存；重新执行或扩大该行为前，"
+                "应先复盘并调整对应的单行为额度。"
             )
-            if not complete_started_task:
-                checkpoint["resume_next"] = checkpoint["next"]
-                status = TaskStatus.PAUSED_BUDGET
         self.wf.db.checkpoint(
             run_id,
             phase=Phase.SELECTION,
@@ -782,28 +773,22 @@ class LiveDiscovery:
             return events, False, 0
         budget_cfg = self.s.section("budget")
         estimated = estimate_model_call_tokens(prompt, model_cfg, budget_cfg)
-        usage = weekly_usage(self.wf.db)
-        discovery_usage = weekly_usage(self.wf.db, task_id="screening")
-        non_discovery_used = max(0, usage["token_used"] - discovery_usage["token_used"])
-        remaining_research_reserve = max(
-            0,
-            budget_cfg["research_writing_reserve_tokens"] - non_discovery_used,
-        )
+        with self.wf.db.connect() as conn:
+            action_usage = conn.execute(
+                """SELECT COALESCE(SUM(input_tokens+output_tokens),0),COUNT(*)
+                   FROM model_calls WHERE run_id=? AND task_id='screening'""",
+                (run_id,),
+            ).fetchone()
+        action_tokens_used = int(action_usage[0])
+        action_calls_used = int(action_usage[1])
         guard = BudgetGuard(
-            budget_cfg["weekly_token_limit"], usage["token_used"],
-            stage_limit=budget_cfg["screening_tokens"],
-            protected_reserve=remaining_research_reserve,
-            scope_limit=budget_cfg["weekly_discovery_token_limit"],
-            scope_used=discovery_usage["token_used"],
-        )
-        complete_started_task = bool(
-            budget_cfg.get("complete_started_task_on_budget_exhaustion", False)
+            action_limit=budget_cfg["screening_tokens"],
+            used=action_tokens_used,
+            max_calls=model_cfg["max_calls_per_action"],
+            calls_used=action_calls_used,
         )
         try:
-            reservation_overruns = guard.reserve(
-                estimated,
-                allow_started_task_overrun=complete_started_task,
-            )
+            guard.reserve(estimated)
         except BudgetExceeded as exc:
             self._checkpoint_interruption(run_id, TaskStatus.PAUSED_BUDGET, str(exc))
             raise
@@ -836,20 +821,14 @@ class LiveDiscovery:
                 "stage": "screening",
                 "estimated_tokens": estimated,
                 "actual_tokens": actual_tokens,
-                "stage_limit": budget_cfg["screening_tokens"],
-                "weekly_used_before_call": usage["token_used"],
-                "weekly_limit": budget_cfg["weekly_token_limit"],
-                "research_writing_reserve_configured": budget_cfg["research_writing_reserve_tokens"],
-                "research_writing_reserve_remaining": remaining_research_reserve,
-                "discovery_weekly_used_before_call": discovery_usage["token_used"],
-                "discovery_weekly_limit": budget_cfg["weekly_discovery_token_limit"],
+                "action_limit": budget_cfg["screening_tokens"],
+                "action_tokens_used_before_call": action_tokens_used,
+                "action_calls_used_before_call": action_calls_used,
+                "action_call_limit": model_cfg["max_calls_per_action"],
                 "reasons": overrun_reasons,
-                "reservation_reasons": reservation_overruns,
                 "policy": (
-                    "已完成当前人工发起的有界筛选步骤；不自动扩展到新题或新阶段，"
-                    "下一次新模型任务前提示调整预算"
-                    if complete_started_task
-                    else "本次结果已保存；后续模型调用暂停，需人工检查预算后继续"
+                    "已完成当前有界筛选并保存结果；不自动扩题或进入新阶段，"
+                    "重新执行或扩大该行为前需复盘并调整对应额度"
                 ),
             }
         with self.wf.db.connect() as conn:
@@ -895,12 +874,6 @@ class LiveDiscovery:
         if validation_error:
             self._checkpoint_interruption(run_id, TaskStatus.FAILED, validation_error)
             raise ProviderError(validation_error)
-        if self._budget_overrun and not complete_started_task:
-            self._checkpoint_interruption(
-                run_id,
-                TaskStatus.PAUSED_BUDGET,
-                "；".join(self._budget_overrun["reasons"]),
-            )
         return screened, False, 0
 
     def _checkpoint_interruption(self, run_id: str, status: TaskStatus, error: str) -> None:
