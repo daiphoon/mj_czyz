@@ -108,6 +108,18 @@ CREATE TABLE IF NOT EXISTS model_calls (
   estimated_tokens INTEGER, stage_limit INTEGER,
   over_budget INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS stage_usage (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  run_id TEXT NOT NULL REFERENCES runs(id), topic_id TEXT NOT NULL,
+  stage TEXT NOT NULL, execution_mode TEXT NOT NULL DEFAULT 'interactive_codex',
+  accounting_method TEXT NOT NULL DEFAULT 'declared_stage_cap',
+  provider TEXT NOT NULL, model TEXT NOT NULL,
+  token_used INTEGER NOT NULL, input_hash TEXT NOT NULL,
+  note TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+  UNIQUE(run_id,topic_id,stage,execution_mode)
+);
+CREATE INDEX IF NOT EXISTS idx_stage_usage_updated
+  ON stage_usage(updated_at DESC, stage);
 CREATE TABLE IF NOT EXISTS research_reviews (
   id TEXT PRIMARY KEY, run_id TEXT NOT NULL REFERENCES runs(id),
   candidate_id TEXT NOT NULL, topic_id TEXT NOT NULL, input_hash TEXT NOT NULL,

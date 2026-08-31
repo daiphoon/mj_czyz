@@ -102,8 +102,9 @@ def parser() -> argparse.ArgumentParser:
     skip.add_argument("run_id"); skip.add_argument("--reason", required=True)
     preflight_parser = sub.add_parser("preflight", help="零模型调用分阶段预检")
     preflight_parser.add_argument(
-        "--stage", choices=("scan", "refresh", "monday", "thursday", "research", "writing"), default="scan"
+        "--stage", choices=("scan", "refresh", "monday", "thursday", "pre_research", "research", "writing"), default="scan"
     )
+    preflight_parser.add_argument("--run-id", help="用于核验已人工限定的预研、深研或写作步骤")
     cleanup = sub.add_parser("cleanup", help="预览或执行安全清理")
     cleanup.add_argument("--apply", action="store_true", help="自动备份SQLite后执行清理")
     provider = sub.add_parser("provider-check", help="验证模型提供商与自动备用切换")
@@ -235,7 +236,7 @@ def main(argv: list[str] | None = None) -> int:
     elif args.command == "skip-run":
         wf.skip(args.run_id, args.reason); print("已标记为 skipped")
     elif args.command == "preflight":
-        result = preflight(s, stage=args.stage); print(json.dumps(result, ensure_ascii=False, indent=2)); return 0 if result["ready"] else 2
+        result = preflight(s, stage=args.stage, run_id=args.run_id); print(json.dumps(result, ensure_ascii=False, indent=2)); return 0 if result["ready"] else 2
     elif args.command == "cleanup":
         manager = CleanupManager(s)
         print(json.dumps(manager.apply() if args.apply else manager.plan(), ensure_ascii=False, indent=2))

@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
 
+from .budget import record_stage_usage
 from .config import Settings
 from .db import Database, now
 
@@ -78,7 +80,8 @@ def _unresolved_conflicts(value: str | None) -> list[Any]:
 
 def import_evidence_package(settings: Settings, path: Path) -> str:
     """Import a small, reviewable claim/source package idempotently."""
-    payload = json.loads(path.read_text(encoding="utf-8"))
+    raw_bytes = path.read_bytes()
+    payload = json.loads(raw_bytes.decode("utf-8"))
     topic_id = payload["topic_id"]
     db = Database(settings.database_path)
     db.initialize()
@@ -154,6 +157,25 @@ def import_evidence_package(settings: Settings, path: Path) -> str:
                         int(link.get("primary_source", False)), link.get("notes"),
                     ),
                 )
+    with db.connect() as conn:
+        review = conn.execute(
+            """SELECT run_id FROM research_reviews
+               WHERE topic_id=? AND research_allowed=1 AND human_decision='proceed'
+               ORDER BY reviewed_at DESC,created_at DESC,rowid DESC LIMIT 1""",
+            (topic_id,),
+        ).fetchone()
+    if review is not None:
+        record_stage_usage(
+            db,
+            run_id=review["run_id"],
+            topic_id=topic_id,
+            stage="deep_research",
+            token_used=int(settings.section("budget")["deep_research_tokens"]),
+            input_hash=hashlib.sha256(raw_bytes).hexdigest(),
+            provider="codex_subscription",
+            model=settings.section("model")["codex_model"],
+            note="结构化证据包导入时按深研阶段上限保守记账；不是Plus官方Token统计。",
+        )
     return topic_id
 
 

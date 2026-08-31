@@ -25,11 +25,14 @@ sqmy select "$RUN_ID" C1
 sqmy preflight --stage refresh
 sqmy refresh "$RUN_ID"
 sqmy refresh "$RUN_ID" --decision keep --note "人工核对后未发现重大变化"
+sqmy preflight --stage pre_research --run-id "$RUN_ID"
 sqmy pre-research-check "$RUN_ID" C1 --brief data/sources/TOPIC_pre_research.json
 # 查看预研决策单；确认后才放行深研：
 sqmy pre-research-review "$RUN_ID" C1 --decision proceed --note "确认按改写后的问题清单深研"
+sqmy preflight --stage research --run-id "$RUN_ID"
 sqmy evidence-import data/sources/TOPIC_evidence.json
 sqmy evidence-check TOPIC_ID
+sqmy preflight --stage writing --run-id "$RUN_ID"
 sqmy draft "$RUN_ID" TOPIC_ID --source outputs/review/deep_research/RUN_ID/formal_draft.md --candidate-id C1
 sqmy approve TOPIC_ID
 # 仅在人工实际完成报送后登记：
@@ -65,7 +68,7 @@ PYTHONPATH=src python3 -m sqmy.cli init
 - 任意日期扫描：用户需要时运行一次 `sqmy scan`。项目通常每个自然日至多扫描一次，检索近90天公开信息，缓存RSS元数据，完成时间过滤、URL还原、去重、主题分类和规则筛选，生成最多5个新候选；每周1—2篇仍是质量目标，不设每日成稿指标。
 - 模型前去重：真实运行会先对比之前真实运行的URL、“标题+发布日”及同日同机构同主题的跨站转述，内容未变化或属于同源转载时不再进入模型。测试、mock、诊断和回放运行不会污染真实历史。
 - 四层完整扫描：每次扫描覆盖“海淀和北京主题源→北京增补权威源→全国部委、监管、司法、统计和调查源→投诉、论坛和社交平台待核线索”。前层凑够8条后也不提前停止；所有来源先用零模型规则处理，最终单次模型输入仍限制12条。
-- 跨日发现队列：全部规则合格事件写入SQLite轻量队列。普通新事件不足4条时先积累，不再因来源层已经穷尽而强制调用模型；达到4条、最早事件等待48小时、命中紧急条件或人工使用 `--screen-now` 时才初筛。相同URL内容未变化不会重复进入模型，标题或摘要发生实质变化时重新开放。
+- 跨日发现队列：全部规则合格事件写入SQLite轻量队列。入模池按高分排序，并分别给外部补充线索、新鲜事件和久候事件保留配置名额，避免“等待时间长”压过高质量新线索。调用模型前还要通过批次规模、来源多样性、高分事件及“足够新鲜或足够强”的零模型质量闸门；不足时继续入队并提示补充来源。相同URL内容未变化不会重复进入模型，标题或摘要发生实质变化时重新开放。
 - 来源与阶段漏斗：每次扫描按来源记录原始RSS结果、时间窗内结果、有效元数据、规则合格、历史排除、模型输入、模型入选和最终候选数。详细记录位于 `data/runs/RUN_ID/discovery_observability.json`，SQLite 表为 `source_funnel`。程序每个排除阶段只保存配置数量的标题和URL样本，用于复查误杀，不保存全部搜索结果或网页全文。
 - 候选前影子核验：对模型前池做元数据级的事件角色、北京落点、原始一级来源和已知政策覆盖检查；必要时只做受限且可缓存的搜索元数据查询。该步骤新增模型调用为0，结果位于 `data/runs/RUN_ID/candidate_shadow_review.json`；当前仅供21天滚动比较，不影响模型输入、候选排序或阻断。
 - 分层续扫：可使用 `sqmy scan --start-tier 2|3|4` 从指定层另建可恢复运行，不重新处理更早层级。常规完整扫描直接使用 `sqmy scan`。
@@ -76,8 +79,8 @@ PYTHONPATH=src python3 -m sqmy.cli init
 - 时效性：发布7天内20分、30天内15分、60天内8分、90天内3分；时间不明不得分。
 - 候选100分评分：规则分只用于模型前低成本筛选。最终候选分实际使用 `config/settings.toml` 的 `[scoring]` 八项权重和 `[penalties]` 扣分；海淀与北京相关性不重复计分。全国题在北京相关性项可为0，但不再仅因缺少北京落点自动扣分；仍须核准有权主体、公共价值和可执行路径。
 - 离线回放：`sqmy scan-replay RUN_ID` 使用已保存的模型结果重新运行标题、历史、新意和报告步骤，新增模型调用为0。
-- 强制重算：只有人工明确要求时使用 `sqmy scan --force`；它会跳过历史排除和模型结果缓存。`--screen-now` 只提前处理小批量，不绕过去重、缓存或预算。
-- 分阶段预检：`sqmy preflight --stage scan|refresh|research|writing` 检查SQLite、配置、目录、残留任务和相应阶段预算，模型调用为0。筛选预算不足不会阻止零模型元数据入队，但模型步骤会安全暂停；`refresh` 不要求模型额度、Codex CLI或新增调用成本。
+- 强制重算：只有人工明确要求时使用 `sqmy scan --force`；它会跳过历史排除和模型结果缓存。`--screen-now` 只提前处理队列，不绕过去重、缓存、预算或模型前质量闸门；命中紧急条件的事件仍可小批量处理。
+- 分阶段预检：`sqmy preflight --stage scan|refresh|pre_research|research|writing [--run-id RUN_ID]` 检查SQLite、配置、目录、残留任务、人工闸门和相应阶段预算，模型调用为0。筛选预算不足不会阻止零模型元数据入队；`refresh` 不要求模型额度、Codex CLI或新增调用成本。对已人工选题、已人工放行深研或已通过证据闸门的单个有界步骤，传入 `--run-id` 后，即使滑动周额度暂时不足，也可按配置完成当前步骤并记账，但不会自动扩题或进入下一阶段。
 - 全部放弃：候选质量不足时使用 `sqmy skip-run RUN_ID --reason "..."`，不让运行长期停在 `needs_review`。
 - 安全清理：`sqmy cleanup` 只预览；`--apply` 会先使用SQLite在线备份，再清理测试、mock、空运行和临时输出，最后执行完整性检查。RSS缓存、真实运行、最新回放、提供商诊断、证据包和研究报告默认保留。
 - 离线回归：`sqmy scan-mock` 生成5个纯 mock 候选；`sqmy scan --fixture PATH` 使用离线RSS夹具。
@@ -105,7 +108,7 @@ DeepSeek密钥可通过终端环境变量或本地 `.env` 提供；`.env` 已被
 
 当前初筛显式使用 `screening_model`，与深研和诊断模型分开配置。备用模型固定为 `deepseek-v4-pro`，显式启用思考模式并设置 `reasoning_effort = "max"`；价格变化时应同步更新配置。
 
-`sqmy budget` 直接按 `model_calls.created_at` 统计真实最近7天的全部模型调用，不再使用“最近10次运行”代替周预算，并显示预算调整复盘。缓存检查先于新调用预算预留；确需初筛时同时核对单次阶段上限、发现阶段7日上限、项目7日总上限和研究写作保护性预留。当前默认发现阶段7日上限为100000 Token，并从240000 Token总额度中为后续研究写作保护90000 Token。Codex CLI估算包含可配置的固定上下文安全垫和保守系数。单次在途调用无法可靠中断；若实际 Token 超出配置预算，系统会保存已取得结果、记录估算值和超限原因。未启用已开始任务完成策略时进入 `paused_budget`；启用后则只完成当前有界步骤，并阻止自动扩展。
+`sqmy budget` 按最近7天同时展示两类账：`measured_model_tokens` 是程序模型调用返回或记录的用量，`estimated_interactive_tokens` 是有限预研、深研和写作在耐久产物落库时按阶段声明上限作出的保守估算；后者不是ChatGPT Plus官方Token统计。两者合计用于项目预算闸门，防止“程序调用有账、交互式研究无账”。缓存检查先于新调用预算预留；确需初筛时同时核对单次阶段上限、发现阶段7日上限、项目7日总上限和研究写作保护性预留。当前默认发现阶段7日上限为100000 Token，并从240000 Token总额度中为后续研究写作保护90000 Token。单次在途调用无法可靠中断；若实际 Token 超出配置预算，系统会保存已取得结果、记录估算值和超限原因。未启用已开始任务完成策略时进入 `paused_budget`；启用后则只完成当前有界步骤，并阻止自动扩展。
 
 预算的主要作用是在新题或新阶段启动前防止任务扩张。人工已发起的单个有界步骤，如果只是突破周额度或发现阶段累计额度，系统先完成并保存该步骤，再记录超额原因，提示下一个新模型任务前提额或等待释放；不因此自动扩展到备选题或下一阶段。单次阶段上限仍是防止异常输入和任务蔓延的硬边界；真实订阅或 API 额度耗尽仍安全暂停。
 
@@ -117,7 +120,7 @@ DeepSeek密钥可通过终端环境变量或本地 `.env` 提供；`.env` 已被
 
 线索文件只放具备具体群体、具体场景和可反证制度缺口的候选形态事件。仅列出多个宽泛类别的热线月报、投诉总量或行业汇总不单独占用模型名额；它们应并入具体线索摘要作为规模或交叉验证材料，待有限预研再核对口径。
 
-三级线索在模型前12个名额中最多保留2个核验名额；若无有价值线索，名额自动回填给一、二级信源。三级线索必须在有限预研中找到独立高等级来源；否则停止，不得进入正式稿。
+常规规则池为三级线索保留2个最低核验名额；跨日队列另为第4层外部补充线索保留3个名额，并同时受单来源上限和模型前质量闸门约束。这些都是防止有价值线索被挤出的最低留位，不是必须填满的配额，也不是可信度豁免。三级线索必须在有限预研中找到独立高等级来源；否则停止，不得进入正式稿。
 
 发现层可观测参数位于 `[observability]`，影子核验参数位于 `[shadow_verification]`。每次完成扫描后会自动更新 `outputs/review/discovery_observability_rolling.json`；该报告只统计真实 `live` 运行，同时达到配置的最少运行数和至少14天观察跨度后才标记为可比较，同一天重跑不能冒充2—3周验证。它只用于判断不同影子建议与后续入选的相关性，不自动修改规则或开启阻断。
 

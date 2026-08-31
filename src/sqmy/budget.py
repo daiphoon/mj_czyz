@@ -71,24 +71,123 @@ def weekly_usage(db: Database, days: int = 7, *, task_id: str | None = None) -> 
     task_filter = " AND task_id=?" if task_id is not None else ""
     params = (cutoff, task_id) if task_id is not None else (cutoff,)
     with db.connect() as conn:
-        row = conn.execute(
+        model_row = conn.execute(
             f"""SELECT COALESCE(SUM(input_tokens+output_tokens),0),
                       COALESCE(SUM(estimated_cost_cny),0),COUNT(*)
                FROM model_calls WHERE created_at>=?{task_filter}""",
             params,
         ).fetchone()
+        stage_filter = " AND stage=?" if task_id is not None else ""
+        stage_params = (cutoff, task_id) if task_id is not None else (cutoff,)
+        stage_row = conn.execute(
+            f"""SELECT COALESCE(SUM(token_used),0),COUNT(*)
+                FROM stage_usage WHERE updated_at>=?{stage_filter}""",
+            stage_params,
+        ).fetchone()
         overruns = conn.execute(
             f"SELECT COUNT(*) FROM model_calls WHERE created_at>=? AND over_budget=1{task_filter}",
             params,
         ).fetchone()[0]
+    measured_tokens = int(model_row[0])
+    interactive_tokens = int(stage_row[0])
     return {
         "window_days": days,
         "task_id": task_id,
-        "token_used": int(row[0]),
-        "estimated_cost_cny": float(row[1]),
-        "model_calls": int(row[2]),
+        "token_used": measured_tokens + interactive_tokens,
+        "measured_model_tokens": measured_tokens,
+        "estimated_interactive_tokens": interactive_tokens,
+        "estimated_cost_cny": float(model_row[1]),
+        "model_calls": int(model_row[2]),
+        "interactive_records": int(stage_row[1]),
         "over_budget_calls": int(overruns),
+        "accounting_note": (
+            "程序模型调用按返回用量计；交互式Codex按阶段声明上限保守估算，"
+            "不是ChatGPT Plus官方Token统计。"
+        ),
     }
+
+
+def record_stage_usage(
+    db: Database,
+    *,
+    run_id: str,
+    topic_id: str,
+    stage: str,
+    token_used: int,
+    input_hash: str,
+    provider: str,
+    model: str,
+    note: str,
+    execution_mode: str = "interactive_codex",
+    accounting_method: str = "declared_stage_cap",
+) -> int:
+    """幂等记录交互式阶段的保守用量，并返回本次新增到运行账本的Token。"""
+    if stage not in {"pre_research", "deep_research", "writing"}:
+        raise ValueError(f"不支持的交互式阶段：{stage}")
+    if token_used < 0:
+        raise ValueError("Token用量不得为负数")
+    required = {
+        "run_id": run_id,
+        "topic_id": topic_id,
+        "input_hash": input_hash,
+        "provider": provider,
+        "model": model,
+        "note": note,
+    }
+    missing = [name for name, value in required.items() if not str(value).strip()]
+    if missing:
+        raise ValueError("交互式用量记录缺少：" + "、".join(missing))
+    db.initialize()
+    stamp = now()
+    with db.connect() as conn:
+        if conn.execute("SELECT 1 FROM runs WHERE id=?", (run_id,)).fetchone() is None:
+            raise ValueError(f"未找到运行：{run_id}")
+        exact_call = conn.execute(
+            "SELECT 1 FROM model_calls WHERE run_id=? AND task_id=? LIMIT 1",
+            (run_id, stage),
+        ).fetchone()
+        if exact_call is not None:
+            return 0
+        existing = conn.execute(
+            """SELECT id,token_used FROM stage_usage
+               WHERE run_id=? AND topic_id=? AND stage=? AND execution_mode=?""",
+            (run_id, topic_id, stage, execution_mode),
+        ).fetchone()
+        previous = int(existing["token_used"]) if existing else 0
+        recorded = max(previous, token_used)
+        delta = recorded - previous
+        conn.execute(
+            """INSERT INTO stage_usage(
+                 run_id,topic_id,stage,execution_mode,accounting_method,provider,
+                 model,token_used,input_hash,note,created_at,updated_at
+               ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
+               ON CONFLICT(run_id,topic_id,stage,execution_mode) DO UPDATE SET
+                 accounting_method=excluded.accounting_method,
+                 provider=excluded.provider,model=excluded.model,
+                 token_used=MAX(stage_usage.token_used,excluded.token_used),
+                 input_hash=excluded.input_hash,note=excluded.note,
+                 updated_at=excluded.updated_at""",
+            (
+                run_id,
+                topic_id,
+                stage,
+                execution_mode,
+                accounting_method,
+                provider,
+                model,
+                token_used,
+                input_hash,
+                note.strip(),
+                stamp,
+                stamp,
+            ),
+        )
+        if delta:
+            conn.execute(
+                "UPDATE runs SET token_used=token_used+?,updated_at=? WHERE id=?",
+                (delta, stamp, run_id),
+            )
+    return delta
 
 
 def estimate_model_call_tokens(prompt: str, model_cfg: dict, budget_cfg: dict) -> int:

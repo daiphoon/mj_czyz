@@ -12,9 +12,57 @@ import tomllib
 from .budget import weekly_usage
 from .config import Settings
 from .db import Database
+from .evidence import assess_topic
 
 
-def preflight(settings: Settings, *, stage: str = "scan") -> dict:
+def _bounded_stage_context(
+    settings: Settings,
+    db: Database,
+    run_id: str,
+    stage: str,
+) -> tuple[bool, str]:
+    with db.connect() as conn:
+        run = conn.execute(
+            "SELECT phase,status FROM runs WHERE id=?", (run_id,)
+        ).fetchone()
+        if run is None:
+            return False, f"未找到运行：{run_id}"
+        if run["status"] in {"completed", "skipped", "failed", "paused_quota"}:
+            return False, f"运行状态不允许启动新步骤：{run['status']}"
+        if stage == "pre_research":
+            selected = conn.execute(
+                "SELECT COUNT(*) FROM candidates WHERE run_id=? AND selected=1",
+                (run_id,),
+            ).fetchone()[0]
+            ok = run["phase"] == "research" and int(selected) > 0
+            return ok, (
+                f"phase={run['phase']}, selected={selected}"
+                if ok else "有限预研要求运行已进入research且至少人工选择1题"
+            )
+        review = conn.execute(
+            """SELECT topic_id FROM research_reviews
+               WHERE run_id=? AND research_allowed=1 AND human_decision='proceed'
+               ORDER BY reviewed_at DESC,created_at DESC,rowid DESC LIMIT 1""",
+            (run_id,),
+        ).fetchone()
+    if review is None:
+        return False, "尚无人工proceed的有效预研决策"
+    if stage == "research":
+        return True, f"topic_id={review['topic_id']}, human_proceed=true"
+    if stage == "writing":
+        gate = assess_topic(settings, review["topic_id"])
+        if not gate["draft_allowed"]:
+            return False, "证据闸门尚未通过"
+        return True, f"topic_id={review['topic_id']}, evidence_gate=passed"
+    return False, f"不支持的有界步骤：{stage}"
+
+
+def preflight(
+    settings: Settings,
+    *,
+    stage: str = "scan",
+    run_id: str | None = None,
+) -> dict:
     stage = {"monday": "scan", "thursday": "refresh"}.get(stage, stage)
     db = Database(settings.database_path)
     db.initialize()
@@ -73,6 +121,30 @@ def preflight(settings: Settings, *, stage: str = "scan") -> dict:
         and isinstance(discovery.get("premodel_max_per_source"), int)
         and not isinstance(discovery.get("premodel_max_per_source"), bool)
         and discovery["premodel_max_per_source"] > 0
+        and all(
+            isinstance(discovery.get(key), int)
+            and not isinstance(discovery.get(key), bool)
+            and 0 <= discovery[key] <= discovery["screened_max"]
+            for key in (
+                "premodel_external_reserve",
+                "premodel_fresh_reserve",
+                "premodel_aged_reserve",
+            )
+        )
+        and all(
+            isinstance(discovery.get(key), int)
+            and not isinstance(discovery.get(key), bool)
+            and 1 <= discovery[key] <= discovery["screened_max"]
+            for key in (
+                "premodel_quality_min_sources",
+                "premodel_quality_min_fresh",
+                "premodel_quality_min_high_score",
+                "premodel_quality_strong_aged_min",
+            )
+        )
+        and isinstance(discovery.get("premodel_quality_score_threshold"), int)
+        and not isinstance(discovery.get("premodel_quality_score_threshold"), bool)
+        and 0 <= discovery["premodel_quality_score_threshold"] <= 100
         and isinstance(discovery.get("cache_ttl_hours"), int)
         and not isinstance(discovery.get("cache_ttl_hours"), bool)
         and discovery["cache_ttl_hours"] > 0
@@ -105,7 +177,7 @@ def preflight(settings: Settings, *, stage: str = "scan") -> dict:
     add(
         "discovery_source_config",
         discovery_limits_ok and source_catalog_ok,
-        source_detail if discovery_limits_ok else "来源扫描并发、线索保留或单来源上限非法",
+        source_detail if discovery_limits_ok else "来源扫描、队列留位、质量闸门或单来源上限非法",
         blocking=stage == "scan",
     )
 
@@ -222,7 +294,7 @@ def preflight(settings: Settings, *, stage: str = "scan") -> dict:
         "cadence_config",
         cadence_ok,
         "ok" if cadence_ok else "候选池天数和新鲜度期限必须为正整数",
-        blocking=stage in {"scan", "refresh", "research", "writing"},
+        blocking=stage in {"scan", "refresh", "pre_research", "research", "writing"},
     )
 
     writable = [settings.root / "data", settings.root / "outputs", settings.root / "logs"]
@@ -251,12 +323,28 @@ def preflight(settings: Settings, *, stage: str = "scan") -> dict:
     reserves = {
         "scan": budget_cfg["screening_tokens"],
         "refresh": 0,
+        "pre_research": budget_cfg["pre_research_tokens"],
         "research": budget_cfg["deep_research_tokens"],
         "writing": budget_cfg["writing_tokens"],
     }
     if stage not in reserves:
         raise ValueError(f"不支持的预检阶段：{stage}")
     reserve = reserves[stage]
+    bounded_context_ok = False
+    bounded_context_detail = "run_id未提供，按普通预算闸门检查"
+    if stage in {"pre_research", "research", "writing"} and run_id:
+        bounded_context_ok, bounded_context_detail = _bounded_stage_context(
+            settings, db, run_id, stage
+        )
+        add(
+            "bounded_stage_context",
+            bounded_context_ok,
+            bounded_context_detail,
+        )
+    bounded_completion_authorized = bool(
+        bounded_context_ok
+        and budget_cfg.get("complete_started_task_on_budget_exhaustion", False)
+    )
     if stage == "scan":
         non_discovery_used = max(
             0, usage["token_used"] - discovery_usage["token_used"]
@@ -286,8 +374,11 @@ def preflight(settings: Settings, *, stage: str = "scan") -> dict:
         headroom_detail = (
             f"stage={stage}, used={usage['token_used']}, remaining={remaining}, reserve={reserve}"
         )
+    stage_headroom_ok = screening_ready or bounded_completion_authorized
+    if not screening_ready and bounded_completion_authorized:
+        headroom_detail += "; 已由人工闸门限定范围，允许完成当前有界步骤并记录超额"
     add(
-        "stage_token_headroom", screening_ready,
+        "stage_token_headroom", stage_headroom_ok,
         headroom_detail,
         # 发现元数据与入队为零模型步骤；额度不足时仍允许扫描并在模型前安全暂停。
         blocking=stage != "scan",
@@ -301,7 +392,10 @@ def preflight(settings: Settings, *, stage: str = "scan") -> dict:
     return {
         "ready": ready,
         "stage": stage,
+        "run_id": run_id,
         "screening_ready": screening_ready if stage == "scan" else None,
+        "bounded_completion_authorized": bounded_completion_authorized,
+        "bounded_stage_detail": bounded_context_detail,
         "model_calls": 0,
         "checks": checks,
         "weekly_usage": usage,
@@ -322,7 +416,10 @@ class CleanupManager:
                    FROM runs r JOIN run_context rc ON rc.run_id=r.id
                    ORDER BY r.created_at"""
             ).fetchall()
-        live = {row["id"] for row in rows if row["mode"] == "live"}
+        disposable_modes = {"mock", "test_fixture", "replay"}
+        durable_modes = {
+            row["id"] for row in rows if row["mode"] not in disposable_modes
+        }
         replay_rows = [row for row in rows if row["mode"] == "replay"]
         latest_replay = {replay_rows[-1]["id"]} if replay_rows else set()
         diagnostics = set()
@@ -332,7 +429,7 @@ class CleanupManager:
                     diagnostics.add(row["id"])
             except json.JSONDecodeError:
                 continue
-        keep = live | latest_replay | diagnostics
+        keep = durable_modes | latest_replay | diagnostics
         all_runs = {row["id"] for row in rows}
         delete_runs = sorted(all_runs - keep)
 
@@ -341,7 +438,8 @@ class CleanupManager:
         for path in candidate_dir.glob("*"):
             if path.name == ".gitkeep":
                 continue
-            if path.stem not in keep:
+            # 只删除数据库已明确判定为可丢弃运行的同名报告；未知命名可能是人工终审。
+            if path.stem in delete_runs:
                 paths.add(path)
         for base in (self.s.root / "data/runs", self.s.root / "outputs/review"):
             if not base.exists():
@@ -391,6 +489,7 @@ class CleanupManager:
                     "candidates",
                     "tasks",
                     "model_calls",
+                    "stage_usage",
                     "run_context",
                 ):
                     column = "run_id"

@@ -35,6 +35,10 @@ def test_cli_exposes_stage_aware_and_real_lifecycle_commands():
     assert expanded.clue_file == Path("clues.jsonl")
     preflight = parser().parse_args(["preflight", "--stage", "refresh"])
     assert preflight.stage == "refresh"
+    pre_research_preflight = parser().parse_args(
+        ["preflight", "--stage", "pre_research", "--run-id", "run-1"]
+    )
+    assert pre_research_preflight.run_id == "run-1"
     refresh = parser().parse_args(
         ["refresh", "run-1", "--decision", "keep", "--note", "人工确认无重大变化"]
     )

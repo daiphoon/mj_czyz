@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import uuid
 
+from .budget import record_stage_usage
 from .collector import SourceCollector
 from .cadence import refresh_due, require_source_freshness
 from .config import Settings
@@ -448,6 +449,17 @@ class Workflow:
         input_hash = hashlib.sha256(
             source.read_bytes() + template.read_bytes() + json.dumps(gate, sort_keys=True).encode()
         ).hexdigest()
+        record_stage_usage(
+            self.db,
+            run_id=run_id,
+            topic_id=topic_id,
+            stage="writing",
+            token_used=int(self.s.section("budget")["writing_tokens"]),
+            input_hash=input_hash,
+            provider="codex_subscription",
+            model=self.s.section("model")["codex_model"],
+            note="正式稿进入确定性DOCX导出时按写作阶段上限保守记账；不是Plus官方Token统计。",
+        )
         with self.db.connect() as conn:
             cached = conn.execute(
                 """SELECT result_json FROM tasks

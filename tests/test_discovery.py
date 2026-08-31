@@ -634,6 +634,105 @@ class DiscoveryTest(unittest.TestCase):
                 ).fetchone()
             self.assertEqual((row["status"], row["reopen_count"]), ("pending", 1))
 
+    def test_pending_pool_keeps_fresh_and_external_clues_ahead_of_aged_backlog(self):
+        discovery = LiveDiscovery(self.settings)
+        current = datetime.now(timezone.utc)
+        max_wait = self.settings.section("discovery")["pending_batch_max_wait_hours"]
+        records = []
+        for index in range(12):
+            records.append((
+                EventItem(
+                    id=f"aged-{index}", source_id=f"aged-source-{index}",
+                    source_name=f"久候来源{index}", source_level=1,
+                    title=f"久候公共服务问题{index}",
+                    url=f"https://aged.example.test/{index}",
+                    published_at=current.isoformat(), summary="存在制度执行痛点",
+                    region="全国", rule_score=81 - index,
+                ),
+                current - timedelta(hours=max_wait + 2 + index),
+            ))
+        for index in range(5):
+            records.append((
+                EventItem(
+                    id=f"fresh-{index}", source_id=f"fresh-source-{index}",
+                    source_name=f"新鲜来源{index}", source_level=1,
+                    title=f"近期公共服务制度问题{index}",
+                    url=f"https://fresh.example.test/{index}",
+                    published_at=current.isoformat(), summary="新增事实提示可核验制度缺口",
+                    region="全国", expansion_tier=4 if index < 3 else 3,
+                    rule_score=79 - index,
+                ),
+                current - timedelta(hours=1 + index),
+            ))
+        cfg = self.settings.section("discovery")
+        selected = discovery._select_pending_pool(
+            records,
+            cfg["screened_max"],
+            max_per_source=cfg["premodel_max_per_source"],
+            external_reserve=cfg["premodel_external_reserve"],
+            fresh_reserve=cfg["premodel_fresh_reserve"],
+            aged_reserve=cfg["premodel_aged_reserve"],
+        )
+        selected_ids = {item.id for item in selected}
+        self.assertTrue({"fresh-0", "fresh-1", "fresh-2"} <= selected_ids)
+        self.assertGreaterEqual(sum(item.id.startswith("fresh-") for item in selected), 5)
+        self.assertGreaterEqual(sum(item.id.startswith("aged-") for item in selected), 3)
+        quality = discovery._assess_model_pool(records, selected)
+        self.assertTrue(quality["ok"])
+
+    def test_model_quality_gate_blocks_mediocre_aged_batch_even_when_manually_started(self):
+        discovery = LiveDiscovery(self.settings)
+        current = datetime.now(timezone.utc)
+        max_wait = self.settings.section("discovery")["pending_batch_max_wait_hours"]
+        records = [
+            (
+                EventItem(
+                    id=f"weak-{index}", source_id=f"source-{index}",
+                    source_name=f"来源{index}", source_level=1,
+                    title=f"一般性工作动态{index}", url=f"https://weak.example.test/{index}",
+                    published_at=current.isoformat(), summary="常规信息",
+                    region="全国", rule_score=50 + index,
+                ),
+                current - timedelta(hours=max_wait + 3),
+            )
+            for index in range(8)
+        ]
+        events = [event for event, _ in records]
+        quality = discovery._assess_model_pool(records, events)
+        self.assertFalse(quality["ok"])
+        self.assertIn("insufficient_high_score_events", quality["reasons"])
+        self.assertEqual(
+            discovery._should_run_model(
+                events,
+                force=False,
+                screen_now=True,
+                quality_report=quality,
+            ),
+            (False, "insufficient_pool_quality"),
+        )
+
+    def test_model_quality_gate_allows_strong_aged_batch_after_waiting(self):
+        discovery = LiveDiscovery(self.settings)
+        current = datetime.now(timezone.utc)
+        max_wait = self.settings.section("discovery")["pending_batch_max_wait_hours"]
+        records = [
+            (
+                EventItem(
+                    id=f"strong-{index}", source_id=f"source-{index}",
+                    source_name=f"来源{index}", source_level=1,
+                    title=f"可核验制度问题{index}", url=f"https://strong.example.test/{index}",
+                    published_at=current.isoformat(), summary="有数据和明确执行主体",
+                    region="全国", rule_score=70 + index,
+                ),
+                current - timedelta(hours=max_wait + 3),
+            )
+            for index in range(8)
+        ]
+        quality = discovery._assess_model_pool(records, [event for event, _ in records])
+        self.assertTrue(quality["ok"])
+        self.assertEqual(quality["fresh_count"], 0)
+        self.assertEqual(quality["high_score_count"], 8)
+
     def test_identical_screening_input_reuses_completed_result(self):
         with tempfile.TemporaryDirectory() as temp:
             test_root = Path(temp)

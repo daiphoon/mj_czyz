@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 from typing import Any
 
+from .budget import record_stage_usage
 from .cadence import require_source_freshness
 from .config import Settings
 from .db import Database, now
@@ -538,6 +539,17 @@ def check_pre_research(
         phase=Phase.RESEARCH,
         status=status,
         data=checkpoint,
+    )
+    record_stage_usage(
+        db,
+        run_id=run_id,
+        topic_id=str(payload.get("topic_id") or f"{run_id}:{candidate_id}"),
+        stage="pre_research",
+        token_used=int(payload.get("budget", {}).get("token_limit", 0)),
+        input_hash=input_hash,
+        provider="codex_subscription",
+        model=settings.section("model")["codex_model"],
+        note="有限预研决策单落库时按其声明上限保守记账；不是Plus官方Token统计。",
     )
     return record
 

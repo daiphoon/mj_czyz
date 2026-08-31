@@ -162,21 +162,25 @@ class LiveDiscovery:
         reopened_count = 0
         oldest_pending_at: str | None = None
         pending_before_count = len(premodel_pool)
+        pool_quality: dict = {"checked": False, "ok": True, "reasons": []}
         if mode == "live":
             self._persist_events(run_id, rule_results)
             current_new_count, reopened_count = self._enqueue_events(
                 run_id, prepared["fresh_results"]
             )
-            pending_events, oldest_pending_at = self._pending_events()
+            pending_records, oldest_pending_at = self._pending_event_records()
             cfg = self.s.section("discovery")
-            premodel_pool = self._select_diverse_pool(
-                pending_events,
+            premodel_pool = self._select_pending_pool(
+                pending_records,
                 int(cfg["screened_max"]),
-                clue_reserve=int(cfg.get("premodel_clue_reserve", 0)),
                 max_per_source=int(cfg.get("premodel_max_per_source", cfg["screened_max"])),
+                external_reserve=int(cfg.get("premodel_external_reserve", 0)),
+                fresh_reserve=int(cfg.get("premodel_fresh_reserve", 0)),
+                aged_reserve=int(cfg.get("premodel_aged_reserve", 0)),
             )
             fresh_pool = premodel_pool
-            pending_before_count = len(pending_events)
+            pending_before_count = len(pending_records)
+            pool_quality = self._assess_model_pool(pending_records, premodel_pool)
         else:
             self._persist_events(run_id, premodel_pool)
         shadow_verifier: ShadowVerifier | None = None
@@ -193,6 +197,7 @@ class LiveDiscovery:
             force=force,
             screen_now=screen_now,
             oldest_pending_at=oldest_pending_at,
+            quality_report=pool_quality if mode == "live" else None,
         )
         model_pool = fresh_pool if should_model else []
         deferred_count = (
@@ -228,6 +233,7 @@ class LiveDiscovery:
                 "premodel": len(premodel_pool),
                 "repeated_excluded": repeated_excluded,
                 "model_input": len(model_pool),
+                "model_pool_quality": pool_quality,
                 "shadow_reviewed": len(shadow_reviews),
                 "shadow_report": shadow_report,
                 "shadow_enforced": False,
@@ -290,6 +296,7 @@ class LiveDiscovery:
             reopened_count=reopened_count,
             pending_before_count=pending_before_count,
             shadow_reviews=shadow_reviews,
+            pool_quality=pool_quality,
         )
         metrics_path = write_rolling_evaluation(self.s)
         discovery_metrics_path = write_discovery_evaluation(self.s)
@@ -306,6 +313,8 @@ class LiveDiscovery:
         )
         if candidates:
             next_action = f"sqmy select {run_id} C1"
+        elif batch_reason == "insufficient_pool_quality":
+            next_action = "补充高质量公开线索后运行 sqmy scan --clues PATH --screen-now"
         elif deferred_count:
             next_action = "sqmy scan"
         elif exhausted_without_candidates:
@@ -327,6 +336,7 @@ class LiveDiscovery:
             "model_input": len(model_pool),
             "deferred_count": deferred_count,
             "batch_reason": batch_reason,
+            "model_pool_quality": pool_quality,
             "expansion_tier": expansion_tier,
             "tier_stats": tier_stats,
             "screening_cache_hit": cache_hit,
@@ -625,14 +635,13 @@ class LiveDiscovery:
         force: bool,
         screen_now: bool = False,
         oldest_pending_at: str | None = None,
+        quality_report: dict | None = None,
     ) -> tuple[bool, str]:
         if force:
             return bool(events), "forced"
-        if screen_now:
-            return bool(events), "manual_screen_now"
+        if not events:
+            return False, "no_new_events"
         cfg = self.s.section("discovery")
-        if len(events) >= cfg["min_new_events_for_model"]:
-            return True, "minimum_batch_reached"
         urgent = any(
             event.rule_score >= cfg["urgent_rule_score_threshold"]
             and any(word in event.title + " " + event.summary for word in cfg["urgent_keywords"])
@@ -640,6 +649,12 @@ class LiveDiscovery:
         )
         if urgent:
             return True, "urgent_exception"
+        if quality_report is not None and not quality_report.get("ok", False):
+            return False, "insufficient_pool_quality"
+        if screen_now:
+            return True, "manual_screen_now"
+        if len(events) >= cfg["min_new_events_for_model"]:
+            return True, "minimum_batch_reached"
         if events and oldest_pending_at:
             try:
                 oldest = datetime.fromisoformat(oldest_pending_at)
@@ -650,7 +665,7 @@ class LiveDiscovery:
                     return True, "pending_age_limit_reached"
             except ValueError:
                 pass
-        return False, "deferred_small_batch" if events else "no_new_events"
+        return False, "deferred_small_batch"
 
     def _model_rank(self, run_id: str, events: list, *, use_cache: bool = True) -> tuple[list, bool, int]:
         model_cfg = self.s.section("model")
@@ -1227,12 +1242,11 @@ class LiveDiscovery:
                     )
         return new_count, reopened_count
 
-    def _pending_events(self) -> tuple[list[EventItem], str | None]:
+    def _pending_event_records(
+        self,
+    ) -> tuple[list[tuple[EventItem, datetime]], str | None]:
         cutoff = datetime.now(timezone.utc) - timedelta(
             days=int(self.s.section("discovery")["lookback_days"])
-        )
-        max_wait = timedelta(
-            hours=int(self.s.section("discovery")["pending_batch_max_wait_hours"])
         )
         with self.wf.db.connect() as conn:
             conn.execute(
@@ -1256,16 +1270,145 @@ class LiveDiscovery:
             except (TypeError, ValueError, json.JSONDecodeError):
                 continue
             records.append((event, first_seen.astimezone(timezone.utc)))
-        current = datetime.now(timezone.utc)
         records.sort(
             key=lambda item: (
-                0 if current - item[1] >= max_wait else 1,
                 -item[0].rule_score,
                 item[1],
             )
         )
         oldest = min((first_seen for _, first_seen in records), default=None)
-        return [event for event, _ in records], oldest.isoformat() if oldest else None
+        return records, oldest.isoformat() if oldest else None
+
+    def _pending_events(self) -> tuple[list[EventItem], str | None]:
+        records, oldest = self._pending_event_records()
+        return [event for event, _ in records], oldest
+
+    def _select_pending_pool(
+        self,
+        records: list[tuple[EventItem, datetime]],
+        limit: int,
+        *,
+        max_per_source: int,
+        external_reserve: int,
+        fresh_reserve: int,
+        aged_reserve: int,
+    ) -> list[EventItem]:
+        """在高分优先的基础上，给外部线索、新鲜事件和久候事件分别留位。"""
+        if limit <= 0:
+            return []
+        current = datetime.now(timezone.utc)
+        max_wait = timedelta(
+            hours=int(self.s.section("discovery")["pending_batch_max_wait_hours"])
+        )
+
+        def is_fresh(record: tuple[EventItem, datetime]) -> bool:
+            return current - record[1] < max_wait
+
+        def is_aged(record: tuple[EventItem, datetime]) -> bool:
+            return not is_fresh(record)
+
+        def is_external(record: tuple[EventItem, datetime]) -> bool:
+            return record[0].expansion_tier >= 4
+
+        ranked = sorted(
+            records,
+            key=lambda item: (-item[0].rule_score, 0 if is_fresh(item) else 1, item[1]),
+        )
+        selected: list[tuple[EventItem, datetime]] = []
+        selected_keys: set[str] = set()
+        counts: Counter[str] = Counter()
+
+        def take_until(
+            pool: list[tuple[EventItem, datetime]],
+            predicate,
+            target: int,
+        ) -> None:
+            for record in pool:
+                if len(selected) >= limit or sum(predicate(item) for item in selected) >= target:
+                    break
+                event = record[0]
+                key = self._event_key(event)
+                source_key = event.source_id or event.source_name
+                if key in selected_keys or counts[source_key] >= max_per_source:
+                    continue
+                selected.append(record)
+                selected_keys.add(key)
+                counts[source_key] += 1
+
+        take_until([item for item in ranked if is_external(item)], is_external, external_reserve)
+        take_until([item for item in ranked if is_fresh(item)], is_fresh, fresh_reserve)
+        take_until([item for item in ranked if is_aged(item)], is_aged, aged_reserve)
+        take_until(ranked, lambda _: True, limit)
+
+        # 数据源数量确实不足时允许补满，但后续质量闸门仍会检查来源多样性。
+        if len(selected) < min(limit, len(records)):
+            for record in ranked:
+                key = self._event_key(record[0])
+                if key not in selected_keys:
+                    selected.append(record)
+                    selected_keys.add(key)
+                    if len(selected) >= limit:
+                        break
+        selected.sort(
+            key=lambda item: (-item[0].rule_score, 0 if is_fresh(item) else 1, item[1])
+        )
+        return [event for event, _ in selected]
+
+    def _assess_model_pool(
+        self,
+        records: list[tuple[EventItem, datetime]],
+        selected: list[EventItem],
+    ) -> dict:
+        """用零模型指标阻止“久候但低质”的队列批次消耗筛选Token。"""
+        cfg = self.s.section("discovery")
+        current = datetime.now(timezone.utc)
+        max_wait = timedelta(hours=int(cfg["pending_batch_max_wait_hours"]))
+        first_seen = {self._event_key(event): stamp for event, stamp in records}
+        selected_records = [
+            (event, first_seen.get(self._event_key(event), current)) for event in selected
+        ]
+        fresh_count = sum(current - stamp < max_wait for _, stamp in selected_records)
+        aged_count = len(selected_records) - fresh_count
+        external_count = sum(event.expansion_tier >= 4 for event, _ in selected_records)
+        high_score_count = sum(
+            event.rule_score >= int(cfg["premodel_quality_score_threshold"])
+            for event, _ in selected_records
+        )
+        source_count = len(
+            {event.source_id or event.source_name for event, _ in selected_records}
+        )
+        thresholds = {
+            "minimum_total": int(cfg["screened_min"]),
+            "minimum_sources": int(cfg["premodel_quality_min_sources"]),
+            "minimum_fresh": int(cfg["premodel_quality_min_fresh"]),
+            "minimum_high_score": int(cfg["premodel_quality_min_high_score"]),
+            "strong_aged_high_score": int(cfg["premodel_quality_strong_aged_min"]),
+            "high_score_threshold": int(cfg["premodel_quality_score_threshold"]),
+        }
+        reasons = []
+        if len(selected_records) < thresholds["minimum_total"]:
+            reasons.append("pool_below_screened_min")
+        if source_count < thresholds["minimum_sources"]:
+            reasons.append("insufficient_source_diversity")
+        if high_score_count < thresholds["minimum_high_score"]:
+            reasons.append("insufficient_high_score_events")
+        if (
+            fresh_count < thresholds["minimum_fresh"]
+            and high_score_count < thresholds["strong_aged_high_score"]
+        ):
+            reasons.append("insufficient_fresh_or_strong_aged_events")
+        return {
+            "checked": True,
+            "ok": not reasons,
+            "reasons": reasons,
+            "total": len(selected_records),
+            "fresh_count": fresh_count,
+            "aged_count": aged_count,
+            "external_count": external_count,
+            "high_score_count": high_score_count,
+            "source_count": source_count,
+            "thresholds": thresholds,
+        }
 
     def _mark_queue_screened(self, run_id: str, events: list[EventItem]) -> None:
         stamp = now()
@@ -1342,7 +1485,8 @@ class LiveDiscovery:
                 deferred_count: int, batch_reason: str, start_tier: int, expansion_tier: int,
                 *, current_new_count: int = 0, reopened_count: int = 0,
                 pending_before_count: int = 0,
-                shadow_reviews: list | None = None) -> Path:
+                shadow_reviews: list | None = None,
+                pool_quality: dict | None = None) -> Path:
         path = self.s.root / "outputs/candidates" / f"{run_id}.md"
         path.parent.mkdir(parents=True, exist_ok=True)
         blocked = [item for item in audits if item.decision == "block_original_gap"]
@@ -1362,6 +1506,16 @@ class LiveDiscovery:
             "4=投诉、论坛和社交平台待核线索；自动候选不得直接用于报送。",
             "",
         ]
+        if pool_quality and pool_quality.get("checked"):
+            lines += [
+                "> 模型前质量闸门："
+                f"{'通过' if pool_quality.get('ok') else '暂缓'}；"
+                f"新鲜 {pool_quality.get('fresh_count', 0)} 条，久候 {pool_quality.get('aged_count', 0)} 条，"
+                f"外部补充 {pool_quality.get('external_count', 0)} 条，高分 {pool_quality.get('high_score_count', 0)} 条，"
+                f"独立来源 {pool_quality.get('source_count', 0)} 个；"
+                f"原因：{','.join(pool_quality.get('reasons', [])) or 'none'}。",
+                "",
+            ]
         if shadow_reviews:
             shadow_counts = Counter(item.recommendation for item in shadow_reviews)
             lines += [

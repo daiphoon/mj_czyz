@@ -565,8 +565,8 @@ def production_funnel(
         "stable_minimum_output": bool(evaluated) and all(row["minimum_target_met"] for row in evaluated),
         "stable_stretch_output": bool(evaluated) and all(row["stretch_target_met"] for row in evaluated),
         "measurement_note": (
-            "成稿按已通过证据闸门并写入topics表计数；交互式Codex订阅用量若未写入项目账本，"
-            "recorded_token_used不会包含该部分。"
+            "成稿按已通过证据闸门并写入topics表计数；标准流程中的交互式Codex订阅用量"
+            "按阶段声明上限保守写入项目账本，不是Plus官方Token统计；流程外人工工作仍可能未计入。"
         ),
     }
 

@@ -151,7 +151,15 @@ def test_valid_reframed_brief_is_idempotent_and_stops_at_human_gate():
             count = conn.execute(
                 "SELECT COUNT(*) FROM research_reviews WHERE run_id=?", (run_id,)
             ).fetchone()[0]
+            usage = conn.execute(
+                "SELECT stage,token_used,accounting_method FROM stage_usage WHERE run_id=?",
+                (run_id,),
+            ).fetchall()
         assert count == 1
+        assert [(row["stage"], row["token_used"]) for row in usage] == [
+            ("pre_research", 30_000)
+        ]
+        assert usage[0]["accounting_method"] == "declared_stage_cap"
         status = workflow.status(run_id)[0]
         assert status["phase"] == "research"
         assert status["status"] == "needs_review"

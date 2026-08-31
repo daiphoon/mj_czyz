@@ -8,6 +8,7 @@ from sqmy.budget import (
     budget_adjustments,
     estimate_model_call_tokens,
     record_budget_adjustment,
+    record_stage_usage,
     review_budget_adjustment,
     weekly_usage,
 )
@@ -117,3 +118,47 @@ def test_budget_adjustment_records_expected_and_actual_benefit():
         assert record["actual_tokens"] == 70_912
         assert record["decision"] == "reassess"
         assert "排除" in record["actual_benefit"]
+
+
+def test_interactive_stage_usage_is_idempotent_and_separated_from_measured_calls():
+    with tempfile.TemporaryDirectory() as temp:
+        db = Database(Path(temp) / "workflow.db")
+        db.initialize()
+        stamp = now()
+        with db.connect() as conn:
+            conn.execute(
+                "INSERT INTO runs(id,phase,status,config_hash,created_at,updated_at) VALUES(?,?,?,?,?,?)",
+                ("run-1", "research", "pending", "x", stamp, stamp),
+            )
+        first = record_stage_usage(
+            db,
+            run_id="run-1",
+            topic_id="topic-1",
+            stage="pre_research",
+            token_used=30_000,
+            input_hash="hash-1",
+            provider="codex_subscription",
+            model="gpt-test",
+            note="按阶段上限保守估算",
+        )
+        repeated = record_stage_usage(
+            db,
+            run_id="run-1",
+            topic_id="topic-1",
+            stage="pre_research",
+            token_used=30_000,
+            input_hash="hash-2",
+            provider="codex_subscription",
+            model="gpt-test",
+            note="输入变化但同一阶段不重复累计",
+        )
+        usage = weekly_usage(db)
+        assert (first, repeated) == (30_000, 0)
+        assert usage["measured_model_tokens"] == 0
+        assert usage["estimated_interactive_tokens"] == 30_000
+        assert usage["token_used"] == 30_000
+        assert usage["interactive_records"] == 1
+        assert "不是ChatGPT Plus官方Token统计" in usage["accounting_note"]
+        with db.connect() as conn:
+            assert conn.execute("SELECT token_used FROM runs WHERE id='run-1'").fetchone()[0] == 30_000
+            assert conn.execute("SELECT COUNT(*) FROM stage_usage").fetchone()[0] == 1

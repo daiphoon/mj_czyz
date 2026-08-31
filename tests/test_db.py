@@ -42,6 +42,7 @@ def test_legacy_topics_table_migrates_forward_and_preserves_approved_file_state(
         assert {
             "research_reviews",
             "budget_adjustments",
+            "stage_usage",
             "discovery_queue",
             "source_funnel",
             "discovery_exclusion_samples",
