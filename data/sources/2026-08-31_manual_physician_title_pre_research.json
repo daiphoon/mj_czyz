@@ -1,0 +1,151 @@
+{
+  "run_id": "manual-2026-08-31",
+  "candidate_id": "USER_TOPIC",
+  "topic_id": "beijing-clinical-physician-title-evaluation-2026-08",
+  "working_title": "关于完善北京市公立医院临床医师职称评聘分类评价与科研诚信联动机制的建议",
+  "original_title": "关于取消医院医生职称晋升中国际知名期刊论文硬性要求的建议",
+  "decision": "reframe",
+  "decision_reason": "reframe_required",
+  "confidence": "medium",
+  "as_of": "2026-08-31",
+  "confidence_reason": "国家2021年政策和北京2023年现行办法已禁止唯论文导向，并实行临床与科研分类评价，原题所称现行制度空白已经被政策覆盖。医学撤稿和论文工厂证据支持错误激励造成科研诚信风险的机制方向，但不能把45.28%的中国作者占比表述为中国占全球论文造假近一半，也不能把全部撤稿等同于造假。当前尚缺少北京医院2023年改革后把SCI、影响因子或期刊分区通过院内聘岗、晋升、绩效和人才评价隐性回流的系统证据，因此只支持改写后进入有停止闸门的深研。",
+  "sources": [
+    {
+      "key": "national_health_title_reform_2021",
+      "url": "https://www.sport.gov.cn/rlzx/n5622/c23461887/content.html",
+      "publisher": "人力资源社会保障部、国家卫生健康委、国家中医药局（国家体育总局转载）",
+      "published_at": "2021-06-30",
+      "checked_at": "2026-08-31T13:26:26+08:00",
+      "source_level": 1,
+      "source_role": "official_policy",
+      "excerpt": "职称评审和岗位聘任不得把论文篇数、SCI等指标作为前置条件和评审直接依据，国内外期刊论文同等对待。"
+    },
+    {
+      "key": "beijing_health_title_reform_2023",
+      "url": "https://rsj.beijing.gov.cn/xxgk/2024zcwj/202406/t20240617_3717277.html",
+      "publisher": "北京市人力资源和社会保障局、北京市卫生健康委员会",
+      "published_at": "2023-03-31",
+      "checked_at": "2026-08-31T13:26:26+08:00",
+      "source_level": 1,
+      "source_role": "official_policy",
+      "excerpt": "二、三级医疗卫生机构按临床为主和科研为主分类评价；临床为主重点评价临床水平、实践能力和业绩；代表作包括病案、手术视频、案例、报告、科普和论文等，并明确破除唯论文一刀切。"
+    },
+    {
+      "key": "beijing_title_review_notice_2024",
+      "url": "https://wjw.beijing.gov.cn/zwgk_20040/rsxxzwgk/202407/t20240704_3737984.html",
+      "publisher": "北京市卫生健康委员会",
+      "published_at": "2024-07-01",
+      "checked_at": "2026-08-31T13:26:26+08:00",
+      "source_level": 1,
+      "source_role": "official_implementation",
+      "excerpt": "高级职称按北京2023年改革办法执行，申报材料包括专业技术工作量、5份专业能力病案或案例和多类型业绩代表作；论文只是代表作类型之一。"
+    },
+    {
+      "key": "pku_health_science_center_review_2024",
+      "url": "https://rsc.bjmu.edu.cn/docs/2024-06/d4d6495f3c11420b848d702c4bc915a7.pdf",
+      "publisher": "北京大学医学部",
+      "published_at": "2024-06",
+      "checked_at": "2026-08-31T13:26:26+08:00",
+      "source_level": 1,
+      "source_role": "institutional_implementation",
+      "excerpt": "通知要求贯彻破五唯、科学分类评价，申报受理中克服唯SCI倾向，重质量并依靠同行专家综合评价；具体基本条件仍需进一步取得相关条例核验。"
+    },
+    {
+      "key": "nhc_research_integrity_2026",
+      "url": "https://www.nhc.gov.cn/qjjys/c100015/202602/bda1529ba6374c089f70c2a57d74e0a4.shtml",
+      "publisher": "国家卫生健康委员会",
+      "published_at": "2026-02",
+      "checked_at": "2026-08-31T13:26:26+08:00",
+      "source_level": 1,
+      "source_role": "official_policy_window",
+      "excerpt": "三年专项治理要求医疗卫生机构每年抽查不少于当年发表论文总数5%的原始数据，并检查科研评价制度落实，推广职称评聘分类评价典型。"
+    },
+    {
+      "key": "medical_retractions_1975_2024",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/41327922/",
+      "publisher": "Journal of Korean Medical Science（PubMed）",
+      "published_at": "2025",
+      "checked_at": "2026-08-31T13:26:26+08:00",
+      "source_level": 2,
+      "source_role": "academic_research",
+      "excerpt": "对16041篇医学撤稿的描述性分析显示，45.28%至少有一名中国作者；撤稿原因中数据问题占31.47%、欺诈占11.37%、同行评审问题占11.21%。"
+    },
+    {
+      "key": "bmj_paper_mills_2022",
+      "url": "https://www.bmj.com/content/379/bmj-2022-071517",
+      "publisher": "The BMJ",
+      "published_at": "2022",
+      "checked_at": "2026-08-31T13:26:26+08:00",
+      "source_level": 2,
+      "source_role": "academic_research",
+      "excerpt": "1182篇已识别论文工厂撤稿中，96.8%的作者来自中国机构，76.9%的第一作者主要隶属医院；研究明确提示检出的论文工厂论文可能与未检出的不同。"
+    },
+    {
+      "key": "clinical_promotion_performance_2022",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/35309226/",
+      "publisher": "Frontiers in Public Health（PubMed）",
+      "published_at": "2022-03-04",
+      "checked_at": "2026-08-31T13:26:26+08:00",
+      "source_level": 2,
+      "source_role": "academic_research",
+      "excerpt": "上海67家公立医院2020年晋升样本中，获晋升者学术产出更多，但两组临床表现无显著差异；该研究发生在本轮改革前，不能证明北京当前情况。"
+    }
+  ],
+  "verified_facts": [
+    "国家和北京现行制度已经取消把论文篇数、SCI指标作为卫生职称评审和岗位聘任前置条件或直接依据的政策基础，原题不能按制度仍未改革来写。",
+    "北京已明确把二、三级机构医务人员区分为临床为主和科研为主，允许病案、手术视频、质量改进案例、技术报告等作为代表作。",
+    "中国作者在全球医学撤稿的绝对数量占比较高，论文工厂撤稿样本中医院隶属高度集中，但撤稿不等于造假，论文工厂样本也不能代表全部论文。",
+    "2026年国家卫生健康委启动医学科研诚信专项治理，科研评价与职称评聘制度落实处于明确政策窗口期。"
+  ],
+  "evidence_based_inferences": [
+    {
+      "statement": "如果医院在临床型岗位的内部聘岗、晋升或绩效中继续用SCI篇数、影响因子、期刊分区作硬门槛或关键排序项，会把稀缺晋升机会与可购买、可包装的论文标签绑定，形成论文工厂和挂名交易需求。",
+      "uncertainty": "机制合理且有历史及撤稿研究支持，但尚无北京改革后医院内部规则的代表性样本，不能认定当前普遍存在。"
+    },
+    {
+      "statement": "临床能力与研究能力不是同一能力维度，对临床型医生强制使用统一科研产出指标会产生岗位错配；但三级教学医院中的研究型医师和临床科学家具有正当研究职责。",
+      "uncertainty": "不同医院和岗位职责差异较大，不能把所有医生都划为纯临床岗位。"
+    }
+  ],
+  "critical_unknowns": [
+    {
+      "question": "北京市属、区属和高校附属公立医院2023年后实际使用的职称推荐、岗位聘任、院内晋升和绩效评分表，是否仍以SCI、影响因子或期刊分区设置门槛、分值或同分排序？",
+      "blocking": true
+    },
+    {
+      "question": "临床型与科研型岗位能否由本人结合实际职责选择，还是由科室或医院事后指定；转换轨道时如何处理历史业绩？",
+      "blocking": false
+    },
+    {
+      "question": "北京2023年改革后临床代表作实际采用比例、申诉情况、科研诚信事件和临床质量指标使用效果如何？",
+      "blocking": false
+    }
+  ],
+  "counterevidence": [
+    "现行国家和北京制度已经完成原则性改革，直接建议取消SCI硬门槛会重复政策。",
+    "北京大学医学部2024年公开通知明确要求克服唯SCI倾向，目前没有公开材料证明其仍把SCI设为临床岗位硬门槛。",
+    "医学研究是部分三级医院和部分医生的正式职责，全面取消科研评价会损害临床研究、成果转化和教学医院功能。",
+    "论文撤稿可能来自数据问题、同行评审、伦理或出版流程，不得全部归因为医生故意造假或晋升制度。"
+  ],
+  "discard_conditions": [
+    "抽取的北京医院现行内部制度均已禁止SCI、影响因子和期刊分区作为临床型岗位门槛或关键排序依据，且没有可靠的执行偏差证据。",
+    "只能取得2021年改革前的调查、个案或非北京材料，无法证明改革后的现实缺口。",
+    "建议最终只能重复破四唯、加强监督等现有政策，没有新增可执行机制。",
+    "替代评价只能使用原始工作量、患者满意度等易诱导拒收疑难患者、过度医疗或刷量的单一指标，无法形成风险校正和申诉机制。"
+  ],
+  "mechanism_outline": {
+    "target": "北京市公立医院临床型医师职称推荐、岗位聘任和院内晋升",
+    "proposal": "备案并抽查院内分类评价细则，禁止SCI、影响因子和期刊分区在临床型岗位以门槛、直接分值、同分排序或科室配额形式隐性回流；研究型岗位保留科研评价，但改看原创贡献、数据真实性、本人贡献和临床转化。",
+    "verification": "从少量医院开始抽查制度文本和实际晋升材料，比较不同轨道代表作结构、临床质量、争议申诉及撤稿情况，不新建平台。",
+    "anti_gaming": "临床评价使用风险校正后的多维组合，不以门诊量、手术量、低并发症率或满意度作为单一指标，防止挑选低风险患者、过度医疗和数据编码优化。",
+    "appeal": "医院公布轨道、指标与权重，允许申请人对岗位分类和数据口径提出复核，并留有轨道转换与回溯纠错机制。",
+    "exit": "若试点增加行政负担、评议关系化或临床指标诱发明显规避，应停止扩围并缩减指标。"
+  },
+  "budget": {
+    "temporary_weekly_limit_before": 240000,
+    "temporary_weekly_limit_after": 250000,
+    "adjustment_id": 9,
+    "reason": "已开始的人工题目有限预研在预检时仅因研究写作保护预留差4466 Token，临时增加10000用于完成政策和事实核验；本步骤未调用项目模型API。",
+    "expected_benefit": "提前纠正原题的政策时态和撤稿统计口径，把后续研究集中在北京医院内部评价是否隐性回流这一决定性问题。"
+  }
+}

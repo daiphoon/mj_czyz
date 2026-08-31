@@ -1,0 +1,179 @@
+{
+  "run_id": "manual-2026-08-31",
+  "topic_id": "beijing-clinical-physician-title-evaluation-2026-08",
+  "stage": "deep_research_first_gate",
+  "as_of": "2026-08-31",
+  "decision": "stop",
+  "decision_reason": "policy_covered",
+  "secondary_reason": "insufficient_post_policy_evidence",
+  "confidence": "medium_high",
+  "writing_ready": false,
+  "decision_summary": "抽样发现2024年公开的个别单位规则仍存在按医师级别设置论文篇数的旧式硬条件，说明单位规则更新滞后具有现实风险；但北京2026年7月6日新规已明确禁止三级医院临床岗位把科研基金、论文篇数和SCI影响因子作为前置条件或直接依据，并规定二级医院不得要求科研指标、基层不再考核论文。新规发布后尚无完整评审周期、投诉数据或现行单位规则样本证明旧要求仍在实际执行。现在成稿会重复刚出台政策并把政策更新前文件误写成当前执行事实，因此停止写作，转为观察2026评审周期后的执行证据。",
+  "sample_scope": [
+    {
+      "stratum": "municipal_policy",
+      "unit": "北京市卫生健康委员会",
+      "evidence_date": "2026-07-06",
+      "result": "explicit_prohibition",
+      "finding": "三级医院临床岗位不得把科研基金、论文篇数和SCI影响因子作为前置条件或评审直接依据；二级医院不得要求科研指标；基层不再考核论文。"
+    },
+    {
+      "stratum": "university_affiliated_hospital_system",
+      "unit": "北京大学医学部及附属医院体系",
+      "evidence_date": "2024-05 to 2026-05",
+      "result": "mixed_but_no_sci_hard_gate_found",
+      "finding": "2024年医师系列条例对主任、副主任医师设置科研成果要求，但论文只是项目、教材专著、新技术、专利、指南规范等替代路径之一；2026年医师申报表和送审清单允许论文、著作、专利、临床病案、临床指南等代表作，未设置SCI或影响因子字段。"
+    },
+    {
+      "stratum": "district_hospital",
+      "unit": "北京市海淀医院",
+      "evidence_date": "2025-11-25",
+      "result": "standard_exists_content_not_public",
+      "finding": "医院公开报道其使用《2025年版专业技术职务评审量化评估标准》，但公开页面和配图没有披露具体指标、权重或SCI设置，不能据此判断合规或违规。"
+    },
+    {
+      "stratum": "university_internal_hospital",
+      "unit": "北京大学医院",
+      "evidence_date": "official compilation published 2024-09",
+      "result": "legacy_paper_count_gate",
+      "finding": "北京大学官网公开的医疗卫生系列试行规定要求主治、副主任、主任医师分别发表至少1篇、2篇、3篇学术论文。该文件证明旧单位规则残留风险，但未要求国际期刊或SCI，且2026年北京新规发布后是否继续执行尚未核实。"
+    },
+    {
+      "stratum": "municipal_hospital_adjacent_evidence",
+      "unit": "首都医科大学附属北京同仁医院",
+      "evidence_date": "2025",
+      "result": "excluded_from_core_claim",
+      "finding": "招聘公告要求应聘者上传已发表SCI论文材料，但招聘与在职职称评聘不是同一制度阶段，不能用于证明职称晋升存在SCI硬门槛。"
+    }
+  ],
+  "sources": [
+    {
+      "key": "beijing_health_title_review_2026",
+      "url": "https://wjw.beijing.gov.cn/zwgk_20040/rsxxzwgk/202607/t20260706_4749193.html",
+      "publisher": "北京市卫生健康委员会",
+      "published_at": "2026-07-06",
+      "source_level": 1,
+      "source_role": "current_policy",
+      "origin_group": "beijing-health-title-review-2026"
+    },
+    {
+      "key": "national_health_title_reform_2021",
+      "url": "https://www.nhc.gov.cn/renshi/c100028/202108/49c24b0b171b4f85976d9a6a177e5e48.shtml",
+      "publisher": "人力资源社会保障部、国家卫生健康委、国家中医药局",
+      "published_at": "2021-06-30",
+      "source_level": 1,
+      "source_role": "current_policy_framework",
+      "origin_group": "national-health-title-reform-2021"
+    },
+    {
+      "key": "nhc_research_integrity_2026",
+      "url": "https://www.nhc.gov.cn/qjjys/c100015/202602/bda1529ba6374c089f70c2a57d74e0a4.shtml",
+      "publisher": "国家卫生健康委员会",
+      "published_at": "2026-02",
+      "source_level": 1,
+      "source_role": "policy_window_and_existing_oversight",
+      "origin_group": "nhc-medical-research-integrity-2026"
+    },
+    {
+      "key": "bjmu_title_rules_2024",
+      "url": "https://rsc.bjmu.edu.cn/docs/2024-05/8a586388dcb44a28a51805892e670a4d.pdf",
+      "publisher": "北京大学医学部",
+      "published_at": "2024-05-13",
+      "source_level": 1,
+      "source_role": "institutional_rule",
+      "origin_group": "bjmu-title-rules-2024"
+    },
+    {
+      "key": "bjmu_physician_forms_2026",
+      "url": "https://rsc.bjmu.edu.cn/fwzn/zyjszwpspr/jsgjzyjszw/index.htm",
+      "publisher": "北京大学医学部人事处",
+      "published_at": "2026-05-11",
+      "source_level": 1,
+      "source_role": "institutional_implementation_form",
+      "origin_group": "bjmu-physician-title-forms-2026",
+      "checked_attachments": [
+        "https://rsc.bjmu.edu.cn/docs//2026-05/f0c6fae41b3f49788af6b154c4218001.docx",
+        "https://rsc.bjmu.edu.cn/docs//2026-05/dfb4ce84162a48d0b8bc9dff898a4415.docx"
+      ]
+    },
+    {
+      "key": "haidian_hospital_quantitative_standard_2025",
+      "url": "https://www.hdhospital.com/Html/News/Articles/15537.html",
+      "publisher": "北京市海淀医院",
+      "published_at": "2025-11-27",
+      "source_level": 1,
+      "source_role": "institutional_process_signal",
+      "origin_group": "haidian-hospital-title-standard-2025"
+    },
+    {
+      "key": "pku_hospital_title_rule_public_2024",
+      "url": "https://hr.pku.edu.cn/docs/2024-09/641a57a85da24ac58697cceebea65c19.pdf",
+      "publisher": "北京大学人事部",
+      "published_at": "2024-09",
+      "source_level": 1,
+      "source_role": "legacy_institutional_rule",
+      "origin_group": "pku-hospital-title-rules-public-2024"
+    },
+    {
+      "key": "tongren_recruitment_2025",
+      "url": "https://rsj.beijing.gov.cn/xxgk/gkzp/202506/t20250624_4122171.html",
+      "publisher": "北京市人力资源和社会保障局",
+      "published_at": "2025-06-24",
+      "source_level": 1,
+      "source_role": "boundary_evidence_recruitment_not_promotion",
+      "origin_group": "tongren-recruitment-2025"
+    }
+  ],
+  "verified_facts": [
+    {
+      "statement": "北京2026年职称评审通知已经针对不同等级医疗机构明确禁止或取消临床岗位论文和科研硬指标。",
+      "source_keys": ["beijing_health_title_review_2026"]
+    },
+    {
+      "statement": "国家2021年制度已要求职称政策、标准、程序和结果公开，自主评审单位评价标准备案，并建立复查、投诉和倒查追责机制。",
+      "source_keys": ["national_health_title_reform_2021"]
+    },
+    {
+      "statement": "北京大学医学部2026年公开医师申报材料采用开放式代表作类型，没有SCI或影响因子专门字段。",
+      "source_keys": ["bjmu_physician_forms_2026"]
+    },
+    {
+      "statement": "北京大学官网2024年公开文件中的北京大学医院医疗卫生系列规则仍按职级设置1至3篇学术论文要求。",
+      "source_keys": ["pku_hospital_title_rule_public_2024"]
+    },
+    {
+      "statement": "北京市海淀医院在2025年使用院内量化评估标准，但公开页面未提供标准全文。",
+      "source_keys": ["haidian_hospital_quantitative_standard_2025"]
+    }
+  ],
+  "inferences": [
+    {
+      "statement": "上位政策与单位旧规则之间可能存在更新时滞，因此旧论文门槛残留是值得持续核验的风险。",
+      "uncertainty": "现有证据不能证明2026年7月新规发布后仍按旧规则执行，也不能证明该现象在北京市属、区属医院普遍存在。"
+    },
+    {
+      "statement": "公开表格不再设置SCI字段有利于降低显性指标压力，但单独列出论文和科研项目仍可能形成认知显著性；是否影响实际排序需要评审结果或内部权重证据。",
+      "uncertainty": "表格结构不能替代对评委行为、科室推荐和同分排序的实证核验。"
+    }
+  ],
+  "strongest_counterevidence": [
+    "北京2026年7月新规已经直接覆盖拟议建议的核心内容，且首个完整评审周期尚未结束。",
+    "国家2021年制度已经要求标准公开、备案、复查、投诉和监督，再建议建立同名机制容易重复现有政策。",
+    "北京大学医学部2026年表格与北京现行改革方向一致，说明不能用一个旧单位文件推导整个北京医院体系。"
+  ],
+  "reopen_conditions": [
+    "2026年度评审结束后，仍有现行单位标准把论文篇数、SCI影响因子或期刊分区作为临床岗位门槛、直接分值或同分排序条件。",
+    "医院虽形式上允许病案、案例等代表作，但实际推荐或通过者仍必须提交论文，且有可核验的样本或申诉记录。",
+    "旧规则在2026新规后仍未废止或修订，并被医院人事部门明确用于当年申报。",
+    "北京市抽查或国家科研诚信治理发现单位评价改革落实偏差，形成公开数据或典型案例。"
+  ],
+  "recommended_recheck_window": "2027-Q1 to 2027-Q2",
+  "budget": {
+    "adjustment_id": 10,
+    "old_weekly_limit": 240000,
+    "temporary_weekly_limit": 260000,
+    "project_model_tokens": 0,
+    "benefit": "在未调用项目模型的情况下找到2026北京新规、2026医师表格、2024单位旧规则和区属医院流程信号，提前终止一个会重复新政策且缺少实施后证据的成稿方向。",
+    "recommended_decision": "revert"
+  }
+}

@@ -21,3 +21,51 @@ keywords = ["未成年人", "网络纠纷", "司法建议", "双向反馈", "平
 source_url = "https://www.bj148.org/gfpl/202308/t20230822_1655746.html"
 valid_from = "2023-01-01"
 last_verified_at = "2026-07-12"
+
+[[mechanisms]]
+id = "beijing-clinical-title-no-paper-gate-2026"
+name = "北京市临床岗位职称评聘破除论文和SCI硬指标机制"
+problem_type = "professional_title_evaluation"
+jurisdiction = "北京"
+actor = "北京市卫生健康部门、各级医疗卫生机构"
+summary = "2026年度规则已明确：三级医院临床岗位不得把科研基金、论文篇数和SCI影响因子作为前置条件或评审直接依据；二级医院不得要求科研相关指标；基层临床岗位不再考核论文，并实行多类型成果代表作制度。"
+keywords = ["医师职称", "职称评聘", "临床岗位", "论文篇数", "SCI影响因子", "破四唯", "代表作"]
+source_url = "https://wjw.beijing.gov.cn/zwgk_20040/rsxxzwgk/202607/t20260706_4749193.html"
+valid_from = "2026-07-06"
+last_verified_at = "2026-08-31"
+
+[[mechanisms]]
+id = "national-ai-content-label-2025"
+name = "人工智能生成合成内容显隐式标识与传播核验机制"
+problem_type = "ai_content_provenance"
+jurisdiction = "全国"
+actor = "AI生成服务提供者、网络信息内容传播服务提供者"
+summary = "现行规则已要求AI生成内容添加显式和隐式标识，传播平台核验元数据、用户声明和生成痕迹并添加提示。该机制解决AI身份识别，不等于已核验广告资质或疗效真实性。"
+keywords = ["AI标识", "生成合成内容", "显式标识", "隐式标识", "元数据", "传播平台"]
+source_url = "https://www.cac.gov.cn/2025-03/14/c_1743654684782215.htm"
+valid_from = "2025-09-01"
+last_verified_at = "2026-08-31"
+
+[[mechanisms]]
+id = "national-internet-special-ad-verification-2023"
+name = "互联网特殊广告证明查验与平台监测机制"
+problem_type = "regulated_advertising"
+jurisdiction = "全国"
+actor = "广告主、广告经营者、广告发布者、互联网平台经营者"
+summary = "医疗、药品、医疗器械等特殊广告须事前审查并按审查内容发布；广告发布者须查验证明文件、核对内容，平台须监测排查和制止违法广告。"
+keywords = ["医疗器械广告", "广告批准文号", "证明文件", "广告审查", "平台监测", "内容核对"]
+source_url = "https://www.samr.gov.cn/zw/zfxxgk/fdzdgknr/fgs/art/2023/art_d93a579afd45413e8576e4623fab348f.html"
+valid_from = "2023-05-01"
+last_verified_at = "2026-08-31"
+
+[[mechanisms]]
+id = "shanghai-platform-special-ad-precheck-2026"
+name = "上海市平台特殊广告批准文号发布前置机制"
+problem_type = "regulated_advertising_precheck"
+jurisdiction = "上海"
+actor = "互联网平台、广告发布者"
+summary = "上海2026年指导意见要求AI或深度合成广告显著标识，并将上传有效广告批准文号及相关证明文件作为特殊广告发布的前置环节，内容与广审内容不一致的不予发布。"
+keywords = ["上海", "平台广告", "批准文号上传", "发布前置", "AI广告", "三品一械"]
+source_url = "https://www.shanghai.gov.cn/gwk/search/content/2c984a729b92b990019ba06d36224232"
+valid_from = "2026-01-09"
+last_verified_at = "2026-08-31"
