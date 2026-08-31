@@ -1,4 +1,6 @@
 from copy import deepcopy
+from datetime import datetime, timedelta, timezone
+import os
 from pathlib import Path
 import shutil
 import tempfile
@@ -55,6 +57,51 @@ def test_cleanup_keeps_live_and_latest_replay_and_backs_up_database():
         assert result["integrity_check"] == "ok"
         remaining = {row["id"] for row in workflow.status(include_all=True)}
         assert remaining == {live, latest_replay, special}
+
+
+def test_cleanup_delays_intermediate_docx_qa_and_always_keeps_latest_version():
+    project = Path(__file__).parents[1]
+    base = Settings.load(project / "config/settings.toml")
+    with tempfile.TemporaryDirectory() as temp:
+        root = Path(temp)
+        settings = Settings(root, deepcopy(base.raw))
+        workflow = Workflow(settings)
+        run_id = workflow.init_run("live")
+        qa = root / "data/runs" / run_id / "docx_qa"
+        old = (
+            datetime.now(timezone.utc) - timedelta(
+                days=settings.section("cleanup")["docx_qa_intermediate_retention_days"] + 1
+            )
+        ).timestamp()
+        for name in ("render-v1", "render-v2", "render-v3", "fidelity-v1", "fidelity-v2"):
+            directory = qa / name
+            directory.mkdir(parents=True)
+            artifact = directory / "page-1.png"
+            artifact.write_bytes(b"qa")
+            if name != "render-v2":
+                os.utime(artifact, (old, old))
+                os.utime(directory, (old, old))
+        (qa / "final-style-evidence.json").write_text("{}", encoding="utf-8")
+
+        manager = CleanupManager(settings)
+        plan = manager.plan()
+        deleted = set(plan["delete_paths"])
+
+        assert f"data/runs/{run_id}/docx_qa/render-v1" in deleted
+        assert f"data/runs/{run_id}/docx_qa/fidelity-v1" in deleted
+        assert f"data/runs/{run_id}/docx_qa/render-v2" not in deleted
+        assert f"data/runs/{run_id}/docx_qa/render-v3" not in deleted
+        assert f"data/runs/{run_id}/docx_qa/fidelity-v2" not in deleted
+        assert f"data/runs/{run_id}/docx_qa/final-style-evidence.json" not in deleted
+        qa_details = {
+            item["path"]: item["reason"] for item in plan["delete_path_details"]
+        }
+        assert qa_details[f"data/runs/{run_id}/docx_qa/render-v1"] == "expired_intermediate_docx_qa"
+
+        result = manager.apply()
+        assert result["integrity_check"] == "ok"
+        assert not (qa / "render-v1").exists()
+        assert (qa / "render-v3/page-1.png").exists()
 
 
 def test_refresh_preflight_does_not_require_scan_screening_reserve():
@@ -210,4 +257,34 @@ def test_monday_preflight_blocks_invalid_shadow_enforcement_mode():
         )
         assert check["ok"] is False
         assert check["blocking"] is True
+        assert result["ready"] is False
+
+
+def test_scan_preflight_blocks_invalid_source_health_window():
+    project = Path(__file__).parents[1]
+    base = Settings.load(project / "config/settings.toml")
+    with tempfile.TemporaryDirectory() as temp:
+        root = Path(temp)
+        (root / "config").mkdir()
+        (root / "templates").mkdir()
+        for name in ("settings.toml", "sources.toml", "policy_mechanisms.toml"):
+            shutil.copy(project / "config" / name, root / "config" / name)
+        shutil.copy(
+            project / "templates/submission_template.docx",
+            root / "templates/submission_template.docx",
+        )
+        for name in ("data", "outputs", "logs"):
+            (root / name).mkdir()
+        raw = deepcopy(base.raw)
+        raw["observability"]["source_health_zero_result_streak"] = 0
+        settings = Settings(root, raw)
+
+        with patch("sqmy.maintenance.shutil.which", return_value="/usr/local/bin/codex"):
+            result = preflight(settings, stage="scan")
+
+        check = next(
+            item for item in result["checks"]
+            if item["name"] == "discovery_observability_config"
+        )
+        assert check["ok"] is False
         assert result["ready"] is False

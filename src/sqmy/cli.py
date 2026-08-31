@@ -14,11 +14,13 @@ from .budget import (
 from .db import Database
 from .document import create_template
 from .discovery import LiveDiscovery
+from .discovery_shadow import write_discovery_evaluation
 from .diagnostics import provider_check
 from .evidence import assess_topic, import_evidence_package
 from .novelty import record_review, rolling_evaluation, write_rolling_evaluation
 from .research_gate import check_pre_research, review_pre_research
 from .maintenance import CleanupManager, preflight
+from .snapshots import SNAPSHOT_REASONS, capture_evidence_snapshot
 from .workflow import Workflow
 
 
@@ -113,6 +115,11 @@ def parser() -> argparse.ArgumentParser:
     evidence_import.add_argument("path", type=Path)
     evidence_check = sub.add_parser("evidence-check", help="检查主张的独立验证和成稿闸门")
     evidence_check.add_argument("topic_id")
+    evidence_snapshot = sub.add_parser("evidence-snapshot", help="固化一项易变化的核心公开证据")
+    evidence_snapshot.add_argument("package", type=Path, help="结构化证据包JSON")
+    evidence_snapshot.add_argument("source_key", help="证据包中的来源key")
+    evidence_snapshot.add_argument("--reason", required=True, choices=sorted(SNAPSHOT_REASONS))
+    evidence_snapshot.add_argument("--file", type=Path, help="已有PDF或HTML；省略时抓取公开URL")
     pre_research_check = sub.add_parser("pre-research-check", help="导入并检查有限预研决策单")
     pre_research_check.add_argument("run_id")
     pre_research_check.add_argument("candidate_id")
@@ -124,6 +131,7 @@ def parser() -> argparse.ArgumentParser:
     pre_research_review.add_argument("--note", required=True)
     novelty_report = sub.add_parser("novelty-report", help="生成制度新意闸门和自然周产出漏斗滚动评估")
     novelty_report.add_argument("--days", type=int, default=None, help="统计窗口，默认21天")
+    sub.add_parser("discovery-report", help="生成来源健康和制度覆盖影子滚动评估")
     novelty_review = sub.add_parser("novelty-review", help="为早期阻断结果补充后续复核标签")
     novelty_review.add_argument("audit_id")
     novelty_review.add_argument(
@@ -248,6 +256,18 @@ def main(argv: list[str] | None = None) -> int:
         result = assess_topic(s, args.topic_id)
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0 if result["draft_allowed"] else 2
+    elif args.command == "evidence-snapshot":
+        print(json.dumps(
+            capture_evidence_snapshot(
+                s,
+                args.package,
+                args.source_key,
+                reason=args.reason,
+                local_file=args.file,
+            ),
+            ensure_ascii=False,
+            indent=2,
+        ))
     elif args.command == "pre-research-check":
         result = check_pre_research(s, args.run_id, args.candidate_id, args.brief)
         print(json.dumps(result, ensure_ascii=False, indent=2))
@@ -266,6 +286,9 @@ def main(argv: list[str] | None = None) -> int:
     elif args.command == "novelty-report":
         path = write_rolling_evaluation(s, args.days)
         print(json.dumps({"report": str(path), "metrics": rolling_evaluation(s, args.days)}, ensure_ascii=False, indent=2))
+    elif args.command == "discovery-report":
+        path = write_discovery_evaluation(s)
+        print(json.dumps({"report": str(path)}, ensure_ascii=False, indent=2))
     elif args.command == "novelty-review":
         record_review(s, args.audit_id, args.outcome, args.reason)
         print("已记录复核结果")

@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+from typing import Any
 from urllib.parse import urlparse
 
 from .config import Settings
@@ -413,6 +414,13 @@ def write_discovery_evaluation(settings: Settings) -> Path:
                GROUP BY sf.source_id ORDER BY candidates DESC,model_selected DESC""",
             (cutoff,),
         ).fetchall()
+        source_history_rows = conn.execute(
+            """SELECT sf.* FROM source_funnel sf
+               JOIN run_context rc ON rc.run_id=sf.run_id
+               WHERE rc.mode='live' AND sf.updated_at>=? AND sf.included_in_scan=1
+               ORDER BY sf.source_id,sf.updated_at DESC""",
+            (cutoff,),
+        ).fetchall()
         shadow_rows = conn.execute(
             """SELECT ds.recommendation,COUNT(*) AS reviewed,
                       SUM(ds.model_selected) AS model_selected,
@@ -421,6 +429,48 @@ def write_discovery_evaluation(settings: Settings) -> Path:
                JOIN run_context rc ON rc.run_id=ds.run_id
                WHERE rc.mode='live' AND ds.updated_at>=?
                GROUP BY ds.recommendation ORDER BY ds.recommendation""",
+            (cutoff,),
+        ).fetchall()
+        shadow_detail_rows = conn.execute(
+            """SELECT ds.* FROM discovery_shadow_reviews ds
+               JOIN run_context rc ON rc.run_id=ds.run_id
+               WHERE rc.mode='live' AND ds.updated_at>=?
+               ORDER BY ds.updated_at""",
+            (cutoff,),
+        ).fetchall()
+        candidate_rows = conn.execute(
+            """SELECT c.run_id,c.id,c.data_json FROM candidates c
+               JOIN run_context rc ON rc.run_id=c.run_id
+               WHERE rc.mode='live' AND EXISTS(
+                 SELECT 1 FROM source_funnel sf
+                 WHERE sf.run_id=c.run_id AND sf.updated_at>=?
+               )""",
+            (cutoff,),
+        ).fetchall()
+        event_rows = conn.execute(
+            """SELECT e.run_id,e.id,e.source_id FROM event_items e
+               JOIN run_context rc ON rc.run_id=e.run_id
+               WHERE rc.mode='live' AND EXISTS(
+                 SELECT 1 FROM source_funnel sf
+                 WHERE sf.run_id=e.run_id AND sf.updated_at>=?
+               )""",
+            (cutoff,),
+        ).fetchall()
+        review_rows = conn.execute(
+            """SELECT rr.rowid AS row_number,rr.* FROM research_reviews rr
+               JOIN run_context rc ON rc.run_id=rr.run_id
+               WHERE rc.mode='live' AND EXISTS(
+                 SELECT 1 FROM source_funnel sf
+                 WHERE sf.run_id=rr.run_id AND sf.updated_at>=?
+               ) ORDER BY rr.created_at,rr.rowid""",
+            (cutoff,),
+        ).fetchall()
+        topic_rows = conn.execute(
+            """SELECT t.* FROM topics t JOIN run_context rc ON rc.run_id=t.run_id
+               WHERE rc.mode='live' AND EXISTS(
+                 SELECT 1 FROM source_funnel sf
+                 WHERE sf.run_id=t.run_id AND sf.updated_at>=?
+               )""",
             (cutoff,),
         ).fetchall()
         sample_rows = conn.execute(
@@ -441,6 +491,183 @@ def write_discovery_evaluation(settings: Settings) -> Path:
         latest = datetime.fromisoformat(observation_bounds["latest"])
         observation_span = max(0, (latest - earliest).days)
     ready = live_runs >= minimum and observation_span >= minimum_span
+
+    event_sources: dict[tuple[str, str], str] = {}
+    for row in event_rows:
+        prefix = f"{row['run_id']}:"
+        event_id = row["id"][len(prefix):] if row["id"].startswith(prefix) else row["id"]
+        event_sources[(row["run_id"], event_id)] = row["source_id"]
+
+    candidate_for_event: dict[tuple[str, str], str] = {}
+    source_for_candidate: dict[tuple[str, str], str] = {}
+    for row in candidate_rows:
+        try:
+            data = json.loads(row["data_json"] or "{}")
+        except json.JSONDecodeError:
+            data = {}
+        logical_id = str(data.get("id") or row["id"].rsplit(":", 1)[-1])
+        event_id = str((data.get("score_reasons") or {}).get("事件ID") or "")
+        if not event_id:
+            continue
+        source_id = event_sources.get((row["run_id"], event_id))
+        candidate_for_event[(row["run_id"], event_id)] = logical_id
+        if source_id:
+            source_for_candidate[(row["run_id"], logical_id)] = source_id
+
+    latest_reviews: dict[tuple[str, str], Any] = {}
+    for row in review_rows:
+        candidate_id = str(row["candidate_id"])
+        prefix = f"{row['run_id']}:"
+        if candidate_id.startswith(prefix):
+            candidate_id = candidate_id[len(prefix):]
+        latest_reviews[(row["run_id"], candidate_id)] = row
+
+    downstream: dict[str, dict[str, set[str]]] = {}
+    for key, review in latest_reviews.items():
+        source_id = source_for_candidate.get(key)
+        if not source_id:
+            continue
+        metrics = downstream.setdefault(source_id, {
+            "pre_research_reviewed": set(), "pre_research_proceed": set(),
+            "drafts": set(), "approved": set(), "submitted": set(),
+        })
+        marker = f"{key[0]}:{key[1]}"
+        metrics["pre_research_reviewed"].add(marker)
+        if review["research_allowed"] and review["human_decision"] == "proceed":
+            metrics["pre_research_proceed"].add(marker)
+    for row in topic_rows:
+        candidate_id = str(row["candidate_id"] or "")
+        prefix = f"{row['run_id']}:"
+        if candidate_id.startswith(prefix):
+            candidate_id = candidate_id[len(prefix):]
+        source_id = source_for_candidate.get((row["run_id"], candidate_id))
+        if not source_id:
+            continue
+        metrics = downstream.setdefault(source_id, {
+            "pre_research_reviewed": set(), "pre_research_proceed": set(),
+            "drafts": set(), "approved": set(), "submitted": set(),
+        })
+        metrics["drafts"].add(row["id"])
+        if row["approval_status"] == "approved":
+            metrics["approved"].add(row["id"])
+        if row["actually_submitted"]:
+            metrics["submitted"].add(row["id"])
+
+    histories: dict[str, list[Any]] = {}
+    for row in source_history_rows:
+        histories.setdefault(row["source_id"], []).append(row)
+    zero_streak_limit = int(cfg["source_health_zero_result_streak"])
+    irrelevant_min_runs = int(cfg["source_health_irrelevant_min_runs"])
+    source_health = []
+    for aggregate in source_rows:
+        item = dict(aggregate)
+        history = histories.get(item["source_id"], [])
+        zero_streak = 0
+        error_streak = 0
+        for row in history:
+            if int(row["collected_count"]) == 0:
+                zero_streak += 1
+            else:
+                break
+        for row in history:
+            if row["fetch_error"] or row["parse_error"]:
+                error_streak += 1
+            else:
+                break
+        reasons = []
+        if zero_streak >= zero_streak_limit:
+            reasons.append("consecutive_zero_effective_results")
+        if error_streak >= zero_streak_limit:
+            reasons.append("consecutive_fetch_or_parse_errors")
+        if (
+            len(history) >= irrelevant_min_runs
+            and sum(int(row["collected_count"]) for row in history) > 0
+            and sum(int(row["rule_qualified_count"]) for row in history) == 0
+        ):
+            reasons.append("no_rule_qualified_results_in_window")
+        if not ready or len(history) < zero_streak_limit:
+            health_status = "insufficient_observation"
+        elif reasons:
+            health_status = "degraded"
+        else:
+            health_status = "active"
+        item.update({
+            "health_status": health_status,
+            "health_reasons": reasons,
+            "latest_zero_result_streak": zero_streak,
+            "latest_error_streak": error_streak,
+            "recommended_action": (
+                "review_fetch_or_query_do_not_disable"
+                if health_status == "degraded" else "keep_observing"
+            ),
+        })
+        source_downstream = downstream.get(item["source_id"], {})
+        for key in (
+            "pre_research_reviewed", "pre_research_proceed", "drafts", "approved", "submitted"
+        ):
+            item[key] = len(source_downstream.get(key, set()))
+        source_health.append(item)
+
+    policy_outcomes: dict[str, int] = {}
+    reviewed_followups = 0
+    warning_count = 0
+    decisive_count = 0
+    confirmed_warning = 0
+    false_warning = 0
+    missed_coverage = 0
+    for row in shadow_detail_rows:
+        warning = row["coverage_status"] in {"known_mechanism_match", "possible_coverage"}
+        warning_count += int(warning)
+        candidate_id = candidate_for_event.get((row["run_id"], row["event_id"]))
+        review = latest_reviews.get((row["run_id"], candidate_id)) if candidate_id else None
+        if review is None:
+            outcome = "not_observed_after_shadow"
+        else:
+            reviewed_followups += 1
+            try:
+                review_data = json.loads(review["data_json"] or "{}")
+            except json.JSONDecodeError:
+                review_data = {}
+            reason = str(review_data.get("decision_reason") or "")
+            feedback = str((review_data.get("novelty_feedback") or {}).get("outcome") or "")
+            if reason == "policy_covered" or feedback == "missed_coverage":
+                if warning:
+                    outcome = "confirmed_coverage_warning"
+                    confirmed_warning += 1
+                else:
+                    outcome = "missed_policy_coverage"
+                    missed_coverage += 1
+                decisive_count += 1
+            elif warning and (
+                reason == "original_gap_supported" or feedback == "supported_gap"
+            ):
+                outcome = "false_coverage_warning"
+                false_warning += 1
+                decisive_count += 1
+            elif review["decision"] == "reframe" or feedback == "reframed":
+                outcome = "reframed_after_warning" if warning else "reframed_without_warning"
+            else:
+                outcome = "other_followup"
+        policy_outcomes[outcome] = policy_outcomes.get(outcome, 0) + 1
+
+    minimum_outcomes = int(cfg["minimum_shadow_outcomes_for_assessment"])
+    policy_ready = ready and decisive_count >= minimum_outcomes
+    warning_precision = (
+        confirmed_warning / (confirmed_warning + false_warning)
+        if confirmed_warning + false_warning else None
+    )
+    coverage_recall = (
+        confirmed_warning / (confirmed_warning + missed_coverage)
+        if confirmed_warning + missed_coverage else None
+    )
+    if not policy_ready:
+        policy_conclusion = "insufficient_followup"
+    elif missed_coverage:
+        policy_conclusion = "improve_policy_coverage_recall"
+    elif false_warning:
+        policy_conclusion = "review_false_warnings"
+    else:
+        policy_conclusion = "continue_shadow_observation"
     payload = {
         "generated_at": now(),
         "window_days": int(cfg["rolling_evaluation_days"]),
@@ -450,8 +677,40 @@ def write_discovery_evaluation(settings: Settings) -> Path:
         "observation_span_days": observation_span,
         "minimum_observation_span_days": minimum_span,
         "interpretation_limit": "影子建议与后续入选的关系只用于比较，不证明因果，不自动改变筛选规则。",
-        "source_funnel": [dict(row) for row in source_rows],
+        "source_health_policy": {
+            "automatic_source_changes": False,
+            "zero_result_streak_threshold": zero_streak_limit,
+            "irrelevant_minimum_runs": irrelevant_min_runs,
+            "downstream_attribution_limit": (
+                "只回连保留事件ID的自动候选；人工新增且无事件ID的候选不归因到来源。"
+            ),
+        },
+        "source_funnel": source_health,
         "shadow_comparison": [dict(row) for row in shadow_rows],
+        "policy_coverage_shadow_evaluation": {
+            "mode": "shadow",
+            "enforced": False,
+            "status": "ready_for_assessment" if policy_ready else "insufficient_followup",
+            "minimum_decisive_outcomes": minimum_outcomes,
+            "reviewed_followups": reviewed_followups,
+            "coverage_warning_count": warning_count,
+            "decisive_outcome_count": decisive_count,
+            "confirmed_coverage_warning_count": confirmed_warning,
+            "false_coverage_warning_count": false_warning,
+            "missed_policy_coverage_count": missed_coverage,
+            "observed_warning_precision": (
+                round(warning_precision, 4) if warning_precision is not None else None
+            ),
+            "observed_coverage_recall": (
+                round(coverage_recall, 4) if coverage_recall is not None else None
+            ),
+            "outcome_counts": policy_outcomes,
+            "automatic_conclusion": policy_conclusion,
+            "interpretation_limit": (
+                "只有后续预研明确标为policy_covered或original_gap_supported的结果"
+                "才用于准确率；reframe不自动视为政策覆盖。报告不得自动开启阻断。"
+            ),
+        },
         "exclusion_samples": [dict(row) for row in sample_rows],
     }
     path = settings.root / "outputs/review/discovery_observability_rolling.json"

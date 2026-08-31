@@ -32,6 +32,9 @@ sqmy pre-research-review "$RUN_ID" C1 --decision proceed --note "确认按改写
 sqmy preflight --stage research --run-id "$RUN_ID"
 sqmy evidence-import data/sources/TOPIC_evidence.json
 sqmy evidence-check TOPIC_ID
+# 仅对正式研究实际使用、且内容易变化的核心公开来源执行：
+sqmy evidence-snapshot data/sources/TOPIC_evidence.json SOURCE_KEY \
+  --reason dynamic_content --file /path/to/page.pdf
 sqmy preflight --stage writing --run-id "$RUN_ID"
 sqmy draft "$RUN_ID" TOPIC_ID --source outputs/review/deep_research/RUN_ID/formal_draft.md --candidate-id C1
 sqmy approve TOPIC_ID
@@ -50,6 +53,7 @@ sqmy budget-review ADJUSTMENT_ID --actual-tokens 70912 \
 sqmy provider-check
 sqmy provider-check --simulate-codex-quota
 sqmy novelty-report --days 21
+sqmy discovery-report
 sqmy skip-run RUN_ID --reason "候选质量不足"
 sqmy cleanup
 sqmy cleanup --apply
@@ -69,8 +73,8 @@ PYTHONPATH=src python3 -m sqmy.cli init
 - 模型前去重：真实运行会先对比之前真实运行的URL、“标题+发布日”及同日同机构同主题的跨站转述，内容未变化或属于同源转载时不再进入模型。测试、mock、诊断和回放运行不会污染真实历史。
 - 四层完整扫描：每次扫描覆盖“海淀和北京主题源→北京增补权威源→全国部委、监管、司法、统计和调查源→投诉、论坛和社交平台待核线索”。前层凑够8条后也不提前停止；所有来源先用零模型规则处理，最终单次模型输入仍限制12条。
 - 跨日发现队列：全部规则合格事件写入SQLite轻量队列。入模池按高分排序，并分别给外部补充线索、新鲜事件和久候事件保留配置名额，避免“等待时间长”压过高质量新线索。调用模型前还要通过批次规模、来源多样性、高分事件及“足够新鲜或足够强”的零模型质量闸门；不足时继续入队并提示补充来源。相同URL内容未变化不会重复进入模型，标题或摘要发生实质变化时重新开放。
-- 来源与阶段漏斗：每次扫描按来源记录原始RSS结果、时间窗内结果、有效元数据、规则合格、历史排除、模型输入、模型入选和最终候选数。详细记录位于 `data/runs/RUN_ID/discovery_observability.json`，SQLite 表为 `source_funnel`。程序每个排除阶段只保存配置数量的标题和URL样本，用于复查误杀，不保存全部搜索结果或网页全文。
-- 候选前影子核验：对模型前池做元数据级的事件角色、北京落点、原始一级来源和已知政策覆盖检查；必要时只做受限且可缓存的搜索元数据查询。该步骤新增模型调用为0，结果位于 `data/runs/RUN_ID/candidate_shadow_review.json`；当前仅供21天滚动比较，不影响模型输入、候选排序或阻断。
+- 来源与阶段漏斗：每次扫描按来源记录原始RSS结果、时间窗内结果、有效元数据、规则合格、历史排除、模型输入、模型入选和最终候选数。21天报告还把候选回连到预研通过、成稿、人工通过和报送；只有达到真实运行数和观察跨度门槛后，连续3次零有效结果或长期无规则合格结果的来源才标记为 `degraded`，且只建议检查抓取或检索词，不会自动停用来源。详细记录位于 `data/runs/RUN_ID/discovery_observability.json`，SQLite 表为 `source_funnel`。
+- 候选前影子核验：对模型前池做元数据级的事件角色、北京落点、原始一级来源和已知政策覆盖检查；必要时只做受限且可缓存的搜索元数据查询。该步骤新增模型调用为0，结果位于 `data/runs/RUN_ID/candidate_shadow_review.json`。滚动评测只把后续预研明确标为 `policy_covered` 或 `original_gap_supported` 的结果用于准确率，不把普通 `reframe` 强算为政策覆盖；当前不影响模型输入、候选排序或阻断。
 - 分层续扫：可使用 `sqmy scan --start-tier 2|3|4` 从指定层另建可恢复运行，不重新处理更早层级。常规完整扫描直接使用 `sqmy scan`。
 - 终层无候选：已完成全部可用扩展层且没有候选时，运行自动标记为 `skipped`，保存明确停止原因并将下一步设为 `none`；不得以旧题、换标题或未经高等级来源核验的三级线索补足数量。只有出现新事实、新数据、新政策偏差或不同机制切口时，才可另行复核近90天暂缓候选或历史题。
 - 新事件补位：规则筛选后先排除历史重复和跨站同源事件，再从剩余新事件中取前12条，避免旧事件占满模型前名额。
@@ -82,7 +86,7 @@ PYTHONPATH=src python3 -m sqmy.cli init
 - 强制重算：只有人工明确要求时使用 `sqmy scan --force`；它会跳过历史排除和模型结果缓存。`--screen-now` 只提前处理队列，不绕过去重、缓存、预算或模型前质量闸门；命中紧急条件的事件仍可小批量处理。
 - 分阶段预检：`sqmy preflight --stage scan|refresh|pre_research|research|writing [--run-id RUN_ID]` 检查SQLite、配置、目录、残留任务、人工闸门和相应阶段预算，模型调用为0。筛选预算不足不会阻止零模型元数据入队；`refresh` 不要求模型额度、Codex CLI或新增调用成本。对已人工选题、已人工放行深研或已通过证据闸门的单个有界步骤，传入 `--run-id` 后，即使滑动周额度暂时不足，也可按配置完成当前步骤并记账，但不会自动扩题或进入下一阶段。
 - 全部放弃：候选质量不足时使用 `sqmy skip-run RUN_ID --reason "..."`，不让运行长期停在 `needs_review`。
-- 安全清理：`sqmy cleanup` 只预览；`--apply` 会先使用SQLite在线备份，再清理测试、mock、空运行和临时输出，最后执行完整性检查。RSS缓存、真实运行、最新回放、提供商诊断、证据包和研究报告默认保留。
+- 安全清理：`sqmy cleanup` 只预览并逐项给出删除理由；`--apply` 会先使用SQLite在线备份，再清理测试、mock、空运行和临时输出，最后执行完整性检查。DOCX中间渲染默认保留7天，每个QA组中编号最高的最终渲染、逐页图片、PDF和版式摘要长期保留。RSS缓存、真实运行、最新回放、提供商诊断、证据包和研究报告默认保留。
 - 离线回归：`sqmy scan-mock` 生成5个纯 mock 候选；`sqmy scan --fixture PATH` 使用离线RSS夹具。
 - 人工选择：`sqmy select RUN_ID C1 [C2]`，最多 2 个。
 - 新鲜度复核：候选在扫描后24小时内可直接进入有限预研；超过24小时、事件快速变化或临近正式写作时，运行 `sqmy refresh RUN_ID` 做零模型增量发现，再通过同一命令的 `--decision` 和 `--note` 记录保留、修订或替换决定。正式稿导出会阻断过期或尚未人工确认的复核结果。
@@ -98,6 +102,7 @@ PYTHONPATH=src python3 -m sqmy.cli init
 - DOCX 字体与渲染：导出器对样式和文本 run 均显式写入等线；macOS 下使用 Word 私有等线字体进行 LibreOffice QA 的方法见 `docs/template_artifact.md`。
 - mock 稿：`outputs/review/RUN_ID/`，不会自动进入 `outputs/submission/`，也不会自动发送。
 - 证据审查：`evidence-import` 导入轻量“主张—来源”包，`evidence-check` 核对独立来源链、直接反证和现有政策覆盖。主张还需标注 `verified_fact`、`evidence_based_inference`、`unverified_hypothesis` 或 `analyst_judgment`，以及置信度、截至日期、不确定性和必要的可证伪条件；核心统计必须保存时间、地域、总体、单位和定义。未分类主张、假设、分析判断、过期核心来源和未解决冲突不能进入正文。没有主张、没有核心主张或存在阻断核心主张时均采用 fail-closed。
+- 动态证据快照：`evidence-snapshot` 必须点名证据包中的单一来源、说明固化理由，并要求该来源已填写正文用途 `used_at`。可复制已有PDF/HTML，也可抓取公开URL；保存抓取时间、关键摘录、最终URL、内容哈希和大小，不发送Cookie或登录凭证，不批量固化稳定法规页面。快照位于本地 `data/sources/snapshots/TOPIC_ID/`，不自动提交到Git。
 - 制度新意快审：模型初筛时同步产生一句可被反证的缺口假设、缺口类型和最多2条定向检索词。程序先查本地政策机制库，再做标题和摘要级反证检索。区级 `site:` 检索会保留本区查询并追加市级及中央官方范围查询；反证政策使用独立的730天窗口，不受普通候选90天窗口限制。只有“制度不存在”且被已核验机制直接覆盖时才自动阻断；执行、效果、协同和问责类缺口只标记复核并扣分，不自动删除。
 
 ## 安全和成本
@@ -122,7 +127,7 @@ DeepSeek密钥可通过终端环境变量或本地 `.env` 提供；`.env` 已被
 
 常规规则池为三级线索保留2个最低核验名额；跨日队列另为第4层外部补充线索保留3个名额，并同时受单来源上限和模型前质量闸门约束。这些都是防止有价值线索被挤出的最低留位，不是必须填满的配额，也不是可信度豁免。三级线索必须在有限预研中找到独立高等级来源；否则停止，不得进入正式稿。
 
-发现层可观测参数位于 `[observability]`，影子核验参数位于 `[shadow_verification]`。每次完成扫描后会自动更新 `outputs/review/discovery_observability_rolling.json`；该报告只统计真实 `live` 运行，同时达到配置的最少运行数和至少14天观察跨度后才标记为可比较，同一天重跑不能冒充2—3周验证。它只用于判断不同影子建议与后续入选的相关性，不自动修改规则或开启阻断。
+发现层可观测参数位于 `[observability]`，影子核验参数位于 `[shadow_verification]`。每次完成扫描后会自动更新 `outputs/review/discovery_observability_rolling.json`，也可用 `sqmy discovery-report` 零模型重算；该报告只统计真实 `live` 运行，同时达到配置的最少运行数和至少14天观察跨度后才标记为可比较，同一天重跑不能冒充2—3周验证。来源健康和制度覆盖影子结论都只用于人工复盘，不自动修改来源、规则、预算或阻断状态。
 
 每个来源通过 `expansion_tier` 标记层级：1为海淀、北京主题源，2为北京新增权威源，3为全国权威与调查源，4为三级痛点线索。全国性议题不强制拥有北京落点，但须说明有权执行主体、地方试点可能或向上反映路径。
 

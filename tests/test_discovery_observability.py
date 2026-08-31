@@ -349,3 +349,119 @@ def test_rolling_shadow_evaluation_becomes_comparable_after_configured_live_runs
         assert report["source_funnel"][0]["included_runs"] == 3
         assert report["source_funnel"][0]["considered_collected"] == 24
         assert report["shadow_comparison"][0]["candidates"] == 3
+
+
+def test_rolling_report_flags_source_health_and_uses_decisive_shadow_followup_only():
+    with tempfile.TemporaryDirectory() as temp:
+        root = Path(temp)
+        settings = _settings(root)
+        discovery = LiveDiscovery(settings)
+        reasons = ("policy_covered", "policy_covered", "original_gap_supported")
+        coverages = ("known_mechanism_match", "unclear", "possible_coverage")
+        recommendations = ("reframe_or_monitor", "eligible_for_comparison", "reframe_or_monitor")
+        for index in range(3):
+            run_id = discovery.wf.init_run("live")
+            stamp = (
+                datetime.now(timezone.utc) - timedelta(days=14 - index * 7)
+            ).isoformat()
+            event_id = f"event-{index}"
+            with discovery.wf.db.connect() as conn:
+                for source_id, source_name, collected, qualified in (
+                    ("zero", "连续零结果来源", 0, 0),
+                    ("productive", "有效来源", 8, 6),
+                ):
+                    conn.execute(
+                        """INSERT INTO source_funnel(
+                             run_id,source_id,source_name,expansion_tier,included_in_scan,
+                             raw_item_count,collected_count,rule_qualified_count,
+                             model_input_count,model_selected_count,candidate_count,updated_at
+                           ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
+                        (
+                            run_id, source_id, source_name, 1, 1, collected,
+                            collected, qualified, 5 if collected else 0,
+                            3 if collected else 0, 1 if collected else 0, stamp,
+                        ),
+                    )
+                conn.execute(
+                    """INSERT INTO event_items(
+                         id,run_id,source_id,source_name,source_level,title,url,
+                         topics_json,rule_score,content_hash,collected_at
+                       ) VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
+                    (
+                        f"{run_id}:{event_id}", run_id, "productive", "有效来源", 1,
+                        f"公共服务制度问题{index}", f"https://example.gov.cn/{index}",
+                        "[]", 80, f"hash-{index}", stamp,
+                    ),
+                )
+                conn.execute(
+                    """INSERT INTO candidates(id,run_id,title,data_json,score,selected,created_at)
+                       VALUES(?,?,?,?,?,?,?)""",
+                    (
+                        f"{run_id}:C1", run_id, f"候选{index}",
+                        json.dumps({"id": "C1", "score_reasons": {"事件ID": event_id}}, ensure_ascii=False),
+                        80, 1, stamp,
+                    ),
+                )
+                conn.execute(
+                    """INSERT INTO discovery_shadow_reviews(
+                         id,run_id,event_id,source_id,input_hash,title,url,event_role,
+                         original_source_status,local_landing_status,coverage_status,
+                         recommendation,reason_codes_json,policy_matches_json,
+                         search_hits_json,model_selected,candidate_selected,enforced,
+                         created_at,updated_at
+                       ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    (
+                        f"{run_id}:{event_id}", run_id, event_id, "productive", "hash",
+                        f"公共服务制度问题{index}", f"https://example.gov.cn/{index}",
+                        "problem_signal", "direct_primary", "national_scope",
+                        coverages[index], recommendations[index], "[]", "[]", "[]",
+                        1, 1, 0, stamp, stamp,
+                    ),
+                )
+                proceed = index == 2
+                conn.execute(
+                    """INSERT INTO research_reviews(
+                         id,run_id,candidate_id,topic_id,input_hash,decision,confidence,
+                         research_allowed,data_json,report_path,human_decision,reviewed_at,created_at
+                       ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    (
+                        f"review-{index}", run_id, "C1", f"topic-{index}", "input",
+                        "proceed" if proceed else "stop", "high", int(proceed),
+                        json.dumps({"decision_reason": reasons[index]}), "report.md",
+                        "proceed" if proceed else "stop", stamp, stamp,
+                    ),
+                )
+                if proceed:
+                    conn.execute(
+                        """INSERT INTO topics(
+                             id,title,created_at,run_id,candidate_id,draft_source_path,
+                             review_path,approval_status,actually_submitted
+                           ) VALUES(?,?,?,?,?,?,?,?,?)""",
+                        (
+                            "topic-2", "正式稿", stamp, run_id, "C1", "draft.md",
+                            "review.docx", "approved", 1,
+                        ),
+                    )
+
+        report = json.loads(
+            write_discovery_evaluation(settings).read_text(encoding="utf-8")
+        )
+
+        assert report["status"] == "ready_for_comparison"
+        assert report["source_health_policy"]["automatic_source_changes"] is False
+        by_source = {item["source_id"]: item for item in report["source_funnel"]}
+        assert by_source["zero"]["health_status"] == "degraded"
+        assert by_source["zero"]["latest_zero_result_streak"] == 3
+        assert by_source["zero"]["recommended_action"] == "review_fetch_or_query_do_not_disable"
+        assert by_source["productive"]["health_status"] == "active"
+        assert by_source["productive"]["pre_research_proceed"] == 1
+        assert by_source["productive"]["drafts"] == 1
+        evaluation = report["policy_coverage_shadow_evaluation"]
+        assert evaluation["enforced"] is False
+        assert evaluation["status"] == "ready_for_assessment"
+        assert evaluation["confirmed_coverage_warning_count"] == 1
+        assert evaluation["missed_policy_coverage_count"] == 1
+        assert evaluation["false_coverage_warning_count"] == 1
+        assert evaluation["observed_warning_precision"] == 0.5
+        assert evaluation["observed_coverage_recall"] == 0.5
+        assert evaluation["automatic_conclusion"] == "improve_policy_coverage_recall"

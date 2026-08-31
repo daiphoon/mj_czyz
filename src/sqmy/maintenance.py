@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import sqlite3
 import stat
@@ -224,6 +225,16 @@ def preflight(
         and observability["minimum_observation_span_days"] > 0
         and observability["minimum_observation_span_days"]
         < observability["rolling_evaluation_days"]
+        and all(
+            isinstance(observability.get(key), int)
+            and not isinstance(observability.get(key), bool)
+            and observability[key] > 0
+            for key in (
+                "source_health_zero_result_streak",
+                "source_health_irrelevant_min_runs",
+                "minimum_shadow_outcomes_for_assessment",
+            )
+        )
     )
     shadow = settings.section("shadow_verification")
     signal_keys = (
@@ -434,13 +445,19 @@ class CleanupManager:
         delete_runs = sorted(all_runs - keep)
 
         paths: set[Path] = set()
+        path_reasons: dict[Path, str] = {}
+
+        def mark(path: Path, reason: str) -> None:
+            paths.add(path)
+            path_reasons[path] = reason
+
         candidate_dir = self.s.root / "outputs/candidates"
         for path in candidate_dir.glob("*"):
             if path.name == ".gitkeep":
                 continue
             # 只删除数据库已明确判定为可丢弃运行的同名报告；未知命名可能是人工终审。
             if path.stem in delete_runs:
-                paths.add(path)
+                mark(path, "disposable_run_candidate_report")
         for base in (self.s.root / "data/runs", self.s.root / "outputs/review"):
             if not base.exists():
                 continue
@@ -450,18 +467,60 @@ class CleanupManager:
                 if path.name in {"pre_research", "deep_research", "metrics"}:
                     continue
                 if path.name not in keep:
-                    paths.add(path)
+                    mark(path, "disposable_or_untracked_run_output")
+
+        retention_days = int(
+            self.s.section("cleanup")["docx_qa_intermediate_retention_days"]
+        )
+        if retention_days < 0:
+            raise ValueError("DOCX中间QA保留天数不得为负数")
+        qa_cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)
+        version_pattern = re.compile(r"^(render|fidelity)-v(\d+)$")
+        for run_id in keep:
+            qa_root = self.s.root / "data/runs" / run_id / "docx_qa"
+            if not qa_root.is_dir():
+                continue
+            groups: dict[str, list[tuple[int, Path]]] = {}
+            for path in qa_root.iterdir():
+                match = version_pattern.fullmatch(path.name)
+                if path.is_dir() and match:
+                    groups.setdefault(match.group(1), []).append((int(match.group(2)), path))
+            for versions in groups.values():
+                final_path = max(versions, key=lambda item: item[0])[1]
+                for _, path in versions:
+                    if path == final_path:
+                        continue
+                    timestamps = [path.stat().st_mtime]
+                    timestamps.extend(
+                        child.stat().st_mtime for child in path.rglob("*") if child.exists()
+                    )
+                    latest_change = datetime.fromtimestamp(max(timestamps), timezone.utc)
+                    if latest_change < qa_cutoff:
+                        mark(path, "expired_intermediate_docx_qa")
         for path in (self.s.root / ".pytest_cache", self.s.root / "src/sqmy_workflow.egg-info"):
             if path.exists():
-                paths.add(path)
+                mark(path, "reproducible_python_artifact")
         for path in self.s.root.rglob("__pycache__"):
             if ".venv" not in path.parts:
-                paths.add(path)
+                mark(path, "reproducible_python_cache")
+
+        sorted_paths = sorted(paths, key=lambda path: str(path.relative_to(self.s.root)))
 
         return {
             "keep_run_ids": sorted(keep), "delete_run_ids": delete_runs,
-            "delete_paths": sorted(str(path.relative_to(self.s.root)) for path in paths),
-            "preserve": [".env", ".venv", "data/cache", "data/sources", "outputs/review/pre_research", "outputs/review/deep_research", "templates"],
+            "delete_paths": [str(path.relative_to(self.s.root)) for path in sorted_paths],
+            "delete_path_details": [
+                {
+                    "path": str(path.relative_to(self.s.root)),
+                    "reason": path_reasons[path],
+                }
+                for path in sorted_paths
+            ],
+            "preserve": [
+                ".env", ".venv", "data/cache", "data/sources",
+                "outputs/review/pre_research", "outputs/review/deep_research", "templates",
+                "每个docx_qa目录中编号最高的render-vN与fidelity-vN",
+            ],
         }
 
     def apply(self) -> dict:
@@ -519,4 +578,5 @@ class CleanupManager:
             "backup": str(backup), "deleted_runs": len(delete_runs),
             "deleted_paths": len(deleted_paths), "integrity_check": integrity,
             "kept_runs": plan["keep_run_ids"],
+            "deleted_path_details": plan["delete_path_details"],
         }

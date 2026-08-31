@@ -61,6 +61,9 @@ exclusion_sample_per_stage = 2
 rolling_evaluation_days = 21
 minimum_live_runs_for_comparison = 3
 minimum_observation_span_days = 14
+source_health_zero_result_streak = 3
+source_health_irrelevant_min_runs = 5
+minimum_shadow_outcomes_for_assessment = 3
 
 [shadow_verification]
 enabled = true
@@ -146,6 +149,13 @@ official_primary_source_can_stand_alone = true
 same_origin_reprints_count_once = true
 novelty_requires_policy_coverage_audit = true
 critical_source_max_age_days = 30
+
+[snapshots]
+max_bytes = 10000000
+request_timeout_seconds = 20
+
+[cleanup]
+docx_qa_intermediate_retention_days = 7
 
 [document]
 reference_path = "/Users/lizhi/Documents/民建工作/社情民意/完善北京市新就业形态劳动者平台算法判罚与申诉纠错机制的建议.docx"
