@@ -1,0 +1,53 @@
+{
+  "topic_id": "2026-09-06-fcab0f1a:C1",
+  "working_title": "关于完善带岗位承诺的求职服务收费与履约核验机制的建议",
+  "research_decision": "stop",
+  "decision_reason": "insufficient_evidence",
+  "draft_supported": false,
+  "as_of": "2026-09-06",
+  "decision_explanation": "痛点线索可信、已有义务可核验，但本轮未取得足以区分普通违约、虚假招聘和真实混合服务履约障碍的完整材料。不能证明新增核验工具的具体增量价值；不宣称现行规则已彻底解决问题，不以缺乏实测政策效果本身作为停止理由。",
+  "sources": [
+    {"key":"hr_rules","source_name":"中国就业网","page_title":"人力资源服务机构管理规定","url":"https://chinajob.mohrss.gov.cn/h5/c/2023-07-03/381610.shtml","publisher":"人力资源社会保障部","published_at":"2023-07-03","checked_at":"2026-09-06","source_role":"official_policy","excerpt":"第十六条规定接受用人单位委托招聘时审查相关材料并存档；第二十五至二十七条涉及台账和收费。","data_scope":"全国人力资源服务机构及对应业务；用人单位委托招聘条件不可删去，不外推为所有咨询或教学实习。","used_at":"既有规则反证，不进入正式稿"},
+    {"key":"training_template","source_name":"市场监管总局合同示范文本库","page_title":"北京市职业技能培训服务合同 BF-2021-2732","url":"https://htsfwb.samr.gov.cn/View?id=f0261f5d-8712-4a16-82dc-76258c6e77c7","publisher":"北京市人力资源和社会保障局、北京市市场监督管理局","published_at":null,"checked_at":"2026-09-06","source_role":"official_policy","excerpt":"已有服务明示、费用分项、按履约退费和宣传允诺入约安排。","data_scope":"文本标注2021年9月，无具体日；职业分类大典3至6大类技能培训示范文本，不是全部求职服务强制合同。","used_at":"材料比对A：现有合同工具边界"},
+    {"key":"enforcement","source_name":"中山市人力资源和社会保障局","page_title":"人力资源服务领域侵害求职者权益典型案例","url":"https://hrss.zs.gov.cn/zcfg/yasf/content/post_2606815.html","publisher":"人力资源社会保障部，地方人社官网转发","published_at":"2026-04-20","checked_at":"2026-09-06","source_role":"official_data","excerpt":"通报对信息咨询费包装的招聘及招转培行为已有查处、部门移送等措施。","data_scope":"回顾2025年查处情况，非2026年新增样本；采用公开案例摘要，未取得逐案处罚全文或最终退款执行资料。","used_at":"材料比对B：现有执法穿透收费名称的反证"},
+    {"key":"prepaid","source_name":"深圳前海合作区人民法院","page_title":"最高法发布关于审理预付式消费民事纠纷案件适用法律若干问题的解释","url":"https://www.szqhcourt.gov.cn/fygk/fywjgg/content/post_1535352.html","publisher":"最高人民法院新闻局，前海法院转载全文","published_at":"2025-03-17","effective_at":"2025-05-01","checked_at":"2026-09-06","source_role":"official_policy","excerpt":"法释〔2025〕4号已有合同歧义、退费计价和经营者控制证据拒不提交的处理规则。","data_scope":"持续或多次生活消费等法定适用范围；具体复合求职合同是否适用须判断，不是行政自动退费规则。","used_at":"材料比对C：现有司法核验工具与适用条件"},
+    {"key":"investigation","source_name":"工人日报","page_title":"8万元买的实习却不敢写进简历！工人日报调查付费内推实习陷阱","url":"https://www.thepaper.cn/newsDetail_forward_33664740","publisher":"工人日报，澎湃转载","published_at":"2026-07-27","checked_at":"2026-09-06","source_role":"media_investigation","excerpt":"受访者反映岗位推荐与辅导收费绑定、退费交付难核对。","data_scope":"记者调查与受访陈述，不是法院已查明事实；不用个案金额推算规模，不采纳全部付费服务违法的笼统定性。","used_at":"当前痛点线索，不单独支撑核心制度结论"}
+  ],
+  "claims": [
+    {"id":"C1-D1","claim_text":"现行人力资源服务规则已有特定招聘业务核验、服务台账和收费要求。","claim_type":"policy","importance":"critical","epistemic_status":"verified_fact","confidence":"high","uncertainty_reason":"规则文本可核验，不能证明全部机构履行，也不能扩张法定适用范围。","falsifier":"主管机关有效规则改变所引义务或适用范围。","as_of_date":"2026-09-06","sources":[{"source":"hr_rules","role":"supports","origin_group":"mohrss-order50-2023","source_level":1,"primary_source":true}]},
+    {"id":"C1-D2","claim_text":"北京职业技能培训示范文本已有收费与履约对应工具，但不等同于所有求职复合服务均被该范本覆盖。","claim_type":"policy","importance":"critical","epistemic_status":"verified_fact","confidence":"high","uncertainty_reason":"只确认文本内容及限定对象，未验证实际采用率或处理效果。","falsifier":"原文适用说明或所引条款更正。","as_of_date":"2026-09-06","sources":[{"source":"training_template","role":"supports","origin_group":"beijing-training-contract-2021","source_level":1,"primary_source":true}]},
+    {"id":"C1-D3","claim_text":"人社部公开案例表明，已有针对咨询费包装招聘、招转培的执法处置，不能称费用改名必然使监管失去依据。","claim_type":"fact","importance":"critical","epistemic_status":"verified_fact","confidence":"high","uncertainty_reason":"确认通报所述处置；不证明全部争议解决或款项最终返还。","falsifier":"通报更正所引案例或公布材料否定该处置记录。","as_of_date":"2026-09-06","sources":[{"source":"enforcement","role":"supports","origin_group":"mohrss-recruitment-cases-2025","source_level":1,"primary_source":true}]},
+    {"id":"C1-D4","claim_text":"预付式消费司法解释已有退费和经营者控制证据的规则，具体求职服务合同适用与否不能一概而论。","claim_type":"policy","importance":"critical","epistemic_status":"verified_fact","confidence":"high","uncertainty_reason":"未取得本题复合合同适用该解释的完整裁判和履约记录。","falsifier":"有效新规则修改相关内容，或具体裁判改变本题适用判断。","as_of_date":"2026-09-06","sources":[{"source":"prepaid","role":"supports","origin_group":"spc-prepaid-2025-4","source_level":1,"primary_source":true}]},
+    {"id":"C1-D5","claim_text":"在既有合同和台账外增加承诺—收费—交付对应记录，能解决当前已识别而既有制度不能有效处理的具体障碍，并且收益高于额外成本。","claim_type":"mechanism","importance":"critical","novelty_required":true,"policy_coverage_status":"unchecked","epistemic_status":"unverified_hypothesis","confidence":"low","uncertainty_reason":"未取得完整争议材料以定位现有流程缺在哪一步；尚不能证明新增字段而非直接履约或依法查处能改善该障碍。","falsifier":"现有记录已够用；新增记录只是重复填报或免责包装；对应争议实为诈骗或一般不履约。","as_of_date":"2026-09-06","sources":[{"source":"investigation","role":"context","origin_group":"workers-daily-internship-20260727","source_level":2,"primary_source":true},{"source":"training_template","role":"context","origin_group":"beijing-training-contract-2021","source_level":1,"primary_source":true},{"source":"prepaid","role":"context","origin_group":"spc-prepaid-2025-4","source_level":1,"primary_source":true}]}
+  ],
+  "gap_matrix": [
+    {"question":"是否存在具体痛点线索","result":"supported_as_lead","confidence":"medium","missing":"真实合同全貌、机构答辩和履约记录，不能当成普遍事实"},
+    {"question":"核验、收费、退费是否全面制度空白","result":"not_supported","confidence":"high","missing":"各类服务适用边界必须个案核准"},
+    {"question":"既有制度外是否还有可证明执行障碍","result":"unresolved_blocking","confidence":"low","missing":"同一争议的承诺、合同、实际交付、处理意见对应链"},
+    {"question":"最小新增工具是否有增量价值","result":"unresolved_blocking","confidence":"low","missing":"明确受益环节及与现有工具的差异，不要求先有完美量化试验"}
+  ],
+  "mechanism_review": {
+    "proposal":"仅在既有合同台账内记录承诺、费用和真实交付对应关系，争议时复用。",
+    "baseline":"直接执行既有招聘核验、明示、台账、合同及救济规则。",
+    "actor":"服务机构；主管部门在现有权限内核查，法院独立判断合同与证据。",
+    "participation_constraint":"守规咨询服务不能被要求保证录用；用人单位不被强制为未经授权中介担保。",
+    "incentive":"真实交付更易解释，理论上降低守规者争议成本；本轮没有充分证据确认该效果。",
+    "adverse_case":"不良机构可能将低成本课程虚高分价、补造凭证，并利用签收勾选免责；消费者也可能否认已使用服务。",
+    "cost_transfer":"统一强制表单或逐单报送会增加小机构和基层负担，可能涨价或拒接复杂对象。",
+    "verification":"不能只看填表率、投诉下降或退费率；需先识别记录缺口，再比较补件次数、处理时长与双方成本。",
+    "correction":"保留异议及补证，不因缺少新表格自动处罚、判欺诈或全额退款。",
+    "lower_cost_alternative":"先用现有合同与台账处理，针对已证实缺项作最小指引；本轮不具备推荐新增制度的基础。",
+    "exit":"关键增量价值未证实，触发预研的一轮比对停止条件，不写正式稿。"
+  },
+  "research_log": {
+    "plan":"沿用已批准问题单；先检索公开履约与裁判材料，再比对三份可核验制度/行政材料，最后审查增量价值和副作用。计划工具不可用，计划与缺口矩阵保存在本记录。",
+    "query_count":16,
+    "query_groups":["官方法院的实习内推、求职辅导退费材料","精确合同或案号线索原始来源追索","招转培合同与司法建议反证"],
+    "material_scope":"深读比对北京培训示范合同、人社部典型行政案例、最高法司法解释三份材料；规则和既有调查作背景核验。未完成2至3份真实交易合同与裁判全文的交叉样本验证，不能以范本和摘要冒充。",
+    "excluded":"搜索命中的维基转录判决未核到官方原文；旧媒体转述裁判不升级为一级证据；江苏检察页及速豹页正文读取不完整，不作核心依据。多个转载不增加独立来源数。",
+    "stop_reason":"精确追索逐渐重复非原始转录与同源报道；关键缺口需完整个案材料，继续泛搜不会充分改变当前判断。"
+  },
+  "budget":{"token_limit":40000,"change":"none","accounting":"declared_stage_cap","paid_api_calls":0,"actual_benefit":"明确新增工具尚缺事实基础，避免把现行义务重新包装为机制创新。","conclusion":"retain","note":"交互式Codex无法取得官方精确Token，导入耐久证据包时按阶段上限幂等估算，不是Plus账单。"},
+  "report_path":"outputs/review/deep_research/2026-09-06-fcab0f1a/C1/report-source.md",
+  "next":"本轮C1深研停止，不写作；不覆盖此前有效人工深研授权。新出现完整合同—交付—处理材料后可复核。C2为先前候选顺序备选，本轮不并行扩题。"
+}

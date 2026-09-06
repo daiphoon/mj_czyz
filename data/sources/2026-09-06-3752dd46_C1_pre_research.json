@@ -1,0 +1,235 @@
+{
+  "run_id": "2026-09-06-3752dd46",
+  "candidate_id": "C1",
+  "topic_id": "2026-09-06-3752dd46:C1",
+  "working_title": "关于完善居民电费异议核验与信息获取衔接机制的建议",
+  "decision": "reframe",
+  "decision_reason": "reframe_required",
+  "confidence": "medium",
+  "confidence_reason": "已核到现行办法与修订稿的具体差异、实际电费偏差问题以及现有书面答复救济，具备就政策衔接开展有限深研的基础。仅支持预防性制度衔接切口，不支持全国普遍取证困难、现行救济失效或新规已经损害权利的结论。建议工具的边际收益与实际渠道还需深研核验，不能承诺必然成稿。",
+  "as_of": "2026-09-06",
+  "material_checks": {
+    "policy_text": "通过：官方2026修订稿DOCX全文及2021现行办法全文均已读取；并核对2024供电营业规则和12398投诉处理办法相关条款。",
+    "real_pain": "通过有限预研最低条件：国家能源局2026年6月和7月通报记录串户、采集异常及计价时段设置错误等具体电费问题。它们证明核验实际账单有公共价值，不证明这些问题由信息公开机制造成。",
+    "coverage": "原下载接口假设否定；投诉答复、验表和退补已有规则。仅保留公开方式变化后，本人计费资料获取与咨询、投诉衔接的预防性文本问题，不认定现行政策完全未覆盖。"
+  },
+  "sources": [
+    {
+      "key": "revision_2026",
+      "url": "https://www.nea.gov.cn/20260831/c1aa140dcdbe40e481ded09e4e6fda98/20260831c1aa140dcdbe40e481ded09e4e6fda98_18237d61b125bf4af48c90b317105324ec.docx",
+      "landing_url": "https://www.nea.gov.cn/20260831/c1aa140dcdbe40e481ded09e4e6fda98/c.html",
+      "page_title": "供电企业信息公开实施办法（修订版），征求意见通知附件",
+      "publisher": "国家能源局综合司",
+      "origin_group": "nea-information-disclosure-policy",
+      "source_level": 1,
+      "source_role": "official_policy",
+      "published_at": "2026-08-31",
+      "checked_at": "2026-09-06",
+      "effective_at": null,
+      "excerpt": "第五条调整公开方式；第八条新增检索及下载保存功能；第十条设置咨询工单流转和答复期限。第十八条实施日期仍为空位。",
+      "data_scope": "全国供电企业；征求意见稿，不是现行已生效规则。",
+      "content_sha256": "843d0300273e8fdb3f746086e715d5b2f9ef65709417161a8ba37d3bab56f0c6",
+      "cache_path": "data/cache/pre_research/2026-09-06-3752dd46/C1/revision.docx",
+      "verification": "正文无修订插入删除标记；python-docx与macOS textutil提取正文逐字一致，比较时仅忽略空白及textutil引入的44个U+200F方向标记。",
+      "limitation": "本地4页渲染出现字体/排版异常，不能以渲染图证明条文或页码，未改官方原件；依据一致的文本提取核验条号。首次手工拼接附件路径404已纠正，不将下载报错作为覆盖证据。"
+    },
+    {
+      "key": "disclosure_2021",
+      "url": "https://hbj.nea.gov.cn/xxgk/fdzdgknr/hbjgfl/flwj/202311/t20231105_196027.html",
+      "landing_url": "https://zfxxgk.nea.gov.cn/2021-11/23/c_1310346788.htm",
+      "page_title": "供电企业信息公开实施办法（国能发监管规〔2021〕56号）",
+      "publisher": "国家能源局，华北监管局公开全文",
+      "origin_group": "nea-information-disclosure-policy",
+      "source_level": 1,
+      "source_role": "official_policy",
+      "published_at": "2021-11-23",
+      "reposted_at": "2022-02-09",
+      "checked_at": "2026-09-06",
+      "excerpt": "第九至十四条规定用户申请获取与自身直接相关信息及提供方式；第十五条区分投诉、服务查询等事项；第十八条另设咨询；第二十二条规定申诉。",
+      "data_scope": "全国；发布日起施行，有效期五年。修订通知仍称其为现行办法，不用站点迁移年份代替制定日期。",
+      "limitation": "不能把原依申请公开解释成全部服务查询，也不能推断修订后其他法定权利同时消失。"
+    },
+    {
+      "key": "business_rules_2024",
+      "url": "https://zfxxgk.ndrc.gov.cn/wap/iteminfo.jsp?id=20347",
+      "page_title": "供电营业规则（2024年第14号令）",
+      "publisher": "国家发展改革委",
+      "origin_group": "ndrc-electricity-business-rules-2024",
+      "source_level": 1,
+      "source_role": "official_policy",
+      "published_at": "2024-02-08",
+      "effective_at": "2024-06-01",
+      "checked_at": "2026-09-06",
+      "excerpt": "第八十一至八十五条已有校验、计量差错退补、抄表及采集异常处理规则。",
+      "data_scope": "供用电活动；仅讨论居民直供用户账单异议，不将电力市场结算规则套用于所有居民。",
+      "limitation": "已有验表及退补义务不等于所有争议源于表本体误差；但不能重新建议创设这些既有权利。"
+    },
+    {
+      "key": "complaint_rules",
+      "url": "https://zfxxgk.nea.gov.cn/2024-11/01/c_1212407492.htm",
+      "page_title": "12398能源监管热线投诉处理办法（国能发监管规〔2024〕86号）",
+      "publisher": "国家能源局",
+      "origin_group": "nea-12398-complaint-rules-2024",
+      "source_level": 1,
+      "source_role": "official_policy",
+      "published_at": "2024-11-01",
+      "effective_at": "2025-01-01",
+      "checked_at": "2026-09-06",
+      "excerpt": "第十条明确办理结论及依据、救济告知和书面答复；第十三条允许对结论或超期提出申诉；第二十五条规定监管抽查。",
+      "data_scope": "全国能源服务投诉；有效期五年。",
+      "limitation": "不得声称无书面答复或无独立申诉；也不能把信息公开咨询与已正式进入12398的投诉视作完全同一程序。"
+    },
+    {
+      "key": "june_cases",
+      "url": "https://www.nea.gov.cn/20260720/fa16ff39dc0d42e98753d4d9f678f674/c.html",
+      "page_title": "国家能源局12398能源监管热线6月投诉举报处理情况通报",
+      "publisher": "国家能源局",
+      "origin_group": "nea-hotline-cases-2026",
+      "source_level": 1,
+      "source_role": "official_data",
+      "published_at": "2026-07-20",
+      "checked_at": "2026-09-06",
+      "excerpt": "通报记录甘肃兰州等地电表串户、四川甘孜等地远程采集失败后未按规定现场抄表的情况。",
+      "data_scope": "2026年6月通报中的具体地区问题，不是北京发生率，也不是取证障碍统计。",
+      "limitation": "只支撑错误机制实例，不使用总投诉量估计受影响人口；与7月通报属于同一监管发布体系，不包装成机构间独立交叉验证。"
+    },
+    {
+      "key": "july_cases",
+      "url": "https://www.nea.gov.cn/20260824/6fb7f4da3c9f4b999211d8b513782f22/c.html",
+      "page_title": "国家能源局12398能源监管热线投诉举报处理情况通报（2026年7月）",
+      "publisher": "国家能源局",
+      "origin_group": "nea-hotline-cases-2026",
+      "source_level": 1,
+      "source_role": "official_data",
+      "published_at": "2026-08-24",
+      "checked_at": "2026-09-06",
+      "excerpt": "通报指出山西临汾等地峰谷电价时段设置错误，造成电费结算偏差。",
+      "data_scope": "2026年7月具体问题；不把及时办结率当作核验正确率或满意率。",
+      "limitation": "证明账单核验需求，不证明公开方式调整造成过损失。"
+    },
+    {
+      "key": "personal_information_right",
+      "url": "https://www.npc.gov.cn/npc/c2/c30834/202108/t20210820_313088.html",
+      "page_title": "中华人民共和国个人信息保护法",
+      "publisher": "全国人大常委会，中国人大网发布",
+      "origin_group": "pipl-2021",
+      "source_level": 1,
+      "source_role": "official_policy",
+      "published_at": "2021-08-20",
+      "effective_at": "2021-11-01",
+      "checked_at": "2026-09-06",
+      "excerpt": "第四十五条规定个人查阅、复制其个人信息的权利，并有法定例外。",
+      "verification": "官方公开搜索索引可核对第四十五条；正文直连报错，另见最高检及税务机关同一法律文本的公开索引。不宣称本轮取得完整原站正文。",
+      "data_scope": "自然人个人信息，不自动等同全部电网技术参数或企业商业信息。",
+      "limitation": "仅作为不能声称权利被撤销的反证。正式成稿若引用应再次获取可稳定访问的全文并核准所需资料的法律属性；索引转载均为同一法律来源链。"
+    },
+    {
+      "key": "sgcc_privacy",
+      "url": "https://osg-static.sgcc.com.cn/app/statement/userPrivacyPolicy.html",
+      "page_title": "网上国网隐私声明",
+      "publisher": "国家电网有限公司客户服务中心",
+      "origin_group": "sgcc-public-privacy-declaration",
+      "source_level": 3,
+      "source_role": "other",
+      "published_at": "2026-03-24",
+      "checked_at": "2026-09-06",
+      "excerpt": "声明列有绑定户号后查询分析电量电费的功能及身份核验安排。",
+      "data_scope": "企业自述的APP服务，不是全国线上线下渠道实测。",
+      "limitation": "未登录、未索取私人账单，不能判断某个具体原始记录是否可下载。正文抓取编码问题纠正后读到相关段落，未匹配的词不作为功能不存在证据。"
+    }
+  ],
+  "verified_facts": [
+    {"statement": "现行办法保留本人相关信息依申请获取安排；修订稿拟改变公开方式，另设咨询工单，并明确公开栏目支持下载保存。修订稿尚未实施。", "source_keys": ["disclosure_2021", "revision_2026"]},
+    {"statement": "国家能源局近期通报记载串户、采集与计价时段设置等具体账单偏差问题。", "source_keys": ["june_cases", "july_cases"]},
+    {"statement": "现行规则已有验表、差错退补、投诉依据说明、书面答复和异议申诉。", "source_keys": ["business_rules_2024", "complaint_rules"]},
+    {"statement": "网上国网公开声明描述了电量电费查询功能；本轮仅核对公开说明，未验证用户端实际体验。", "source_keys": ["sgcc_privacy"]}
+  ],
+  "evidence_based_inferences": [
+    {
+      "statement": "拟议公开方式变化与本人计费资料获取并非同一件事，值得在修订时明确二者的分流和衔接，以防服务端误把本人账单核验请求当成不再受理的公开申请。",
+      "source_keys": ["revision_2026", "disclosure_2021", "complaint_rules", "personal_information_right"],
+      "basis": "文本比较确认原申请条款未保留原结构、咨询工单被明确；现有投诉及个人信息权利另有依据。这支持核对边界，不支持宣称救济消失。",
+      "uncertainty": "实际误分流尚未发生或未获核验；正式规则和企业指南可能主动补齐。",
+      "falsifier": "正式文本或适用指南已清楚保证本人资料获取、咨询与投诉衔接，实际流程可以无重复举证办理。"
+    },
+    {
+      "statement": "电费异议核验不宜只等同验电表，还可能需要比对适用计价参数和采集记录。",
+      "source_keys": ["business_rules_2024", "june_cases", "july_cases"],
+      "basis": "已公开问题有多种原因，计量装置本身合格不足以排除时段参数错误等情况。",
+      "uncertainty": "不能据此推定企业目前只验表不核对参数；具体所需凭证应由深研确认。",
+      "falsifier": "既有异议处理已统一提供足够的原因及计费依据，且修订不影响用户获取。"
+    }
+  ],
+  "counterevidence": [
+    {"statement": "修订稿已经考虑下载保存、咨询工单和期限。", "source_keys": ["revision_2026"], "implication": "原数据接口/下载空白不成立；不要求建设额外平台或通用开放API。"},
+    {"statement": "既有投诉办法提供了书面答复及申诉途径。", "source_keys": ["complaint_rules"], "implication": "不得重复立一套投诉制度；衔接仅服务于非投诉阶段的信息获取及后续复用。"},
+    {"statement": "原办法本来就区分服务查询与信息公开，且已有线上查询和个人信息权利依据。", "source_keys": ["disclosure_2021", "sgcc_privacy", "personal_information_right"], "implication": "删除一种公开程序不当然导致查询权利消失；必须检验现有渠道已足够的替代解释。"}
+  ],
+  "unverified_hypotheses": [
+    {"statement": "若修订未配套明确界限，前台可能在信息公开咨询、普通查询和投诉之间重复转办。", "verification_plan": "深研仅比较一个电费异议场景中的现有办理指南、可取得材料和拟议文本，不扩大到停电或并网。", "discard_if": "同一诉求已有清晰入口、说明和凭证复用，且正式文本不存在衔接歧义。"},
+    {"statement": "给出最小必要的计费核验依据可能降低重复来电和无效验表。", "verification_plan": "检查是否复用现有账单与工单字段，比较不新增工具的基线；无执行成本证据时不量化节约。", "discard_if": "需新建数据平台、大量人工重编账单或过度收集身份资料才能实现。"}
+  ],
+  "analyst_judgments": [
+    {"statement": "C1可改写后提交人工深研确认，重点是政策转换的预防性衔接，不以事件热度或强迫成稿为理由。", "rationale": "政策文本差异可直接复核，近期账单错误场景真实；有低成本澄清及复用现有渠道的方向，但尚须证明边际价值。"}
+  ],
+  "alternative_explanations": [
+    {"statement": "删除依申请公开程序可能是为避免与服务查询、投诉重复，并非减少服务。", "test": "核对修订说明、咨询工单处理规范与原第十五条的区别，不猜测制定者动机。"},
+    {"statement": "账单偏差主要属于技术或履约错误，改写信息获取规则未必能降低事故发生。", "test": "把目标限定为用户核验和纠错成本，不能许诺杜绝计费错误。"}
+  ],
+  "critical_unknowns": [
+    {"question": "现有企业指南和正式修订文本是否已足以消除本人计费资料获取及工单分流歧义？", "blocking": false, "resolution_plan": "作为获准深研后的第一项反证核验；若覆盖充分立即停止。文本变化本身已核实，本阶段不主张实际取证受阻。"},
+    {"question": "哪几项计费凭证属于用户核验所必需，能否直接复用而不增加一线负担？", "blocking": false, "resolution_plan": "深研比较现有账单和异议流程，材料取得不充分时删减建议或停止；不先承诺新增字段、平台或成本节约。"}
+  ],
+  "discard_conditions": [
+    "正式稿或现行配套流程已经直接明确本人资料查询、留存与异议处理衔接，且没有新增价值。",
+    "只能靠宣称公开程序变化等于权利被撤销才能支撑标题。",
+    "建议仅重复下载、书面答复、验表或退补等既有要求。",
+    "需新增平台、普遍逐单填表、开放敏感用电数据或扩大身份收集才能落实。",
+    "无法把政策预防性推断与真实账单错误事实分开，或必须用全国投诉数据虚推北京结论。"
+  ],
+  "authority": {
+    "actor": "国家能源局及其派出机构、供电企业；通过民建报送渠道向有权主体提出建议。",
+    "power": "国家能源局正在修订其供电信息公开规范；供电企业执行既有服务和投诉规则，派出机构按现行职责监管。",
+    "boundary": "不虚构海淀区直接修改全国办法的权限；不对未生效稿作违法性裁断；不改变法定救济、不要求公开他人隐私或电网敏感技术参数。地方可以反馈实施问题，不能自行替代中央修订。"
+  },
+  "research_questions": [
+    "只在居民直供用户电费异议场景，比对原申请条款、拟议咨询流程、现行服务查询和12398处理规则。",
+    "公开栏目可下载是否与本人计费资料可获取属于不同范围，现有指南能否直接解决这种区别？",
+    "若需补充，能否仅增加一项边界说明及既有工单材料复用，不新建系统、不增加基层报表？"
+  ],
+  "budget": {
+    "token_limit": 30000,
+    "reason": "沿用C1单题有限预研上限；用户批准从C2转入C1，不是重复续跑C2或清账。未提高配置额度，未改扫描来源数量。",
+    "expected_benefit": "先取得政策全文和具体痛点，核对覆盖，再决定是否值得深研。",
+    "actual_benefit": "否定下载空白和书面答复空白，定位公开方式变化中的本人计费信息衔接方向；尚未证明可成稿或长期产量改善。",
+    "usage_basis": "按阶段上限幂等保守记账，不是Plus精确Token；C2既有记录完整保留，模型实测另列。",
+    "paid_api_calls": 0,
+    "budget_change": "none",
+    "conclusion": "retain"
+  },
+  "mechanism_cards": [
+    {
+      "proposal": "待深研验证：在修订配套说明中区分公共信息公开与本人计费资料获取；在既有查询或咨询工单内提供最小必要计费依据，产生争议时复用已有材料转投诉，不要求先投诉才能获得基本说明。",
+      "actor": "国家能源局澄清规范衔接，供电企业在既有服务渠道执行，派出机构利用现有投诉监督抽查。",
+      "target": "居民直供用户就本人具体账期产生的电量电费疑问；不扩到电力市场批发结算、并网和停电。",
+      "trigger": "经必要身份核验后提出具体账期和差异疑问；不得以批量无关索取强迫企业重制信息。",
+      "information": "优先复用已有账单、适用计价依据和必要采集/校验结论，隐去他人资料；具体字段须在深研核准，不公开全量后台参数。",
+      "cost_bearer": "企业承担其控制记录的合理检索成本；不增加另建系统预算、普遍填表或用户付费查询。",
+      "beneficiary": "用户可理解和复核账单，守规企业可证明履约并减少无效反复沟通，监管集中处理真实争议。",
+      "expected_behavior": "使一次准确解释和资料复用比反复转办更省成本；是否实际节约有待验证，不能仅凭政策愿望断言。",
+      "evasion_risk": "把有争议工单标成已解释咨询、用格式化结论替代依据，或诱导用户撤诉以刷结案率。",
+      "cost_transfer_risk": "可能过度实名认证、将困难用户引向付费代办、或拒绝无智能手机者；保留必要的线下等效渠道。",
+      "verification": "沿用既有投诉抽查，对比相同账期重复请求、转办及纠错记录；不把少投诉或按时结案单独当成有效，不新建基层填报表。",
+      "correction": "按用户真实诉求转入现行投诉流程，保留原查询材料；现有书面答复、申诉和法定救济不变，不能以已答复咨询排除投诉。",
+      "exit_condition": "若现有流程已足够或新增处理成本、隐私风险超过可证明收益，则只保留解释性澄清或放弃建议。",
+      "lower_cost_alternative": "直接完善既有公开指南和工作人员分流说明，不要求统一数据接口或建设新平台。",
+      "scenarios": {
+        "baseline": "现有查询、验表退补和12398投诉流程继续运行；修订稿可能自行补足界限，无需额外政策。",
+        "most_likely": "如确有边界歧义，少量说明和工单材料复用可减少部分重复提交，不能保证杜绝计费差错。",
+        "adverse": "企业以咨询替代投诉压低统计、过度身份核验或一线人员额外制表，用户承担更高时间成本；出现这些情况不得扩围。"
+      }
+    }
+  ],
+  "history_review": {"approved_real_topics_checked": 7, "mechanism_hints": [], "limitation": "轻量机制提示未命中不是语义零重复证明；原扫描终审也未发现同机制稿。"},
+  "next_action": "等待用户确认改写后的C1是否进入正式深研；本轮没有深研、写作、导出或报送。"
+}

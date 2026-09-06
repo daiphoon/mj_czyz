@@ -1,0 +1,24 @@
+{
+  "topic_id": "2026-09-06-3752dd46:C1",
+  "research_decision": "stop",
+  "decision_reason": "insufficient_evidence",
+  "draft_supported": false,
+  "as_of": "2026-09-06",
+  "sources": [
+    {"key":"regulation","source_name":"国家能源局华北监管局","page_title":"供电监管办法（2024修订文本）","url":"https://hbj.nea.gov.cn/xxgk/fdzdgknr/hbjgfl/flwj/202311/t20231105_196002.html","publisher":"国家能源局华北监管局","published_at":"2024-01-04","checked_at":"2026-09-06","source_role":"official_policy","excerpt":"第十六条规定投诉答复；第二十二条要求便利查询投诉处理及其他用电信息。","data_scope":"全国；页面旧发布日期与正文修订时间区分，按2024修订内容核验。","used_at":"既有覆盖反证"},
+    {"key":"hunan_q4","source_name":"湖南能源监管办","page_title":"2025年四季度12398投诉举报通报","url":"https://hunb.nea.gov.cn/dtyw/tzgg/gsgg/202601/t20260113_294047.html","publisher":"湖南能源监管办","published_at":"2026-01-13","checked_at":"2026-09-06","source_role":"official_data","excerpt":"记录群众对用电历史数据查询及详细电费明细获取的反映。","data_scope":"湖南2025年四季度群众反映，不是全部事项查实，更非当前全国APP功能实测。","used_at":"历史痛点及证据边界"},
+    {"key":"hunan_q1","source_name":"湖南能源监管办","page_title":"2026年一季度12398投诉举报通报","url":"https://hunb.nea.gov.cn/hdhy/rx/202605/t20260507_300711.html","publisher":"湖南能源监管办","published_at":"2026-04-22","checked_at":"2026-09-06","source_role":"official_data","excerpt":"热点未列旧有资料获取问题，未给其专项整改结论。","data_scope":"湖南2026年一季度；正文发布时间不是URL迁移日期。","used_at":"后续核验，不能作已整改证据"},
+    {"key":"hunan_q2","source_name":"湖南能源监管办","page_title":"2026年二季度12398投诉举报通报","url":"https://hunb.nea.gov.cn/hdhy/rx/202607/t20260720_305080.html","publisher":"湖南能源监管办","published_at":"2026-07-20","checked_at":"2026-09-06","source_role":"official_data","excerpt":"热点未列旧有资料获取问题，未给其专项整改结论。","data_scope":"湖南2026年二季度；总办结和责任数据不归因于特定资料问题。","used_at":"后续核验"},
+    {"key":"shenzhen","source_name":"深圳民心桥企业公开答复","page_title":"第1031期","url":"https://szjgdj.sz.gov.cn/home/ztzl/mxq/jmlb/content/post_1656254.html","publisher":"深圳市直属机关工作委员会，答复主体为深圳供电局","published_at":"2026-02-12","checked_at":"2026-09-06","source_role":"comparative_case","excerpt":"问题八列账单核对、日电量查询及95598现场检查路径。","data_scope":"深圳企业公开说明，不是全国实测或独立监管认证。","used_at":"既有服务反证"},
+    {"key":"chongqing","source_name":"中国能源新闻网企业消息","page_title":"国网重庆市电力公司完成新版电费账单上线应用","url":"https://www.cpnn.com.cn/qiye/zggdsPD2023/202508/t20250828_1827735.html","publisher":"中国能源新闻网，原始消息来自国网重庆电力","published_at":"2025-09-02","checked_at":"2026-09-06","source_role":"comparative_case","excerpt":"新版账单展示分时电量、电价、电费及阶梯情况。","data_scope":"企业自述功能，不证明全量用户实际体验。","used_at":"现有材料可用性反证"},
+    {"key":"app","source_name":"网上国网","page_title":"网上国网隐私声明","url":"https://osg-static.sgcc.com.cn/app/statement/userPrivacyPolicy.html","publisher":"国家电网有限公司客户服务中心","published_at":"2026-03-24","checked_at":"2026-09-06","source_role":"other","excerpt":"公开声明列电子账单下载存储功能。","data_scope":"企业功能声明，不是用户端访问实测。","used_at":"纠正下载空白假设"}
+  ],
+  "claims": [
+    {"id":"C1-R1","claim_text":"2024修订的供电监管办法已有用电投诉答复和便利查询义务。","claim_type":"policy","importance":"critical","epistemic_status":"verified_fact","confidence":"high","uncertainty_reason":"条款义务可核验，实际执行效果未由该文件证明。","falsifier":"后续有效规则废止或改变所引条款。","as_of_date":"2026-09-06","sources":[{"source":"regulation","role":"supports","origin_group":"electricity-supervision-rules-2024","source_level":1,"primary_source":true}]},
+    {"id":"C1-R2","claim_text":"湖南2025年四季度监管通报记录过群众对历史用电数据和详细明细获取的反映。","claim_type":"fact","importance":"critical","epistemic_status":"verified_fact","confidence":"high","uncertainty_reason":"只证明通报记录了反映，不证明具体功能限制全国适用或目前仍存在。","falsifier":"通报原文更正或后续核实指出该反映记录错误。","as_of_date":"2026-09-06","sources":[{"source":"hunan_q4","role":"supports","origin_group":"hunan-hotline-series","source_level":1,"primary_source":true}]},
+    {"id":"C1-R3","claim_text":"当前存在现有指南无法解决的本人计费资料获取或分流障碍，新增衔接规则具有可证明的边际收益。","claim_type":"mechanism","importance":"critical","novelty_required":true,"policy_coverage_status":"unchecked","epistemic_status":"unverified_hypothesis","confidence":"low","uncertainty_reason":"未取得当前具体办理障碍及成本对照；后续通报沉默不等于整改或持续存在。","falsifier":"现行办理链路足以解决，或新增措施成本大于可证明收益。","as_of_date":"2026-09-06","sources":[{"source":"hunan_q1","role":"context","origin_group":"hunan-hotline-series","source_level":1,"primary_source":true},{"source":"hunan_q2","role":"context","origin_group":"hunan-hotline-series","source_level":1,"primary_source":true},{"source":"shenzhen","role":"context","origin_group":"csg-shenzhen-service","source_level":3,"primary_source":true},{"source":"chongqing","role":"context","origin_group":"sgcc-chongqing-billing","source_level":3,"primary_source":true},{"source":"app","role":"context","origin_group":"sgcc-app-declaration","source_level":3,"primary_source":true}]}
+  ],
+  "budget":{"token_limit":40000,"change":"none","accounting":"declared_stage_cap","paid_api_calls":0,"benefit":"核对现有渠道和后续监管反馈，阻止将未证实衔接风险写成现行缺口。"},
+  "report_path":"outputs/review/deep_research/2026-09-06-3752dd46/C1_report.md",
+  "next":"保存为本轮不成稿；仅取得新的可核验执行证据后再由用户决定是否重启。"
+}

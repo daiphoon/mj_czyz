@@ -69,3 +69,38 @@ keywords = ["上海", "平台广告", "批准文号上传", "发布前置", "AI�
 source_url = "https://www.shanghai.gov.cn/gwk/search/content/2c984a729b92b990019ba06d36224232"
 valid_from = "2026-01-09"
 last_verified_at = "2026-08-31"
+
+[[mechanisms]]
+id = "national-energy-complaint-written-response-2025"
+name = "12398能源投诉依据说明、书面答复与异议申诉机制"
+problem_type = "energy_complaint_response"
+jurisdiction = "全国"
+actor = "能源企业、12398热线中心、国家能源局及其派出机构"
+summary = "现行投诉办法第十条已要求说明办理结论及依据，并在用户要求或不满意时书面答复；第十三条规定对结论或超期的异议申诉。适用于能源服务投诉，不当然覆盖尚未进入投诉的本人计费资料查询，不证明实际执行充分；有效期五年。"
+keywords = ["能源投诉", "电费异议", "电表计量", "12398", "书面答复", "异议申诉"]
+source_url = "https://zfxxgk.nea.gov.cn/2024-11/01/c_1212407492.htm"
+valid_from = "2025-01-01"
+last_verified_at = "2026-09-06"
+
+[[mechanisms]]
+id = "national-prepaid-consumption-evidence-refund-2025"
+name = "预付式消费合同解释、退费计价与经营者控制证据规则"
+problem_type = "prepaid_service_delivery_refund"
+jurisdiction = "全国"
+actor = "人民法院、符合适用条件的预付式消费经营者和消费者"
+summary = "法释〔2025〕4号对持续或多次生活消费中的培训等预付式合同，已规定合同歧义解释、不合理格式条款、退费计价及经营者控制证据拒不提交的处理规则。不能直接认定所有求职撮合或实习复合合同均适用，不能把司法举证规则改作行政自动处罚或一概全额退款；规则存在不证明实际争议已解决。"
+keywords = ["预付式消费", "培训退费", "服务交付", "退费计价", "经营者控制证据"]
+source_url = "https://www.szqhcourt.gov.cn/fygk/fywjgg/content/post_1535352.html"
+valid_from = "2025-05-01"
+last_verified_at = "2026-09-06"
+
+[[mechanisms]]
+id = "national-etc-exit-disclosure-reply-2022"
+name = "ETC注销解约提前告知与渠道治理的官方答复记录"
+problem_type = "etc_exit_disclosure"
+jurisdiction = "全国"
+actor = "交通运输主管部门、ETC发行机构及合作金融机构"
+summary = "交通运输部2022年答复已明确要求提前详细告知并重点提示注销、解约约定，并治理未注明注销方式等问题。仅确认已公开制度部署，不证明当前全部渠道执行充分，不扩展为第三方收费争议可限制ETC使用。答复不是新规，未确认所引全部规则的完整施行日期，故不填写valid_from，不作为已核现行生效的自动阻断依据。"
+keywords = ["ETC", "注销方式", "解约提示", "发行渠道", "注销门槛"]
+source_url = "https://xxgk.mot.gov.cn/2020/jigou/glj/202211/t20221117_3710863.html"
+last_verified_at = "2026-09-06"

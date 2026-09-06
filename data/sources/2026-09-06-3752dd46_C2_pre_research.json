@@ -1,0 +1,187 @@
+{
+  "run_id": "2026-09-06-3752dd46",
+  "candidate_id": "C2",
+  "topic_id": "2026-09-06-3752dd46:C2",
+  "working_title": "陪诊服务接单主体与委托责任的可核验衔接（有限预研，停止本轮）",
+  "decision": "stop",
+  "decision_reason": "insufficient_evidence",
+  "confidence": "high",
+  "confidence_reason": "对本轮不宜进入深研的判断较有把握；这不是对北京完全不存在执行缺口的高置信断言。已有官方规则覆盖与司法救济反证，当前材料尚不能证明订单级衔接存在可区别于既有制度的系统性缺口。标准全文细节和真实订单材料仍有阻断性未知，保留停止决定，不修改字段以取得放行。",
+  "as_of": "2026-09-06",
+  "sources": [
+    {
+      "key": "standard_metadata",
+      "url": "https://openstd.samr.gov.cn/bzgk/std/newGbInfo?hcno=FEF6F82A9C52F31266C0578CC47EF28B",
+      "page_title": "国家标准 GB/T 47801-2026 社会化陪同就医服务 基本要求",
+      "publisher": "国家市场监督管理总局、国家标准化管理委员会",
+      "origin_group": "samr-companion-standard-2026",
+      "source_level": 1,
+      "source_role": "official_policy",
+      "published_at": "2026-07-02",
+      "checked_at": "2026-09-06",
+      "excerpt": "标准元数据标明发布日期2026-07-02、实施日期2026-11-01，状态即将实施。",
+      "limitation": "仅核验官方元数据，网页预览按钮未返回标准正文；未逐条核验全文。"
+    },
+    {
+      "key": "standard_explanation",
+      "url": "https://www.samr.gov.cn/bzjss/bzjd/art/2026/art_4022d6d5ed64447081e71af307a134db.html",
+      "page_title": "《社会化陪同就医服务 基本要求》国家标准解读材料",
+      "publisher": "市场监管总局标准技术司",
+      "origin_group": "samr-companion-standard-2026",
+      "source_level": 1,
+      "source_role": "official_policy",
+      "published_at": "2026-08-27",
+      "checked_at": "2026-09-06",
+      "excerpt": "解读说明机构属性、合同收费管理、委托受理、服务交付、评价与投诉管理均属标准内容。",
+      "limitation": "与标准元数据属于同一原始信息链。解读中引述央媒的市场规模和机构数量不是官方原始统计，本研究不采用。"
+    },
+    {
+      "key": "standards_law",
+      "url": "https://www.sac.gov.cn/zt/xxddbzhfzsbb/bzhfsy/art/2018/art_777e079968524449a468b95966a1fd0e.html",
+      "page_title": "《中华人民共和国标准化法》释义第二条",
+      "publisher": "国家标准化管理委员会",
+      "origin_group": "standardization-law-article2",
+      "source_level": 1,
+      "source_role": "official_policy",
+      "published_at": "2018-03-05",
+      "checked_at": "2026-09-06",
+      "excerpt": "区分强制性与推荐性标准；推荐性标准鼓励采用。",
+      "limitation": "仅用作标准属性解释；合同约定或其他法定引用可能产生约束，不能从推荐性推导为任何场合均无约束。旧释义中的其他法律名称不作为现行法引用。"
+    },
+    {
+      "key": "beijing_case",
+      "url": "https://xinwen.bjd.com.cn/content/s68d3c3e5d5de24ab682e0fde.html",
+      "page_title": "跑腿问诊服务弄丢病理切片如何担责？法院这样判！",
+      "publisher": "北京三中院供稿、京法网事在北京号发布",
+      "origin_group": "beijing-third-court-pathology-case-2025",
+      "source_level": 1,
+      "source_role": "court_case",
+      "published_at": "2025-09-24",
+      "checked_at": "2026-09-06",
+      "excerpt": "个人通过社交软件接单后遗失受托病理切片；法院依有偿委托、保管义务及侵权认定责任。",
+      "limitation": "网页明确标注北京三中院供稿，不是判决书全文；案件发生年份未明确，发布日期不当作事发日期。其2025年其他媒体报道及2026年转载均只算同一案件，不算多起近期事件。不保留当事人身份。"
+    },
+    {
+      "key": "consumer_investigation",
+      "url": "https://health.gmw.cn/2026-07/31/content_38920174.htm",
+      "page_title": "陪诊国标即将实施 找好陪诊不再靠碰运气",
+      "publisher": "中国消费者报李燕京（光明网转载）",
+      "origin_group": "consumer-news-companion-interviews-202607",
+      "source_level": 2,
+      "source_role": "media_investigation",
+      "published_at": "2026-07-31",
+      "checked_at": "2026-09-06",
+      "excerpt": "记者接触的部分独立接单者仍采用口头约定；报道也记载北京机构正在完善协议与流程记录。",
+      "limitation": "无可推算总体的样本框及数量；个人受访者地域未逐一注明，不能推导北京普遍比例。所引病理切片案与beijing_case同链。持证要求系从业者说法，不认定全国法定准入义务；企业数量与岗位增长口径不采用。"
+    },
+    {
+      "key": "platform_public_terms",
+      "url": "https://agreement.service.juxinjk.com/",
+      "page_title": "桔馨陪诊APP协议及隐私声明",
+      "publisher": "北京桔馨健康科技有限公司",
+      "origin_group": "juxin-public-app-agreement",
+      "source_level": 3,
+      "source_role": "other",
+      "published_at": "2024-05-20",
+      "checked_at": "2026-09-06",
+      "excerpt": "公开页标明运营企业及APP使用、账户和隐私等一般条款。",
+      "limitation": "页面所示为生效日期，并非已知网页初次发布日期；一般APP协议不等于具体订单服务合同。未登录或下单，未取得订单附件，不能据此认定交易主体未披露、没有委托书或平台免责有效。"
+    }
+  ],
+  "verified_facts": [
+    {"statement": "GB/T 47801-2026截至核验日尚未实施，实施日为2026年11月1日。", "source_keys": ["standard_metadata"]},
+    {"statement": "官方解读已经列出合同、受理、交付和投诉管理，原先宽泛的缺少核验闭环说法不能直接成立。", "source_keys": ["standard_explanation"]},
+    {"statement": "北京有个人接单后遗失重要就医材料并被依法追责的已公开案例；它证明具体损害及既有救济，不证明普遍无责任主体。", "source_keys": ["beijing_case"]},
+    {"statement": "近期原创调查包含口头接单线索，也包含机构规范化准备的相反样本。这里只确认报道内容，未独立核实受访订单。", "source_keys": ["consumer_investigation"]}
+  ],
+  "evidence_based_inferences": [
+    {
+      "statement": "更可能值得核验的是个人接单中的授权和材料交接成本，而不是从零创设责任或医院准入。当前只能保留为问题假设。",
+      "source_keys": ["beijing_case", "consumer_investigation", "standard_explanation"],
+      "basis": "损害案例发生在受托材料保管，且既有规则和裁判已提供责任基础；采访反映的交易形式并不一致。",
+      "uncertainty": "缺少不同接单渠道的真实合同及交接样本，也未确认标准全文的具体留痕安排。",
+      "falsifier": "如既有合同或标准已提供低成本交接工具且纠纷主要源于个别拒绝履约，则无需新增统一制度。"
+    }
+  ],
+  "counterevidence": [
+    {"statement": "新标准已覆盖本题提出的多项一般流程要求。", "source_keys": ["standard_explanation"], "implication": "不得把重述标准包装成新意；不能在实施前评价实施失败。"},
+    {"statement": "材料遗失案已经通过现有责任规则得到司法处理。", "source_keys": ["beijing_case"], "implication": "没有法律责任或没有救济途径的判断不成立；是否维权成本过高仍需另有证据。"},
+    {"statement": "北京机构的规范化准备构成行业完全没有自我修正的反证。", "source_keys": ["consumer_investigation"], "implication": "须比较现实的自发改进与新增规则的边际收益。"},
+    {"statement": "推荐性标准本身不等于禁止独立接单或设立统一持证准入。", "source_keys": ["standard_metadata", "standards_law"], "implication": "不得建议以医院白名单或指定平台将守规的个人服务者排除。"}
+  ],
+  "unverified_hypotheses": [
+    {
+      "statement": "跨主体交接中，患者可能难以确认实际保管人及委托范围。",
+      "verification_plan": "仅在今后出现独立新事实且另获批准时，核对脱敏的机构、个人与撮合订单及现有交接凭证；不以公开APP条款缺项代替订单证据。",
+      "discard_if": "样本已经清楚披露主体、授权及交接，或问题只是不履行已有义务而没有新工具的必要性。"
+    }
+  ],
+  "analyst_judgments": [
+    {
+      "statement": "停止本轮C2，不申请提额，不自动转入其他候选；此时直接深研容易成为围绕预设缺口找例子。",
+      "rationale": "已确认真实痛点，但区分现行覆盖与新增机制价值所需的关键材料不足，符合有限预研的止损用途。"
+    }
+  ],
+  "alternative_explanations": [
+    {"statement": "部分从业者未调整可能是标准尚在实施准备期，不是执行失败。", "test": "区分标准发布、实施和实际交易日期；若将来复研，再观察实施后的可比材料。"},
+    {"statement": "材料遗失可能主要是个别保管失当，而不是制度性身份核验缺口。", "test": "逐项核对事故节点与现有保管义务，检验新增字段是否真能防止该类损失。"}
+  ],
+  "critical_unknowns": [
+    {"question": "标准全文对委托确认、平台角色和交接留痕的具体要求，是否已经提供拟议工具？", "resolution_plan": "未来复研前取得官方全文并逐条比对；本轮只取得元数据和官方解读，停止而不推定条款缺失。", "blocking": true},
+    {"question": "北京不同接单渠道的真实订单是否确有主体或交接不可核验问题，且不只是个别违约？", "resolution_plan": "需脱敏订单或独立原创案件的机制级样本，证据不足不转入深研。一般APP协议与转载不足以补齐。", "blocking": true}
+  ],
+  "discard_conditions": [
+    "标准或既有合同已直接覆盖拟议工具，且没有区别明确的新实施证据。",
+    "建议只有新增准入、平台、人员认证或基层填表才能运行。",
+    "必须汇集患者病历全文才能核验，或迫使个人服务者付费加入指定机构。",
+    "没有新原始事实，仅把旧案件及重复转载作为多例证据。"
+  ],
+  "research_questions": [
+    "若未来获准复研，先比对现有规则和真实订单，再决定是否有研究价值，不直接进入写作。",
+    "最小授权和交接凭证是否比普遍医院准入更低成本，能否减少损失而不只是增加记录？"
+  ],
+  "authority": {
+    "actor": "拟核验方向为北京相关市场监管、卫生健康职责部门及服务经营者；不在本轮确定新牵头部门。",
+    "power": "可讨论既有消费者权益、合同指引及医疗资料管理职责内的衔接，具体分工仍须核准；不能仅凭主题推定某部门有权设门槛。",
+    "boundary": "推荐性国家标准不能被地方自行转成陪诊经营许可；医院核对患者授权不等于监管全部平台经营。不得赋予平台普遍无过错连带责任，亦不建议集中收集病历。"
+  },
+  "budget": {
+    "token_limit": 30000,
+    "reason": "沿用已配置单次有限预研上限，无提额。仅核对C2的案例、规则覆盖与初步替代机制，未新增扫描来源配置或重新扫描。",
+    "expected_benefit": "在深研和写作前证伪制度空白假设，确认是否值得继续。",
+    "actual_benefit": "确认标准时间与既有流程覆盖，识别同案转载和APP条款非订单证据，阻止证据不足的题目进入深研。无法量化反事实节省量。",
+    "usage_basis": "交互式Codex无官方精确Token，导入时按30000上限保守记账，与已实测的扫描调用分列；不是Plus账单。",
+    "paid_api_calls": 0,
+    "budget_change": "none",
+    "conclusion": "retain"
+  },
+  "mechanism_cards": [
+    {
+      "proposal": "未通过、仅供反证的备选机制：在现有订单或委托沟通中使用最小授权与高风险材料交接回执，不新建数据库。",
+      "actor": "实际承接服务者与委托人；只有既有平台参与交易时才讨论其订单支持。",
+      "target": "明确受托保管或转交不可替代就医材料的具体服务，不扩展到所有陪同就医。",
+      "trigger": "实际交付该类材料或变更保管人时；普通带路不追加同等手续。",
+      "information": "最小化服务主体、授权范围、材料件数或封装编号、交接时间和接收确认，不上传病历正文。",
+      "cost_bearer": "接单者和委托人的少量确认时间；平台如已有订单则复用，不能把开发成本强加给个体。",
+      "beneficiary": "患者更易核对交接，守规服务者可证明履约并减少无根据的责任争议。",
+      "expected_behavior": "可验证的真实交接降低争议成本，但是否足以激励主动采用尚未验证，不把预期收益当事实。",
+      "evasion_risk": "事后补签、代点确认、强制勾选和伪造时间；记录不应替代实际保管。",
+      "cost_transfer_risk": "可能涨价、排斥不会用手机的老人或拒接高风险患者，不能设置付费认证和医院通行白名单。",
+      "verification": "争议或少量抽样时比对双方留存记录与既有医院领取凭证，不逐单上报；衡量丢失纠纷与处理成本，不能只看表单完成率。",
+      "correction": "允许接收方异议、修正及替代纸质回执；未勾选不能自动免责，争议沿用既有救济。",
+      "exit_condition": "若既有工具已足够、无法减少实际纠纷或显著增加拒单及负担，则不新增或退出试用。",
+      "lower_cost_alternative": "先使用现有聊天确认、纸质清单和既有材料领取流程；不单为社情民意新造统一机制。",
+      "scenarios": {
+        "baseline": "沿用现有合同与保管义务、司法救济，观察标准实施准备及机构自发改进。",
+        "most_likely": "如确有未覆盖的交接缺项，最小回执可能改善争议举证；不能保证降低事故发生率。",
+        "adverse": "新增确认变成免责包装和形式主义，诱发涨价、拒单或病历过度收集；此时不得推广。"
+      }
+    }
+  ],
+  "review_summary": {
+    "fact_review": "限定事实支持范围；不采用市场规模、企业数、发生比例或因果结论。",
+    "mechanism_review": "一般闭环可能重复；低成本回执仅为未验证备选，尚不具备正式建议资格。",
+    "scope_review": "只对C2完成有限预研，没有转题、增加扫描来源数量或进入深研。",
+    "next_action": "保留阻断与停止记录，等待用户决定；没有新证据不得反复改标题重跑。"
+  }
+}
