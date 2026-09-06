@@ -71,3 +71,4 @@ class EventItem:
     topics: list[str] = field(default_factory=list)
     rule_score: int = 0
     collected_at: str = ""
+    material: dict[str, Any] = field(default_factory=dict)

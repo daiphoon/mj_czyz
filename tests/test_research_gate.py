@@ -238,3 +238,55 @@ def test_invalid_decision_reason_is_rejected():
         assert result["gate"]["valid"] is False
         assert any("decision_reason" in item for item in result["gate"]["errors"])
         assert result["novelty_feedback"]["status"] == "not_recorded_invalid_gate"
+
+
+@pytest.mark.parametrize("decision", ["stop", "proceed", "reframe"])
+@pytest.mark.parametrize("malformed", [False, True])
+def test_blocked_stop_feedback_is_recorded_without_unlocking_research(decision, malformed):
+    from sqmy.models import EventItem
+    from sqmy.novelty import NoveltyAuditor
+
+    with tempfile.TemporaryDirectory() as temp:
+        settings = make_settings(temp)
+        workflow, run_id = prepare_run(settings)
+        event = EventItem(
+            id="feedback-event", source_id="test", source_name="test", source_level=1,
+            title="测试具体问题", url="https://example.test/feedback",
+            published_at=datetime.now(timezone.utc).isoformat(), summary="测试材料", region="北京",
+        )
+        event.model_analysis = {"gap_type": "unclear", "counter_queries": []}
+        (settings.root / "config").mkdir(exist_ok=True)
+        (settings.root / "config/sources.toml").write_text("sources = []\n", encoding="utf-8")
+        NoveltyAuditor(settings).audit(run_id, [event], live_search=False)
+        with workflow.db.connect() as conn:
+            conn.execute("UPDATE candidates SET data_json=? WHERE id=?", (
+                json.dumps({"score_reasons": {"事件ID": event.id}}), f"{run_id}:C1",
+            ))
+        payload = valid_brief(run_id)
+        payload["decision"] = decision
+        payload["decision_reason"] = "insufficient_evidence"
+        payload["critical_unknowns"][0]["blocking"] = True
+        if malformed:
+            del payload["working_title"]
+        brief = settings.root / "brief.json"
+        brief.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+        first = check_pre_research(settings, run_id, "C1", brief)
+        second = check_pre_research(settings, run_id, "C1", brief)
+        assert first["gate"]["record_valid"] is (not malformed)
+        assert first["gate"]["valid"] is False
+        assert first["gate"]["research_allowed"] is False
+        eligible = decision == "stop" and not malformed
+        assert second["novelty_feedback"]["status"] == (
+            "recorded" if eligible else "not_recorded_invalid_gate"
+        )
+        if eligible:
+            assert second["novelty_feedback"]["outcome"] == "stopped_other"
+        with workflow.db.connect() as conn:
+            assert conn.execute("SELECT COUNT(*) FROM research_reviews").fetchone()[0] == 1
+            assert conn.execute("SELECT SUM(token_used) FROM stage_usage").fetchone()[0] == 30_000
+            review = conn.execute("SELECT research_allowed,human_decision FROM research_reviews").fetchone()
+            assert not review["research_allowed"] and not review["human_decision"]
+            outcome = conn.execute("SELECT review_outcome FROM novelty_audits").fetchone()[0]
+            assert (outcome == "stopped_other") is eligible
+        with pytest.raises(ValueError, match="不能人工放行"):
+            review_pre_research(settings, run_id, "C1", decision="proceed", note="不得绕过阻断")

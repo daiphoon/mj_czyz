@@ -28,6 +28,35 @@ class FakeClient:
 
 
 class ProviderRouterTest(unittest.TestCase):
+    def test_configured_timeout_preserves_usage_without_prompt_trace(self):
+        import traceback
+        from sqmy.config import Settings
+        cfg = dict(Settings.load().section('model'), provider='codex_cli', codex_timeout_seconds=420)
+        router = build_router(Path('.'), cfg)
+        def runner(command, **kwargs):
+            self.assertEqual(kwargs['timeout'], 420)
+            raise subprocess.TimeoutExpired(command, 420, output=b'{"usage":{"input_tokens":120,"output_tokens":30}}')
+        router.primary.runner = runner
+        private_prompt = 'PRIVATE_PROMPT_SENTINEL'
+        try:
+            router.analyze(private_prompt, {})
+        except ProviderError as exc:
+            self.assertEqual(exc.usage, (120, 30))
+            self.assertNotIn('PRIVATE_PROMPT_SENTINEL', traceback.format_exc())
+        else:
+            self.fail('timeout must fail, not produce a partial candidate')
+
+    def test_codex_bad_json_preserves_usage_without_leaking_output(self):
+        def runner(command, **kwargs):
+            output = Path(command[command.index("--output-last-message") + 1])
+            output.write_text("not JSON", encoding="utf-8")
+            return subprocess.CompletedProcess(command, 0, stdout='{"usage":{"input_tokens":120,"output_tokens":30}}', stderr="")
+
+        with self.assertRaises(ProviderError) as caught:
+            CodexCliClient(Path("."), runner=runner).analyze("p", {})
+        self.assertEqual(caught.exception.usage, (120, 30))
+        self.assertNotIn("not JSON", str(caught.exception))
+
     def test_extracts_codex_jsonl_usage(self):
         stream = '{"type":"turn.completed","usage":{"input_tokens":120,"output_tokens":30}}\n'
         self.assertEqual(extract_codex_usage(stream), (120, 30))

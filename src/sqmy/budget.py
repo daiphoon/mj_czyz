@@ -55,6 +55,10 @@ def recent_usage(db: Database, days: int = 7, *, task_id: str | None = None) -> 
                FROM model_calls WHERE created_at>=?{task_filter}""",
             params,
         ).fetchone()
+        estimated_row = conn.execute(
+            f"""SELECT COALESCE(SUM(input_tokens+output_tokens),0) FROM model_calls
+                WHERE created_at>=? AND accounting_method!='provider_reported'{task_filter}""", params,
+        ).fetchone()
         stage_filter = " AND stage=?" if task_id is not None else ""
         stage_params = (cutoff, task_id) if task_id is not None else (cutoff,)
         stage_row = conn.execute(
@@ -66,20 +70,22 @@ def recent_usage(db: Database, days: int = 7, *, task_id: str | None = None) -> 
             f"SELECT COUNT(*) FROM model_calls WHERE created_at>=? AND over_budget=1{task_filter}",
             params,
         ).fetchone()[0]
-    measured_tokens = int(model_row[0])
+    unknown_tokens = int(estimated_row[0])
+    measured_tokens = int(model_row[0]) - unknown_tokens
     interactive_tokens = int(stage_row[0])
     return {
         "window_days": days,
         "task_id": task_id,
-        "token_used": measured_tokens + interactive_tokens,
+        "token_used": measured_tokens + unknown_tokens + interactive_tokens,
         "measured_model_tokens": measured_tokens,
+        "estimated_unconfirmed_model_tokens": unknown_tokens,
         "estimated_interactive_tokens": interactive_tokens,
         "estimated_cost_cny": float(model_row[1]),
         "model_calls": int(model_row[2]),
         "interactive_records": int(stage_row[1]),
         "over_budget_calls": int(overruns),
         "accounting_note": (
-            "程序模型调用按返回用量计；交互式Codex按阶段声明上限保守估算，"
+            "程序模型调用按返回用量计；无法确认用量的调用单列保守估算；交互式Codex按阶段声明上限保守估算，"
             "不是ChatGPT Plus官方Token统计。该时间窗只用于观察和复盘，"
             "不作为Token硬闸门。"
         ),

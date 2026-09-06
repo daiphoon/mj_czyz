@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import hashlib
-import json
 
+from .budget import BudgetExceeded
 from .config import Settings
-from .db import now
-from .providers import DeepSeekClient, ModelResult, ProviderRouter, QuotaExceeded, build_router
+from .model_calls import CallLedger
+from .models import Phase, TaskStatus
+from .providers import DeepSeekClient, ProviderError, ProviderRouter, QuotaExceeded, RateLimited, build_router
 from .workflow import Workflow
 
 
@@ -15,47 +16,58 @@ class SimulatedQuotaClient:
 
 
 def provider_check(settings: Settings, *, simulate_codex_quota: bool = False) -> dict:
-    config = settings.section("model")
+    config = dict(settings.section("model"))
+    config["screening_max_output_tokens"] = config["diagnostic_max_output_tokens"]
     schema = {
         "type": "object", "additionalProperties": False,
         "properties": {"ok": {"type": "boolean"}}, "required": ["ok"],
     }
     prompt = '请只输出JSON对象 {"ok": true}。'
-    if simulate_codex_quota:
-        fallback = DeepSeekClient(
-            config["deepseek_model"], 1024,
-            thinking=config["deepseek_thinking"],
-            reasoning_effort=config["deepseek_reasoning_effort"],
-        )
-        router = ProviderRouter(SimulatedQuotaClient(), fallback, config["fallback_on"])
-    else:
-        router = build_router(settings.root, config)
-        if router is None:
-            raise RuntimeError("provider=mock，无法执行真实提供商诊断")
-    result, fallback_reason = router.analyze(prompt, schema)
-    if result.data != {"ok": True}:
-        raise RuntimeError(f"诊断结果不符合预期：{result.data}")
-    run_id = Workflow(settings).init_run("diagnostic")
-    if result.provider == "deepseek":
-        input_price = config["deepseek_input_price_cny_per_million"]
-        output_price = config["deepseek_output_price_cny_per_million"]
-    else:
-        input_price = output_price = 0.0
-    cost = (result.input_tokens * input_price + result.output_tokens * output_price) / 1_000_000
     workflow = Workflow(settings)
-    with workflow.db.connect() as conn:
-        conn.execute(
-            "INSERT INTO model_calls(run_id,provider,model,prompt_hash,input_tokens,output_tokens,estimated_cost_cny,status,created_at) VALUES(?,?,?,?,?,?,?,?,?)",
-            (run_id, result.provider, result.model, hashlib.sha256(prompt.encode()).hexdigest(), result.input_tokens,
-             result.output_tokens, cost, "fallback:" + fallback_reason if fallback_reason else "diagnostic", now()),
-        )
-        conn.execute(
-            "UPDATE runs SET phase='selection',status='completed',token_used=?,estimated_cost_cny=?,checkpoint_json=?,updated_at=? WHERE id=?",
-            (result.input_tokens + result.output_tokens, cost,
-             json.dumps({"diagnostic": True, "provider": result.provider, "fallback_reason": fallback_reason}, ensure_ascii=False), now(), run_id),
-        )
-    return {
+    run_id = workflow.init_run("diagnostic")
+
+    def validate(data):
+        if data != {"ok": True}:
+            raise ProviderError("诊断结果不符合预期")
+
+    # 诊断使用自己的有界输出与Token预算，不借用候选初筛的行为额度。
+    diagnostic_settings = Settings(settings.root, dict(settings.raw, model=config))
+    ledger = CallLedger(workflow.db, diagnostic_settings, run_id, "diagnostic",
+                        hashlib.sha256(prompt.encode()).hexdigest(),
+                        validate=validate, task_kind="model_diagnostic")
+    try:
+        if simulate_codex_quota:
+            # 模拟错误不是外部调用，不计作真实尝试；真正的备用请求仍经过同一账本。
+            router = ProviderRouter(DeepSeekClient(
+                config["deepseek_model"], config["diagnostic_max_output_tokens"],
+                thinking=config["deepseek_thinking"],
+                reasoning_effort=config["deepseek_reasoning_effort"],
+            ), None, [])
+        else:
+            router = build_router(settings.root, config)
+            if router is None:
+                raise ProviderError("provider=mock，无法执行真实提供商诊断")
+        result, reason = router.analyze(prompt, schema, attempt=ledger.invoke)
+    except (Exception, KeyboardInterrupt) as exc:
+        status = (TaskStatus.PAUSED_BUDGET if isinstance(exc, BudgetExceeded)
+                  else TaskStatus.PAUSED_QUOTA if isinstance(exc, (QuotaExceeded, RateLimited))
+                  else TaskStatus.FAILED)
+        workflow.db.checkpoint(run_id, phase=Phase.DISCOVERY, status=status,
+                               data={"diagnostic": True, "next": "需人工重新授权诊断"},
+                               error=type(exc).__name__)
+        raise
+    fallback_reason = "quota_exceeded" if simulate_codex_quota else reason
+    report = {
         "run_id": run_id, "provider": result.provider, "model": result.model,
-        "fallback_reason": fallback_reason, "input_tokens": result.input_tokens,
-        "output_tokens": result.output_tokens, "estimated_cost_cny": cost,
+        "fallback_reason": fallback_reason,
     }
+    with workflow.db.connect() as conn:
+        call = conn.execute("SELECT * FROM model_calls WHERE id=?", (ledger.last_call_id,)).fetchone()
+    report.update({key: call[key] for key in (
+        "input_tokens", "output_tokens", "estimated_cost_cny", "accounting_method",
+    )})
+    if ledger.overrun:
+        report["budget_overrun"] = ledger.overrun
+    workflow.db.checkpoint(run_id, phase=Phase.SELECTION, status=TaskStatus.COMPLETED,
+                           data=dict(report, diagnostic=True, next="none"))
+    return report

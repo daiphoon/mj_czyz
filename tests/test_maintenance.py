@@ -12,6 +12,28 @@ from sqmy.maintenance import CleanupManager, preflight
 from sqmy.workflow import Workflow
 
 
+def test_cleanup_preserves_unknown_directories_and_symlinks(tmp_path):
+    base = Settings.load(Path(__file__).parents[1] / "config/settings.toml")
+    settings = Settings(tmp_path, deepcopy(base.raw))
+    workflow = Workflow(settings)
+    mock = workflow.init_run("mock")
+    for parent in ("data/runs", "outputs/review"):
+        manual = tmp_path / parent / "manual-research"
+        manual.mkdir(parents=True)
+        (manual / "notes.md").write_text("人工研究", encoding="utf-8")
+    # Even a disposable run name must not authorize traversing a symlink.
+    link = tmp_path / "outputs/review" / mock
+    link.symlink_to(tmp_path / "outputs/review/manual-research", target_is_directory=True)
+    manager = CleanupManager(settings)
+    plan = manager.plan()
+    assert not any("manual-research" in p for p in plan["delete_paths"])
+    assert str(link.relative_to(tmp_path)) not in plan["delete_paths"]
+    manager.apply()
+    assert (tmp_path / "outputs/review/manual-research/notes.md").exists()
+    assert (tmp_path / "data/runs/manual-research/notes.md").exists()
+    assert link.is_symlink()
+
+
 def test_cleanup_keeps_live_and_latest_replay_and_backs_up_database():
     project = Path(__file__).parents[1]
     base = Settings.load(project / "config/settings.toml")

@@ -4,6 +4,7 @@ from collections import Counter
 from dataclasses import asdict
 from datetime import datetime, timedelta, timezone
 import hashlib
+import fcntl
 import json
 import os
 from pathlib import Path
@@ -11,18 +12,22 @@ from difflib import SequenceMatcher
 import re
 
 from .collector import SourceCollector
-from .budget import BudgetExceeded, BudgetGuard, estimate_model_call_tokens
+from .budget import BudgetExceeded
+from .model_calls import CallLedger
+from .history_match import mechanism_hints
 from .config import Settings
 from .db import now
-from .discovery_shadow import ShadowVerifier, write_discovery_evaluation
+from .discovery_shadow import ShadowReview, ShadowVerifier, write_discovery_evaluation
 from .models import Phase, TaskStatus
 from .models import EventItem
-from .novelty import NoveltyAuditor, write_rolling_evaluation
+from .novelty import NoveltyAudit, NoveltyAuditor, write_rolling_evaluation
 from .providers import ProviderError, QuotaExceeded, RateLimited, build_router
+from .retrieval import collect_discovery
 from .screener import (
     MODEL_SCORE_KEYS,
     local_date,
     normalize_title,
+    problem_priority,
     rule_screen_with_decisions,
     score as event_score,
     to_candidate,
@@ -65,6 +70,28 @@ class LiveDiscovery:
         self._budget_overrun: dict | None = None
 
     def run(
+        self, *args, **kwargs,
+    ) -> tuple[str, list]:
+        # 本地单用户扫描串行执行，避免两个进程同时消费同一队列。
+        lock_path = self.s.root / "data/runs/.discovery.lock"
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        with lock_path.open("a") as lock:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError as exc:
+                raise ValueError("已有扫描正在执行，请待其结束后恢复") from exc
+            self._active_run_id = None
+            try:
+                return self._run(*args, **kwargs)
+            except (Exception, KeyboardInterrupt) as exc:
+                if self._active_run_id:
+                    status = (TaskStatus.PAUSED_BUDGET if isinstance(exc, BudgetExceeded)
+                              else TaskStatus.PAUSED_QUOTA if isinstance(exc, (QuotaExceeded, RateLimited))
+                              else TaskStatus.FAILED)
+                    self._checkpoint_interruption(self._active_run_id, status, type(exc).__name__)
+                raise
+
+    def _run(
         self,
         fixture: Path | None = None,
         *,
@@ -92,6 +119,7 @@ class LiveDiscovery:
                 TaskStatus.PAUSED_BUDGET,
                 TaskStatus.PAUSED_QUOTA,
                 TaskStatus.FAILED,
+                TaskStatus.RUNNING,
             }:
                 raise ValueError("该运行当前状态不允许恢复发现阶段")
             checkpoint = json.loads(row["checkpoint_json"] or "{}")
@@ -104,6 +132,22 @@ class LiveDiscovery:
                 clue_file = Path(checkpoint["clue_file"])
         else:
             run_id = self.wf.init_run(mode, forced=force)
+        self._active_run_id = run_id
+        if resume_run_id:
+            # 独占锁已证明旧扫描进程不在运行。在途用量无法确认，保留占额而不归零。
+            with self.wf.db.connect() as conn:
+                conn.execute("UPDATE model_calls SET status='failed:interrupted_unknown' WHERE run_id=? AND status='running'", (run_id,))
+            CallLedger(self.wf.db, self.s, run_id, "screening", "").export_audit()
+            snapshot = self.s.root / "data/runs" / run_id / "scan_input.json"
+            if snapshot.exists():
+                state = json.loads(snapshot.read_text(encoding="utf-8"))
+                for key in ("collected", "premodel_pool", "fresh_pool", "model_pool", "rule_results"):
+                    state[key] = [EventItem(**item) for item in state[key]]
+                for key in ("rule_exclusions", "history_exclusions", "pool_cap_exclusions"):
+                    for item in state[key]:
+                        item["event"] = EventItem(**item["event"])
+                state["shadow_reviews"] = [ShadowReview(**item) for item in state["shadow_reviews"]]
+                return self._finish_scan(run_id, **state)
         self.wf.db.checkpoint(
             run_id,
             phase=Phase.DISCOVERY,
@@ -117,7 +161,7 @@ class LiveDiscovery:
             },
         )
         collector = SourceCollector(self.s.root, self.s.raw)
-        collected = collector.collect(run_id, fixture=fixture, clue_file=clue_file)
+        collected = collect_discovery(collector, self.s, self.wf.db, run_id, fixture=fixture, clue_file=clue_file)
         if fixture:
             max_tier = max((item.expansion_tier for item in collected), default=1)
         else:
@@ -177,6 +221,7 @@ class LiveDiscovery:
                 external_reserve=int(cfg.get("premodel_external_reserve", 0)),
                 fresh_reserve=int(cfg.get("premodel_fresh_reserve", 0)),
                 aged_reserve=int(cfg.get("premodel_aged_reserve", 0)),
+                current_clue_ids={e.id for e in collected if e.source_id.startswith('clue_')},
             )
             fresh_pool = premodel_pool
             pending_before_count = len(pending_records)
@@ -242,6 +287,34 @@ class LiveDiscovery:
                 "next": "model_screening" if model_pool else "finalize_discovery",
             },
         )
+        state = dict(
+            mode=mode, force=force, fixture=str(fixture) if fixture else None,
+            clue_file=str(clue_file) if clue_file else None,
+            start_tier=start_tier, max_tier=max_tier, expansion_tier=expansion_tier,
+            screen_now=screen_now, collected=collected, premodel_pool=premodel_pool,
+            fresh_pool=fresh_pool, model_pool=model_pool, rule_results=rule_results,
+            rule_exclusions=rule_exclusions, history_exclusions=history_exclusions,
+            pool_cap_exclusions=pool_cap_exclusions, collection_stats=collector.collection_stats,
+            shadow_reviews=shadow_reviews, shadow_report=shadow_report,
+            deferred_count=deferred_count, repeated_excluded=repeated_excluded,
+            current_new_count=current_new_count, reopened_count=reopened_count,
+            pending_before_count=pending_before_count, batch_reason=batch_reason,
+            tier_stats=tier_stats, pool_quality=pool_quality,
+        )
+        # 只固化已筛过的轻量元数据，不保存网页正文。先固化输入，再允许模型调用。
+        snapshot = self.s.root / "data/runs" / run_id / "scan_input.json"
+        self._atomic_json(snapshot, json.loads(json.dumps(state, ensure_ascii=False, default=asdict)))
+        return self._finish_scan(run_id, **state)
+
+    def _finish_scan(
+        self, run_id, *, mode, force, fixture, clue_file, start_tier, max_tier,
+        expansion_tier, screen_now, collected, premodel_pool, fresh_pool, model_pool,
+        rule_results, rule_exclusions, history_exclusions, pool_cap_exclusions,
+        collection_stats, shadow_reviews, shadow_report, deferred_count,
+        repeated_excluded, current_new_count, reopened_count, pending_before_count,
+        batch_reason, tier_stats, pool_quality,
+    ):
+        shadow_verifier = ShadowVerifier(self.s) if shadow_report else None
         try:
             screened, cache_hit, tokens_saved = self._model_rank(
                 run_id, model_pool, use_cache=not force
@@ -250,14 +323,26 @@ class LiveDiscovery:
             # _model_rank has already written a resumable discovery checkpoint.
             # Do not continue into ranking or overwrite that paused state.
             return run_id, []
-        if mode == "live" and model_pool:
-            self._mark_queue_screened(run_id, model_pool)
-            deferred_count = self._pending_queue_count()
-        auditor = NoveltyAuditor(self.s)
-        audits = auditor.audit(run_id, screened, live_search=fixture is None)
+        audit_input = hashlib.sha256(json.dumps([
+            dict(event=asdict(item), analysis=getattr(item, "model_analysis", {}))
+            for item in screened
+        ], sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+        audit_checkpoint = self.s.root / "data/runs" / run_id / "scan_audits.json"
+        saved_audits = json.loads(audit_checkpoint.read_text(encoding="utf-8")) if audit_checkpoint.exists() else {}
+        if saved_audits.get("input_hash") == audit_input:
+            audits = [NoveltyAudit(**item) for item in saved_audits["audits"]]
+        else:
+            auditor = NoveltyAuditor(self.s)
+            audits = auditor.audit(run_id, screened, live_search=fixture is None)
+            self._atomic_json(audit_checkpoint, {"input_hash": audit_input, "audits": [asdict(item) for item in audits]})
         candidates = self._rank_candidates(screened, audits)
         self._apply_history(candidates)
         self._persist_candidates(run_id, candidates)
+        if mode == "live" and model_pool:
+            self._mark_queue_screened(run_id, model_pool)
+            deferred_count = self._pending_queue_count()
+        from .materials import compact_reposts
+        model_pool, _ = compact_reposts(model_pool)
         model_selected_ids = {item.id for item in screened}
         model_exclusions = [
             {"event": item, "reason_code": "model_not_selected"}
@@ -268,7 +353,7 @@ class LiveDiscovery:
             shadow_verifier.update_outcomes(run_id, screened, candidates, audits)
         observability_path = self._persist_discovery_observability(
             run_id,
-            collection_stats=collector.collection_stats,
+            collection_stats=collection_stats,
             start_tier=start_tier,
             expansion_tier=expansion_tier,
             rule_results=rule_results,
@@ -413,6 +498,7 @@ class LiveDiscovery:
             region_evidence=row["region_evidence"] if "region_evidence" in row.keys() else "",
             expansion_tier=row["expansion_tier"] if "expansion_tier" in row.keys() else 1,
             topics=json.loads(row["topics_json"]), rule_score=row["rule_score"], collected_at=row["collected_at"],
+            material=json.loads(row["material_json"]),
         ) for row in rows]
         for event in events:
             event.rule_score = event_score(event)
@@ -442,7 +528,9 @@ class LiveDiscovery:
     def _apply_history(self, candidates: list) -> None:
         with self.wf.db.connect() as conn:
             rows = conn.execute(
-                """SELECT title, id AS ref, NULL AS data_json FROM topics
+                """SELECT t.title, t.id AS ref, NULL AS data_json FROM topics t
+                   LEFT JOIN run_context tc ON tc.run_id=t.run_id
+                   WHERE tc.mode='live' OR t.run_id IS NULL
                    UNION ALL
                    SELECT c.title, c.run_id AS ref, c.data_json
                    FROM candidates c JOIN run_context rc ON rc.run_id=c.run_id
@@ -450,7 +538,14 @@ class LiveDiscovery:
                    ORDER BY title"""
             ).fetchall()
         history = [(row[0], row[1], json.loads(row[2]) if row[2] else None) for row in rows]
+        mechanisms = self._approved_history()
         for candidate in candidates:
+            hints = mechanism_hints(candidate.title + candidate.summary + candidate.institutional_conflict
+                                    + candidate.policy_entry, mechanisms, self.s.section('history_review'))
+            if hints:
+                candidate.score_reasons['机制历史复核'] = hints
+                candidate.history_relation = '机制重叠待人工复核：' + '；'.join(x['title'] for x in hints) + '（不自动排除，须比较新事实和新切口）'
+                continue
             if not history:
                 candidate.history_relation = "历史库暂无可比较记录"
                 continue
@@ -467,6 +562,13 @@ class LiveDiscovery:
                 key=lambda pair: pair[2],
             )
             candidate.history_relation = f"最高标题相似度 {best_score:.2f}：{best_title}（{best_ref}）" if best_score >= 0.45 else f"最高标题相似度 {best_score:.2f}，未发现明显重复"
+
+    def _approved_history(self):
+        with self.wf.db.connect() as conn:
+            return conn.execute("""SELECT t.* FROM topics t
+                LEFT JOIN run_context rc ON rc.run_id=t.run_id
+                WHERE t.approval_status='approved' AND (rc.mode='live' OR t.run_id IS NULL)
+                ORDER BY t.created_at DESC""").fetchall()
 
     def _exclude_unchanged(self, events: list, run_id: str, mode: str) -> tuple[list, int]:
         fresh, excluded = self._partition_unchanged(events, run_id, mode)
@@ -659,6 +761,7 @@ class LiveDiscovery:
         return False, "deferred_small_batch"
 
     def _model_rank(self, run_id: str, events: list, *, use_cache: bool = True) -> tuple[list, bool, int]:
+        from .materials import compact_reposts
         model_cfg = self.s.section("model")
         limit = self.s.section("discovery")["screened_max"]
         pool = events[:limit]
@@ -666,6 +769,15 @@ class LiveDiscovery:
             return [], False, 0
         if model_cfg["provider"] == "mock":
             return events, False, 0
+        pool, merged = compact_reposts(pool)
+        pool = sorted(pool, key=lambda x: (problem_priority(x, self.s.section('discovery')), x.rule_score), reverse=True)
+        material_path = self.s.root / 'data/runs' / run_id / 'screening_materials.json'
+        material_path.parent.mkdir(parents=True, exist_ok=True)
+        self._atomic_json(material_path, {
+            'frozen_event_ids': [x.id for x in events[:limit]],
+            'model_event_ids': [x.id for x in pool], 'merged_reposts': merged,
+            'note': '仅整理冻结输入；不补题、不改原事件；合并不代表独立核验或政策覆盖判断',
+        })
         compact = [
             {
                 "id": x.id,
@@ -679,12 +791,24 @@ class LiveDiscovery:
                 "expansion_tier": x.expansion_tier,
                 "summary": x.summary[:350],
                 "rule_score": x.rule_score,
+                "same_origin_ids": merged.get(x.id, []),
+                "material": {key: value for key, value in x.material.items() if value and key in {
+                    "role_hint", "date_status", "event_at", "updated_at", "promotion_suspected",
+                    "original_source_hint", "repost_group_hint",
+                }},
             }
             for x in pool
         ]
+        history = self._approved_history()
+        for item in compact:
+            item['history_review_hints'] = mechanism_hints(item['title'] + item['summary'], history, self.s.section('history_review'))
         prompt = (
             "你是社情民意选题初筛员。仅依据以下标题、摘要和元数据进行低成本判断，不得补造事实。"
             "source_name用于判断来源属性；source_region_hint只是检索频道提示，"
+            "material为零模型用途提示，不是已核验结论或强制排除指令。event_at、published_at、updated_at不可混为发生时间；"
+            "缺日期保留为待核线索，不编造日期。policy_reference用于现行规则反证，不单凭旧政策当新事件；"
+            "promotion_suspected须结合内容核查；repost_group_hint相同不算独立证据，不同也不证明独立。"
+            "国际信息只有明确涉及中国群体、企业或可比较的中国制度问题才保留，不凭中文检索词虚构中国关联。"
             "region_evidence为source_channel_only时不得将其写成事件发生地，但可保留为需要核验的地方线索。"
             "海淀和北京题优先，但不是准入条件。全国范围涉及国计民生、明确受影响群体、"
             "可验证制度缺口且存在有权执行主体、地方试点可能或向上反映路径的议题可直接保留。"
@@ -693,7 +817,11 @@ class LiveDiscovery:
             "source_level=3只是投诉、论坛或社交平台线索：只有具体、可重复的痛点且能指向高等级核验路径时才保留，"
             "不得把单方陈述当作已证实事实。宁可少于5题，不得凑数。"
             "每个入选题均须根据现有元数据给出克制的初步分析；证据不足必须直说。"
-            "请返回最多的有价值备选，供制度新意审查后再取最终5个。"
+            "history_review_hints来自已审核稿的群体和机制重叠匹配，不是自动排除指令；"
+            "须比较是否有新事实、新群体或不同建议机制，只有重复而无新增价值才不入选，保留时在recommendation说明差异。"
+            "只返回有价值备选，供制度新意审查后再取最终5个；不必填满selections。"
+            f"每题全部解释字段合计控制在{model_cfg['screening_item_chars']}字以内，每字段一句，避免重复背景和逐项长论证。"
+            "只输出Schema要求的JSON，不输出工作过程。same_origin_ids只表示已合并的转述，不新增独立证据。"
             "每题必须把拟议制度缺口写成一句可被反证的gap_hypothesis，"
             "gap_type只能是policy_absence、implementation_gap、coordination_gap、effectiveness_gap、accountability_gap或unclear；"
             "counter_queries提供两条优先查政府、法院或监管部门的精确反证检索词。"
@@ -748,133 +876,65 @@ class LiveDiscovery:
         prompt_hash = hashlib.sha256(prompt.encode()).hexdigest()
         with self.wf.db.connect() as conn:
             cached_rows = conn.execute(
-                """SELECT result_json,token_used FROM tasks
+                """SELECT result_json,token_used,run_id FROM tasks
                    WHERE kind='model_screening' AND input_hash=? AND status=?
+                   AND (run_id=? OR run_id IN (
+                     SELECT run_id FROM run_context WHERE mode=(SELECT mode FROM run_context WHERE run_id=?)
+                   ))
                    ORDER BY updated_at DESC""",
-                (prompt_hash, TaskStatus.COMPLETED),
+                (prompt_hash, TaskStatus.COMPLETED, run_id, run_id),
             ).fetchall()
-        if use_cache:
+        if cached_rows:
             for cached in cached_rows:
+                if not use_cache and cached["run_id"] != run_id:
+                    continue
                 if not cached["result_json"]:
                     continue
-                data = json.loads(cached["result_json"])
                 try:
+                    data = json.loads(cached["result_json"])
                     screened = self._attach_analyses(pool, data)
-                except ProviderError:
+                except (ProviderError, json.JSONDecodeError):
                     continue
                 self._write_screening_audit(run_id, data)
+                self._restore_budget_overrun(run_id)
                 return screened, True, int(cached["token_used"])
         router = build_router(
-            self.s.root,
-            model_cfg,
+            self.s.root, model_cfg,
             codex_model=model_cfg.get("screening_model", model_cfg.get("codex_model", "")),
         )
         if router is None:
             return events, False, 0
-        budget_cfg = self.s.section("budget")
-        estimated = estimate_model_call_tokens(prompt, model_cfg, budget_cfg)
-        with self.wf.db.connect() as conn:
-            action_usage = conn.execute(
-                """SELECT COALESCE(SUM(input_tokens+output_tokens),0),COUNT(*)
-                   FROM model_calls WHERE run_id=? AND task_id='screening'""",
-                (run_id,),
-            ).fetchone()
-        action_tokens_used = int(action_usage[0])
-        action_calls_used = int(action_usage[1])
-        guard = BudgetGuard(
-            action_limit=budget_cfg["screening_tokens"],
-            used=action_tokens_used,
-            max_calls=model_cfg["max_calls_per_action"],
-            calls_used=action_calls_used,
+        ledger = CallLedger(
+            self.wf.db, self.s, run_id, "screening", prompt_hash,
+            validate=lambda data: self._attach_analyses(pool, data),
+            task_kind="model_screening",
         )
         try:
-            guard.reserve(estimated)
+            result, fallback_reason = router.analyze(prompt, schema, attempt=ledger.invoke)
         except BudgetExceeded as exc:
             self._checkpoint_interruption(run_id, TaskStatus.PAUSED_BUDGET, str(exc))
             raise
-        try:
-            result, fallback_reason = router.analyze(prompt, schema)
         except (QuotaExceeded, RateLimited) as exc:
             self._checkpoint_interruption(run_id, TaskStatus.PAUSED_QUOTA, str(exc))
             raise
         except ProviderError as exc:
             self._checkpoint_interruption(run_id, TaskStatus.FAILED, str(exc))
             raise
-        if result.provider == "deepseek":
-            input_price = model_cfg["deepseek_input_price_cny_per_million"]
-            output_price = model_cfg["deepseek_output_price_cny_per_million"]
-        else:
-            input_price = output_price = 0.0
-        cost = (result.input_tokens * input_price + result.output_tokens * output_price) / 1_000_000
-        actual_tokens = result.input_tokens + result.output_tokens
-        overrun_reasons = guard.actual_overrun_reasons(actual_tokens)
-        call_status = "fallback:" + fallback_reason if fallback_reason else "completed"
-        validation_error = None
-        try:
-            screened = self._attach_analyses(pool, result.data)
-        except ProviderError as exc:
-            validation_error = str(exc)
-            call_status = "failed_invalid_result" + (f":fallback:{fallback_reason}" if fallback_reason else "")
-        if overrun_reasons:
-            call_status += ":over_budget"
-            self._budget_overrun = {
-                "stage": "screening",
-                "estimated_tokens": estimated,
-                "actual_tokens": actual_tokens,
-                "action_limit": budget_cfg["screening_tokens"],
-                "action_tokens_used_before_call": action_tokens_used,
-                "action_calls_used_before_call": action_calls_used,
-                "action_call_limit": model_cfg["max_calls_per_action"],
-                "reasons": overrun_reasons,
-                "policy": (
-                    "已完成当前有界筛选并保存结果；不自动扩题或进入新阶段，"
-                    "重新执行或扩大该行为前需复盘并调整对应额度"
-                ),
-            }
-        with self.wf.db.connect() as conn:
-            conn.execute(
-                """INSERT INTO model_calls(
-                     run_id,task_id,provider,model,prompt_hash,input_tokens,output_tokens,
-                     estimated_cost_cny,status,estimated_tokens,stage_limit,over_budget,created_at
-                   ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                (
-                    run_id,
-                    "screening",
-                    result.provider,
-                    result.model,
-                    prompt_hash,
-                    result.input_tokens,
-                    result.output_tokens,
-                    cost,
-                    call_status,
-                    estimated,
-                    budget_cfg["screening_tokens"],
-                    int(bool(overrun_reasons)),
-                    now(),
-                ),
-            )
-            conn.execute("UPDATE runs SET token_used=token_used+?, estimated_cost_cny=estimated_cost_cny+?, updated_at=? WHERE id=?",
-                         (actual_tokens, cost, now(), run_id))
-            conn.execute(
-                """INSERT INTO tasks(id,run_id,kind,input_hash,status,result_json,token_used,attempts,error,updated_at)
-                   VALUES(?,?,?,?,?,?,?,?,?,?)
-                   ON CONFLICT(id) DO UPDATE SET
-                     status=excluded.status,
-                     result_json=excluded.result_json,
-                     token_used=tasks.token_used+excluded.token_used,
-                     attempts=tasks.attempts+1,
-                     error=excluded.error,
-                     updated_at=excluded.updated_at""",
-                (f"{run_id}:screening:{prompt_hash[:12]}", run_id, "model_screening", prompt_hash,
-                 TaskStatus.FAILED if validation_error else TaskStatus.COMPLETED,
-                 json.dumps(result.data, ensure_ascii=False),
-                 actual_tokens, 1, validation_error, now()),
-            )
+        self._budget_overrun = ledger.overrun
+        screened = self._attach_analyses(pool, result.data)
         self._write_screening_audit(run_id, result.data)
-        if validation_error:
-            self._checkpoint_interruption(run_id, TaskStatus.FAILED, validation_error)
-            raise ProviderError(validation_error)
         return screened, False, 0
+
+    def _restore_budget_overrun(self, run_id: str) -> None:
+        with self.wf.db.connect() as conn:
+            call = conn.execute("SELECT * FROM model_calls WHERE run_id=? AND task_id='screening' AND over_budget=1 ORDER BY id DESC LIMIT 1", (run_id,)).fetchone()
+        if call:
+            self._budget_overrun = {
+                "stage": "screening", "estimated_tokens": call["estimated_tokens"],
+                "actual_tokens": call["input_tokens"] + call["output_tokens"],
+                "action_limit": call["stage_limit"], "call_id": call["id"],
+                "reasons": ["本运行先前调用已记录Token或费用超额；恢复只复用已完成结果，不代表已提高额度"],
+            }
 
     def _checkpoint_interruption(self, run_id: str, status: TaskStatus, error: str) -> None:
         with self.wf.db.connect() as conn:
@@ -1142,6 +1202,8 @@ class LiveDiscovery:
 
     @staticmethod
     def _attach_analyses(pool: list, data: dict) -> list:
+        if not isinstance(data, dict):
+            raise ProviderError("模型返回的候选结构无效")
         selections = data.get("selections")
         if not isinstance(selections, list):
             raise ProviderError("模型返回的候选结构无效")
@@ -1150,6 +1212,8 @@ class LiveDiscovery:
         by_id = {x.id: x for x in pool}
         ranked = []
         for analysis in selections:
+            if not isinstance(analysis, dict) or not isinstance(analysis.get("id"), str):
+                raise ProviderError("模型未返回有效候选ID")
             item = by_id.get(analysis["id"])
             if item is None:
                 continue
@@ -1265,10 +1329,15 @@ class LiveDiscovery:
         external_reserve: int,
         fresh_reserve: int,
         aged_reserve: int,
+        current_clue_ids: set[str] | None = None,
     ) -> list[EventItem]:
         """在高分优先的基础上，给外部线索、新鲜事件和久候事件分别留位。"""
         if limit <= 0:
             return []
+        from .materials import compact_reposts
+        unique, _ = compact_reposts([event for event, _ in records])
+        unique_ids = {event.id for event in unique}
+        records = [record for record in records if record[0].id in unique_ids]
         current = datetime.now(timezone.utc)
         max_wait = timedelta(
             hours=int(self.s.section("discovery")["pending_batch_max_wait_hours"])
@@ -1283,9 +1352,12 @@ class LiveDiscovery:
         def is_external(record: tuple[EventItem, datetime]) -> bool:
             return record[0].expansion_tier >= 4
 
+        def is_current_clue(record):
+            return record[0].id in (current_clue_ids or set())
+
         ranked = sorted(
             records,
-            key=lambda item: (-item[0].rule_score, 0 if is_fresh(item) else 1, item[1]),
+            key=lambda item: (-problem_priority(item[0], self.s.section('discovery')), -item[0].rule_score, 0 if is_fresh(item) else 1, item[1]),
         )
         selected: list[tuple[EventItem, datetime]] = []
         selected_keys: set[str] = set()
@@ -1308,6 +1380,9 @@ class LiveDiscovery:
                 selected_keys.add(key)
                 counts[source_key] += 1
 
+        # 本次导入占用既有外部名额，不叠加扩大输入池；仍受来源上限和质量闸门约束。
+        take_until([item for item in ranked if is_current_clue(item)], is_current_clue,
+                   min(external_reserve, int(self.s.section('discovery').get('premodel_current_clue_reserve', 0))))
         take_until([item for item in ranked if is_external(item)], is_external, external_reserve)
         take_until([item for item in ranked if is_fresh(item)], is_fresh, fresh_reserve)
         take_until([item for item in ranked if is_aged(item)], is_aged, aged_reserve)
@@ -1323,7 +1398,7 @@ class LiveDiscovery:
                     if len(selected) >= limit:
                         break
         selected.sort(
-            key=lambda item: (-item[0].rule_score, 0 if is_fresh(item) else 1, item[1])
+            key=lambda item: (-problem_priority(item[0], self.s.section('discovery')), -item[0].rule_score, 0 if is_fresh(item) else 1, item[1])
         )
         return [event for event, _ in selected]
 
@@ -1407,11 +1482,12 @@ class LiveDiscovery:
                 content_hash = self._event_content_hash(event)
                 conn.execute("""INSERT OR IGNORE INTO event_items(
                     id,run_id,source_id,source_name,source_level,title,url,published_at,summary,
-                    region,topics_json,rule_score,content_hash,collected_at,source_region,region_evidence,expansion_tier
-                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", (
+                    region,topics_json,rule_score,content_hash,collected_at,source_region,region_evidence,expansion_tier,material_json
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", (
                     f"{run_id}:{event.id}", run_id, event.source_id, event.source_name, event.source_level, event.title,
                     event.url, event.published_at, event.summary, event.region, json.dumps(event.topics, ensure_ascii=False),
                     event.rule_score, content_hash, event.collected_at, event.source_region, event.region_evidence, event.expansion_tier,
+                    json.dumps(event.material, ensure_ascii=False),
                 ))
 
     def _persist_candidates(self, run_id: str, candidates: list) -> None:
@@ -1485,7 +1561,7 @@ class LiveDiscovery:
                 f"{'通过' if pool_quality.get('ok') else '暂缓'}；"
                 f"新鲜 {pool_quality.get('fresh_count', 0)} 条，久候 {pool_quality.get('aged_count', 0)} 条，"
                 f"外部补充 {pool_quality.get('external_count', 0)} 条，高分 {pool_quality.get('high_score_count', 0)} 条，"
-                f"独立来源 {pool_quality.get('source_count', 0)} 个；"
+                f"来源标识 {pool_quality.get('source_count', 0)} 个（不代表独立原始信息链）；"
                 f"原因：{','.join(pool_quality.get('reasons', [])) or 'none'}。",
                 "",
             ]

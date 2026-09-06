@@ -14,6 +14,7 @@ from .budget import recent_usage
 from .config import Settings
 from .db import Database
 from .evidence import assess_topic
+from .tavily import validate_config
 
 
 def _bounded_stage_context(
@@ -109,6 +110,13 @@ def preflight(
         except Exception as exc:
             parse_errors.append(f"{path.name}:{type(exc).__name__}")
     add("toml_parse", not parse_errors, "ok" if not parse_errors else ";".join(parse_errors))
+    if settings.raw.get("tavily", {}).get("enabled", False):
+        try:
+            validate_config(settings.raw["tavily"])
+            add("tavily_config", True, "单行为搜索/积分/等价费用限制有效；无模型调用")
+        except ValueError as exc:
+            add("tavily_config", False, str(exc))
+        add("tavily_key", bool(os.environ.get("TAVILY_API_KEY")), "已配置" if os.environ.get("TAVILY_API_KEY") else "未配置，跳过可选补充", blocking=False)
 
     discovery = settings.section("discovery")
     discovery_limits_ok = (
@@ -165,8 +173,13 @@ def preflight(
             and all(
                 isinstance(item.get("id"), str) and item["id"]
                 and isinstance(item.get("name"), str) and item["name"]
-                and item.get("type") == "rss_search"
-                and isinstance(item.get("query"), str) and item["query"]
+                and (
+                    (item.get("type") == "rss_search" and isinstance(item.get("query"), str) and item["query"])
+                    or (item.get("type") == "html_index"
+                        and str(item.get("url", "")).startswith("https://")
+                        and str(item.get("item_url_prefix", "")).startswith(item["url"])
+                        and isinstance(item.get("max_items"), int) and 0 < item["max_items"] <= 30)
+                )
                 and item.get("level") in {1, 2, 3}
                 and item.get("expansion_tier", 1) in {1, 2, 3, 4}
                 for item in sources
@@ -431,6 +444,10 @@ class CleanupManager:
         path_reasons: dict[Path, str] = {}
 
         def mark(path: Path, reason: str) -> None:
+            relative = path.relative_to(self.s.root)
+            if any((self.s.root / part).is_symlink() for part in (relative, *relative.parents)
+                   if part != Path(".")):
+                return
             paths.add(path)
             path_reasons[path] = reason
 
@@ -449,8 +466,8 @@ class CleanupManager:
                     continue
                 if path.name in {"pre_research", "deep_research", "metrics"}:
                     continue
-                if path.name not in keep:
-                    mark(path, "disposable_or_untracked_run_output")
+                if path.name in delete_runs:
+                    mark(path, "disposable_run_output")
 
         retention_days = int(
             self.s.section("cleanup")["docx_qa_intermediate_retention_days"]
@@ -524,6 +541,7 @@ class CleanupManager:
             placeholders = ",".join("?" for _ in delete_runs)
             with self.db.connect() as conn:
                 for table in (
+                    "delivery_events",
                     "research_reviews",
                     "novelty_audits",
                     "run_efficiency",

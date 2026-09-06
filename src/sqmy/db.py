@@ -62,8 +62,13 @@ CREATE TABLE IF NOT EXISTS sources (
   content_hash TEXT, source_role TEXT NOT NULL DEFAULT 'unclassified',
   checked_at TEXT, effective_at TEXT, UNIQUE(url, content_hash)
 );
+CREATE TABLE IF NOT EXISTS delivery_events (
+  topic_id TEXT PRIMARY KEY REFERENCES topics(id), run_id TEXT NOT NULL REFERENCES runs(id),
+  ready_at TEXT NOT NULL, output_path TEXT NOT NULL, output_sha256 TEXT NOT NULL,
+  evidence_sha256 TEXT NOT NULL, review_id TEXT NOT NULL REFERENCES tasks(id)
+);
 CREATE TABLE IF NOT EXISTS claims (
-  id TEXT PRIMARY KEY, topic_id TEXT NOT NULL, claim_text TEXT NOT NULL,
+  id TEXT PRIMARY KEY, local_id TEXT, topic_id TEXT NOT NULL, claim_text TEXT NOT NULL,
   claim_type TEXT NOT NULL, importance TEXT NOT NULL,
   novelty_required INTEGER NOT NULL DEFAULT 0,
   policy_coverage_status TEXT NOT NULL DEFAULT 'unchecked',
@@ -82,6 +87,11 @@ CREATE TABLE IF NOT EXISTS claim_sources (
 );
 CREATE INDEX IF NOT EXISTS idx_claims_topic ON claims(topic_id);
 CREATE INDEX IF NOT EXISTS idx_claim_sources_claim ON claim_sources(claim_id);
+CREATE TABLE IF NOT EXISTS source_usages (
+  topic_id TEXT NOT NULL, source_id INTEGER NOT NULL REFERENCES sources(id),
+  metadata_json TEXT NOT NULL, needs_review INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY(topic_id, source_id)
+);
 CREATE TABLE IF NOT EXISTS policy_mechanisms (
   id TEXT PRIMARY KEY, name TEXT NOT NULL, problem_type TEXT NOT NULL,
   jurisdiction TEXT NOT NULL, actor TEXT NOT NULL, summary TEXT NOT NULL,
@@ -106,6 +116,8 @@ CREATE TABLE IF NOT EXISTS model_calls (
   input_tokens INTEGER NOT NULL, output_tokens INTEGER NOT NULL,
   estimated_cost_cny REAL NOT NULL, status TEXT NOT NULL,
   estimated_tokens INTEGER, stage_limit INTEGER,
+  accounting_method TEXT NOT NULL DEFAULT 'provider_reported',
+  response_id TEXT, error_code TEXT,
   over_budget INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS stage_usage (
@@ -118,6 +130,17 @@ CREATE TABLE IF NOT EXISTS stage_usage (
   note TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
   UNIQUE(run_id,topic_id,stage,execution_mode)
 );
+CREATE TABLE IF NOT EXISTS retrieval_calls (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, run_id TEXT NOT NULL,
+  action TEXT NOT NULL, endpoint TEXT NOT NULL, request_hash TEXT NOT NULL,
+  status TEXT NOT NULL, reserved_credits REAL NOT NULL,
+  reported_credits REAL, accounted_credits REAL NOT NULL,
+  cost_equivalent_usd REAL NOT NULL, accounting_method TEXT NOT NULL,
+  result_json TEXT, error_code TEXT, cached_from INTEGER,
+  created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_retrieval_calls_action
+  ON retrieval_calls(run_id, action, request_hash);
 CREATE INDEX IF NOT EXISTS idx_stage_usage_updated
   ON stage_usage(updated_at DESC, stage);
 CREATE TABLE IF NOT EXISTS research_reviews (
@@ -258,6 +281,8 @@ class Database:
                 conn.execute("ALTER TABLE event_items ADD COLUMN region_evidence TEXT NOT NULL DEFAULT ''")
             if "expansion_tier" not in event_columns:
                 conn.execute("ALTER TABLE event_items ADD COLUMN expansion_tier INTEGER NOT NULL DEFAULT 1")
+            if "material_json" not in event_columns:
+                conn.execute("ALTER TABLE event_items ADD COLUMN material_json TEXT NOT NULL DEFAULT '{}'")
             topic_columns = {row[1] for row in conn.execute("PRAGMA table_info(topics)")}
             topic_migrations = {
                 "run_id": "TEXT",
@@ -281,6 +306,7 @@ class Database:
                     conn.execute(f"ALTER TABLE sources ADD COLUMN {column} {declaration}")
             claim_columns = {row[1] for row in conn.execute("PRAGMA table_info(claims)")}
             claim_migrations = {
+                "local_id": "TEXT",
                 "epistemic_status": "TEXT NOT NULL DEFAULT 'unclassified'",
                 "confidence": "TEXT NOT NULL DEFAULT 'unrated'",
                 "uncertainty_reason": "TEXT",
@@ -293,8 +319,16 @@ class Database:
             for column, declaration in claim_migrations.items():
                 if column not in claim_columns:
                     conn.execute(f"ALTER TABLE claims ADD COLUMN {column} {declaration}")
+            conn.execute("UPDATE claims SET local_id=id WHERE local_id IS NULL")
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_claims_local_id ON claims(topic_id,local_id)"
+            )
+            self._backfill_source_usages(conn)
             model_call_columns = {row[1] for row in conn.execute("PRAGMA table_info(model_calls)")}
             model_call_migrations = {
+                "accounting_method": "TEXT NOT NULL DEFAULT 'provider_reported'",
+                "response_id": "TEXT",
+                "error_code": "TEXT",
                 "estimated_tokens": "INTEGER",
                 "stage_limit": "INTEGER",
                 "over_budget": "INTEGER NOT NULL DEFAULT 0",
@@ -348,6 +382,35 @@ class Database:
                      END,
                      0,r.created_at
                    FROM runs r"""
+            )
+
+    @staticmethod
+    def _backfill_source_usages(conn: sqlite3.Connection) -> None:
+        # Additive migration: retain legacy sources, claim IDs and all links unchanged.
+        associations = conn.execute(
+            """SELECT c.topic_id,cs.source_id FROM claims c
+               JOIN claim_sources cs ON cs.claim_id=c.id
+               UNION SELECT topic_id,id FROM sources WHERE topic_id IS NOT NULL"""
+        ).fetchall()
+        owners: dict[int, set[str]] = {}
+        for row in associations:
+            owners.setdefault(row["source_id"], set()).add(row["topic_id"])
+        missing = conn.execute(
+            """SELECT a.topic_id AS usage_topic,s.* FROM (
+                 SELECT c.topic_id,cs.source_id FROM claims c
+                 JOIN claim_sources cs ON cs.claim_id=c.id
+                 UNION SELECT topic_id,id FROM sources WHERE topic_id IS NOT NULL
+               ) a JOIN sources s ON s.id=a.source_id
+               LEFT JOIN source_usages u ON u.topic_id=a.topic_id AND u.source_id=a.source_id
+               WHERE u.source_id IS NULL"""
+        ).fetchall()
+        for row in missing:
+            metadata = dict(row)
+            topic_id = metadata.pop("usage_topic")
+            conn.execute(
+                "INSERT INTO source_usages(topic_id,source_id,metadata_json,needs_review) VALUES(?,?,?,?)",
+                (topic_id, row["id"], json.dumps(metadata, ensure_ascii=False),
+                 int(len(owners[row["id"]]) > 1)),
             )
 
     def checkpoint(self, run_id: str, *, phase: str, status: str, data: dict, error: str | None = None) -> None:

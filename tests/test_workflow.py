@@ -7,6 +7,7 @@ import json
 import shutil
 import tempfile
 import unittest
+from delivery_helpers import valid_text, record_valid_review
 
 from docx import Document
 from docx.oxml.ns import qn
@@ -383,6 +384,10 @@ class WorkflowTest(unittest.TestCase):
                     datetime.now(timezone.utc).isoformat(),
                 ),
             )
+        with self.assertRaisesRegex(ValueError, "送审检查"):
+            wf.draft(run_id, topic_id, source, candidate_id="C1")
+        source.write_text(valid_text(), encoding="utf-8")
+        record_valid_review(self.settings, run_id, topic_id, source)
         review_path = wf.draft(run_id, topic_id, source, candidate_id="C1")
         self.assertTrue(review_path.exists())
         original_source = source.read_text(encoding="utf-8")
@@ -390,6 +395,9 @@ class WorkflowTest(unittest.TestCase):
             original_source.replace("（一）这是建议。", "（一）这是修订建议。"),
             encoding="utf-8",
         )
+        with self.assertRaisesRegex(ValueError, "版本已变化"):
+            wf.draft(run_id, topic_id, source, candidate_id="C1")
+        record_valid_review(self.settings, run_id, topic_id, source)
         revised_path = wf.draft(run_id, topic_id, source, candidate_id="C1")
         self.assertEqual(revised_path, review_path)
         self.assertIn("这是修订建议", "".join(p.text for p in Document(revised_path).paragraphs))

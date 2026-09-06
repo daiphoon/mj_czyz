@@ -3,7 +3,7 @@ from __future__ import annotations
 from difflib import SequenceMatcher
 from datetime import datetime, timezone
 import re
-from urllib.parse import urlparse
+from .collector import canonical_url
 from zoneinfo import ZoneInfo
 
 from .models import Candidate, EventItem
@@ -94,6 +94,23 @@ def classify(item: EventItem) -> list[str]:
     return [name for name, words in TOPICS.items() if any(word in text for word in words)]
 
 
+def problem_priority(item: EventItem, config: dict) -> int:
+    """只调整排序；问题或征求意见窗口不得因宣传性标题被机械删除。"""
+    if (item.material.get('promotion_suspected')
+            and any(word in item.summary for word in config.get('promotional_material_signals', []))):
+        return 1  # 销售性文本不因标题含“陷阱”抢占问题优先位；仍可送模型复核。
+    if any(word in item.title for word in ('结构化面试', '模拟题', '备考')):
+        return 0  # 问题词出现在练习材料中，不等于真实事件。
+    if ('征求意见' in item.title + item.summary
+            or item.source_level == 1 and any(word in item.title for word in ('国标', '国家标准'))
+            or any(word in item.title for word in PROBLEM_SIGNALS)):
+        return 2
+    promotional = any(word in item.title for word in EMPTY_PHRASES + tuple(config.get('promotional_title_signals', [])))
+    if promotional and not any(word in item.summary for word in ('投诉', '纠纷', '退费', '拖欠', '误伤', '转嫁成本', '申诉')):
+        return 0
+    return 1
+
+
 def score(item: EventItem) -> int:
     text = item.title + " " + item.summary
     value = 25 if item.region == "海淀" else 18 if item.region == "北京" else 7
@@ -105,7 +122,7 @@ def score(item: EventItem) -> int:
         value += 12
     item.timeliness_score = timeliness_score(item.published_at)
     value += item.timeliness_score
-    if any(word in item.title for word in EMPTY_PHRASES):
+    if any(word in item.title for word in EMPTY_PHRASES) and problem_priority(item, {}) == 0:
         value -= 50
     return max(0, min(100, value))
 
@@ -146,7 +163,7 @@ def local_date(published_at: str) -> str:
 def deduplicate(items: list[EventItem], threshold: float) -> list[EventItem]:
     kept, seen_urls = [], set()
     for item in sorted(items, key=lambda x: (x.published_at, -x.source_level), reverse=True):
-        domain_path = urlparse(item.url).netloc + urlparse(item.url).path
+        domain_path = canonical_url(item.url)
         if domain_path in seen_urls:
             continue
         title = normalize_title(item.title)
@@ -173,10 +190,10 @@ def rule_screen_with_decisions(
     relevant_all = [
         x for x in unique
         if x.topics and x.rule_score >= 35
-        and not any(word in x.title for word in EMPTY_PHRASES)
+        and not (any(word in x.title for word in EMPTY_PHRASES) and problem_priority(x, settings) == 0)
         and any(word in x.title + " " + x.summary for word in PROBLEM_SIGNALS + EVIDENCE_SIGNALS)
     ]
-    ranked = sorted(relevant_all, key=lambda x: (x.rule_score, x.published_at), reverse=True)
+    ranked = sorted(relevant_all, key=lambda x: (problem_priority(x, settings), x.rule_score, x.published_at), reverse=True)
     selected = ranked[: settings["initial_max"]]
     selected_ids = {id(item) for item in selected}
     unique_ids = {id(item) for item in unique}
@@ -185,9 +202,9 @@ def rule_screen_with_decisions(
     for item in items:
         item_identity = id(item)
         if item_identity not in unique_ids:
-            domain_path = urlparse(item.url).netloc + urlparse(item.url).path
+            domain_path = canonical_url(item.url)
             duplicate_url = any(
-                domain_path == urlparse(old.url).netloc + urlparse(old.url).path
+                domain_path == canonical_url(old.url)
                 for old in unique
             )
             reason = "duplicate_url" if duplicate_url else "duplicate_title"

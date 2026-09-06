@@ -245,6 +245,8 @@ def validate_pre_research_payload(settings: Settings, payload: dict[str, Any]) -
                 if not _is_nonempty(scenarios.get(field)):
                     errors.append(f"mechanism_cards[{index}].scenarios 缺少 {field}")
 
+    # 记录可用于停止原因反馈，不代表证据充分或允许进入深研。
+    record_valid = not errors
     if decision in {"proceed", "reframe"}:
         if len(source_keys) < 2 or len(origin_groups) < 2:
             errors.append("继续研究至少需要两个独立原始信息链")
@@ -256,6 +258,7 @@ def validate_pre_research_payload(settings: Settings, payload: dict[str, Any]) -
     research_allowed = decision in {"proceed", "reframe"} and not errors
     return {
         "valid": not errors,
+        "record_valid": record_valid,
         "research_allowed": research_allowed,
         "errors": errors,
         "warnings": warnings,
@@ -527,6 +530,9 @@ def check_pre_research(
     elif human_decision == "stop":
         status = TaskStatus.NEEDS_REVIEW
         checkpoint["next"] = f"sqmy skip-run {run_id} --reason REASON，或重新选择候选"
+    elif payload.get("decision") == "stop" and gate["record_valid"]:
+        status = TaskStatus.NEEDS_REVIEW
+        checkpoint["next"] = "有限预研已停止；等待用户决定，不得仅为放行而修改结论、自动转题或深研"
     else:
         status = TaskStatus.NEEDS_REVIEW
         checkpoint["next"] = (

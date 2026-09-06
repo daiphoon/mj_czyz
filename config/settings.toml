@@ -22,6 +22,9 @@ writing_model = "mock-writing"
 max_retries = 2
 max_calls_per_action = 3
 screening_max_output_tokens = 6000
+codex_timeout_seconds = 420
+screening_item_chars = 500
+diagnostic_max_output_tokens = 1024
 input_price_cny_per_million = 2.0
 output_price_cny_per_million = 12.0
 deepseek_input_price_cny_per_million = 3.0
@@ -37,6 +40,9 @@ screened_max = 12
 premodel_clue_reserve = 2
 premodel_max_per_source = 2
 premodel_external_reserve = 3
+premodel_current_clue_reserve = 2
+promotional_title_signals = ["专题讲座", "调研我区", "调研工作", "工作动态", "产业高地", "发展新图景", "织密扎牢", "民生答卷", "会议", "博览会"]
+promotional_material_signals = ["机构参考", "点击咨询", "课程报名", "限时优惠", "咨询招生"]
 premodel_fresh_reserve = 5
 premodel_aged_reserve = 3
 premodel_quality_min_sources = 4
@@ -64,6 +70,50 @@ minimum_observation_span_days = 14
 source_health_zero_result_streak = 3
 source_health_irrelevant_min_runs = 5
 minimum_shadow_outcomes_for_assessment = 3
+
+# 可选检索补充；无密钥、mock、fixture、回放和refresh不自动调用。
+# 这是搜索积分/等价费用，不是模型Token，也不是账户实际账单。
+[tavily]
+enabled = true
+max_searches_per_action = 4
+max_results_per_query = 5
+max_extracts_per_action = 2
+max_retries = 1
+action_credit_limit = 10.0
+action_cost_limit_usd = 0.08
+credit_price_usd = 0.008
+search_depth = "advanced"
+extract_depth = "advanced"
+basic_search_credits = 1.0
+advanced_search_credits = 2.0
+basic_extract_credits_per_five = 1.0
+advanced_extract_credits_per_five = 2.0
+request_timeout_seconds = 30
+max_response_bytes = 2000000
+cache_ttl_hours = 24
+summary_chars = 700
+excerpt_chars = 5000
+context_chars = 350
+# 每轮优先补当前RSS中尚少见的具体场景，同等条件按日期轮换。
+# 不将全部RSS关键词再用Tavily重复检索。
+scenario_queries = [
+  { id = "medical", query = "中国 医院 检查检验互认 重复检查 患者 困难 调查", signals = ["重复检查", "检查检验互认"] },
+  { id = "work", query = "中国 骑手 职业伤害 理赔 保险扣费 纠纷 调查", signals = ["职业伤害", "保险扣费"] },
+  { id = "platform", query = "中国 平台 商家 保证金 申诉 退款 困难 调查", signals = ["保证金", "商家申诉"] },
+  { id = "prepay", query = "中国 预付消费 闭店 退款 消费者 调查", signals = ["预付消费", "闭店退款"] },
+  { id = "employment", query = "中国 求职 招聘 培训贷 退费 调查", signals = ["培训贷", "招聘陷阱"] },
+  { id = "community", query = "中国 小区 消防维修 责任 维修资金 业主 困难", signals = ["消防维修", "维修资金"] },
+  { id = "accessibility", query = "中国 残疾人 无障碍 服务办理 投诉 调查", signals = ["无障碍", "残疾人"] },
+  { id = "public_service", query = "中国 老年人 异地就医 证明材料 反复提交 困难", signals = ["反复提交", "多头证明"] },
+]
+
+[history_review]
+min_shared_subject = 4
+min_shared_mechanism = 4
+min_subject_ratio = 0.15
+min_mechanism_ratio = 0.06
+max_hints = 2
+summary_chars = 160
 
 [shadow_verification]
 enabled = true
@@ -102,10 +152,20 @@ stable_production_weeks = 4
 minimum_drafts_per_week = 1
 stretch_drafts_per_week = 2
 
+[writing_quality]
+min_chars = 1200
+max_chars = 1800
+major_min_chars = 2000
+major_max_chars = 2500
+min_items = 3
+max_items = 5
+vague_phrases = ["高度重视", "进一步加强", "加大力度"]
+
 [budget]
 # Token硬闸门按单一有界行为计算；近7日用量只做观察和复盘。
 weekly_cost_limit_cny = 100.0
 screening_tokens = 55000
+diagnostic_tokens = 30000
 codex_cli_fixed_overhead_tokens = 15000
 api_fixed_overhead_tokens = 1000
 codex_cli_estimate_multiplier = 1.5

@@ -52,6 +52,7 @@ class NoveltyAudit:
     policy_matches: list[dict[str, Any]]
     audit_tokens: int = 0
     potential_waste_tokens: int = 0
+    search_status: str = "not_searched"
 
 
 class NoveltyAuditor:
@@ -133,6 +134,7 @@ class NoveltyAuditor:
         policy_matches = self.policy_matches(text)
         counterevidence: list[dict[str, Any]] = []
         seen_hits: set[str] = set()
+        search_failures = 0
 
         if live_search:
             for query in queries:
@@ -143,6 +145,7 @@ class NoveltyAuditor:
                         lookback_days=self.cfg["counterevidence_lookback_days"],
                     )
                 except Exception as exc:
+                    search_failures += 1
                     counterevidence.append({"query": query, "error": f"{type(exc).__name__}: {exc}"})
                     continue
                 for hit in hits:
@@ -159,15 +162,20 @@ class NoveltyAuditor:
                             "query": query, "title": hit.title, "url": hit.url,
                             "source_level": hit.source_level, "summary": hit.summary[:400],
                             "origin_group": origin_group,
+                            "applicable": self._scope_covers(hit.region, event.region)
+                            and not hit.region_evidence.startswith("source_channel_only"),
                         })
 
         absence_claim = gap_type == "policy_absence" or (
             gap_type == "unclear" and any(signal in gap for signal in ABSENCE_SIGNALS)
         )
-        fresh_policy_matches = [item for item in policy_matches if item["fresh"]]
+        applicable_matches = [item for item in policy_matches
+                              if item["effective"] and self._scope_covers(item["jurisdiction"], event.region)]
+        fresh_policy_matches = [item for item in applicable_matches if item["fresh"]]
+        verified_hits = [item for item in counterevidence if item.get("url") and not item.get("error") and item.get("applicable")]
         if fresh_policy_matches and absence_claim:
             status, decision = "covered", "block_original_gap"
-        elif policy_matches or counterevidence:
+        elif applicable_matches or verified_hits:
             status, decision = "likely_covered", "keep_with_novelty_warning"
         else:
             status, decision = "unclear", "proceed_limited_research"
@@ -177,7 +185,17 @@ class NoveltyAuditor:
             coverage_status=status, decision=decision, queries=queries,
             counterevidence=counterevidence, policy_matches=policy_matches,
             potential_waste_tokens=potential,
+            search_status=("not_searched" if not live_search or not queries else
+                           "failed" if search_failures == len(queries) else
+                           "partial" if search_failures else "completed"),
         )
+
+    @staticmethod
+    def _scope_covers(jurisdiction: str, region: str) -> bool:
+        # 不从题目关键词猜行政适用范围；未知范围只能作为比较线索。
+        aliases = {"北京市": "北京", "海淀区": "海淀", "北京市海淀区": "海淀"}
+        scope, target = aliases.get(jurisdiction, jurisdiction), aliases.get(region, region)
+        return scope in {"全国", "中央"} or scope == target or (scope == "北京" and target == "海淀")
 
     def _official_query(self, query: str) -> str:
         if "site:" in query:
@@ -225,13 +243,25 @@ class NoveltyAuditor:
                 len(matched) >= self.cfg["local_mechanism_min_keyword_matches"]
                 and distinctive
             ):
-                verified = datetime.fromisoformat(row["last_verified_at"]).replace(tzinfo=timezone.utc)
-                fresh = datetime.now(timezone.utc) - verified <= timedelta(days=self.cfg["mechanism_max_age_days"])
+                stamp = datetime.now(timezone.utc)
+                try:
+                    verified = datetime.fromisoformat(row["last_verified_at"])
+                    if verified.tzinfo is None:
+                        verified = verified.replace(tzinfo=timezone.utc)
+                    fresh = timedelta(0) <= stamp - verified <= timedelta(days=self.cfg["mechanism_max_age_days"])
+                except (TypeError, ValueError):
+                    fresh = False
+                try:
+                    effective = bool(row["valid_from"]) and date.fromisoformat(row["valid_from"][:10]) <= stamp.date()
+                except ValueError:
+                    effective = False
                 matches.append({
                     "id": row["id"], "name": row["name"], "matched_keywords": matched,
                     "summary": row["summary"], "source_url": row["source_url"],
                     "last_verified_at": row["last_verified_at"],
                     "fresh": fresh,
+                    "jurisdiction": row["jurisdiction"], "actor": row["actor"],
+                    "valid_from": row["valid_from"], "effective": effective,
                 })
         return matches
 
@@ -265,7 +295,8 @@ def record_pre_research_feedback(
     gate: dict[str, Any],
 ) -> dict[str, Any]:
     """把有效预研决定自动反馈到对应的制度新意审计；找不到关联时安全跳过。"""
-    if not gate.get("valid"):
+    stopped_record = payload.get("decision") == "stop" and gate.get("record_valid") is True
+    if not gate.get("valid") and not stopped_record:
         return {"status": "not_recorded_invalid_gate"}
     db = Database(settings.database_path)
     db.initialize()
@@ -395,10 +426,14 @@ def production_funnel(
         ).fetchall()
         topic_rows = conn.execute(
             """SELECT t.* FROM topics t JOIN run_context rc ON rc.run_id=t.run_id
-               JOIN runs r ON r.id=t.run_id
-               WHERE r.created_at>=? AND rc.mode='live'""",
-            (cutoff_utc,),
+               WHERE rc.mode='live'""",
         ).fetchall()
+        delivery_rows = conn.execute(
+            """SELECT d.* FROM delivery_events d JOIN run_context rc ON rc.run_id=d.run_id
+               JOIN tasks q ON q.id=d.review_id
+               WHERE rc.mode='live' AND q.kind='draft_quality_review' AND q.status='completed'"""
+        ).fetchall()
+    delivered = {row["topic_id"]: row for row in delivery_rows if Path(row["output_path"]).is_file()}
 
     candidates_by_run: dict[str, list[Any]] = {}
     for row in candidate_rows:
@@ -431,6 +466,10 @@ def production_funnel(
             "deep_research_supported_count": 0,
             "evidence_gate_passed_count": 0,
             "draft_count": 0,
+            "calendar_draft_count": 0,
+            "calendar_approved_count": 0,
+            "calendar_submitted_count": 0,
+            "unverified_legacy_draft_count": 0,
             "approved_count": 0,
             "submitted_count": 0,
             "recorded_token_used": 0,
@@ -495,7 +534,8 @@ def production_funnel(
                     "stage": "deep_research",
                     "reason": verdict or "not_supported_for_drafting",
                 })
-        draft_count = len(run_topics)
+        draft_count = sum(row["id"] in delivered for row in run_topics)
+        bucket["unverified_legacy_draft_count"] += sum(row["id"] not in delivered for row in run_topics)
         evidence_passed = max(
             draft_count,
             int(bool(isinstance(deep, dict) and deep.get("draft_allowed"))),
@@ -519,9 +559,26 @@ def production_funnel(
 
     target = int(quality_cfg["minimum_drafts_per_week"])
     stretch = int(quality_cfg["stretch_drafts_per_week"])
+    def calendar_increment(stamp, key):
+        try:
+            when = datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+            if when.tzinfo is None:
+                when = when.replace(tzinfo=local_tz)
+            index = (_local_week_start(when, local_tz) - first_start).days // 7
+            if when <= ref and 0 <= index < len(weekly_rows):
+                weekly_rows[index][key] += 1
+        except (ValueError, TypeError, AttributeError):
+            pass  # 旧记录无确切时间时不猜测归属周。
+    for row in delivered.values():
+        calendar_increment(row["ready_at"], "calendar_draft_count")
+    for row in topic_rows:
+        if row["approval_status"] == "approved":
+            calendar_increment(row["approved_at"], "calendar_approved_count")
+        if row["actually_submitted"]:
+            calendar_increment(row["submitted_at"], "calendar_submitted_count")
     for bucket in weekly_rows:
-        bucket["minimum_target_met"] = bucket["evidence_gate_passed_count"] >= target
-        bucket["stretch_target_met"] = bucket["evidence_gate_passed_count"] >= stretch
+        bucket["minimum_target_met"] = bucket["calendar_draft_count"] >= target
+        bucket["stretch_target_met"] = bucket["calendar_draft_count"] >= stretch
     totals = {
         key: sum(int(row[key]) for row in weekly_rows)
         for key in (
@@ -529,6 +586,8 @@ def production_funnel(
             "human_proceed_count", "human_stop_count", "deep_research_supported_count",
             "evidence_gate_passed_count", "draft_count", "approved_count", "submitted_count",
             "recorded_token_used",
+            "calendar_draft_count", "calendar_approved_count", "calendar_submitted_count",
+            "unverified_legacy_draft_count",
         )
     }
     totals["recorded_cost_cny"] = round(sum(row["recorded_cost_cny"] for row in weekly_rows), 4)
@@ -542,12 +601,12 @@ def production_funnel(
         if totals["pre_research_count"] else None
     )
     totals["candidates_per_evidence_passed_draft"] = (
-        round(totals["candidate_count"] / totals["evidence_gate_passed_count"], 2)
-        if totals["evidence_gate_passed_count"] else None
+        round(totals["candidate_count"] / totals["draft_count"], 2)
+        if totals["draft_count"] else None
     )
     totals["recorded_tokens_per_evidence_passed_draft"] = (
-        round(totals["recorded_token_used"] / totals["evidence_gate_passed_count"])
-        if totals["evidence_gate_passed_count"] else None
+        round(totals["recorded_token_used"] / totals["draft_count"])
+        if totals["draft_count"] else None
     )
     stable_window = int(quality_cfg["stable_production_weeks"])
     closed_weeks = [row for row in weekly_rows if row["is_closed_week"]]
@@ -555,7 +614,7 @@ def production_funnel(
     return {
         "timezone": str(local_tz),
         "window_weeks": window_weeks,
-        "cohort_rule": "后续预研、成稿、通过和报送归入其发现运行所在自然周",
+        "cohort_rule": "转化与Token归因按发现运行周；calendar_*按实际完成日期，稳定产量仅用calendar_draft_count",
         "minimum_drafts_per_week": target,
         "stretch_drafts_per_week": stretch,
         "weeks": weekly_rows,
@@ -565,7 +624,7 @@ def production_funnel(
         "stable_minimum_output": bool(evaluated) and all(row["minimum_target_met"] for row in evaluated),
         "stable_stretch_output": bool(evaluated) and all(row["stretch_target_met"] for row in evaluated),
         "measurement_note": (
-            "成稿按已通过证据闸门并写入topics表计数；标准流程中的交互式Codex订阅用量"
+            "合格送审稿按绑定审查版本的首次delivery_events及实存产物计数；修订不重复计篇，旧稿无版本审查标为待核、不推定达标。标准流程中的交互式Codex订阅用量"
             "按阶段声明上限保守写入项目账本，不是Plus官方Token统计；流程外人工工作仍可能未计入。"
         ),
     }

@@ -1,0 +1,15 @@
+{
+  "topic_id": "替换为课题ID",
+  "source_sha256": "复制draft-check输出的source_sha256",
+  "evidence_sha256": "复制draft-check输出的evidence_sha256",
+  "major": false,
+  "reviewed_at": "替换为真实审查时间并含时区",
+  "claim_ids": ["复制draft-check输出的critical_claim_ids"],
+  "problem_ids": ["一", "二", "三"],
+  "reviews": {
+    "facts": {"status": "needs_review", "reviewer": "", "reason": "逐项核对核心主张、时间、单位、口径和独立来源后填写结果"},
+    "mechanism_red_team": {"status": "needs_review", "reviewer": "", "reason": "检查执行主体、激励、成本、规避、误伤、纠错及退出后填写结果"},
+    "problem_suggestion_mapping": {"status": "needs_review", "reviewer": "", "reason": "逐条确认问题与建议存在实际对应，而不只是编号相同"},
+    "style_structure": {"status": "needs_review", "reviewer": "", "reason": "检查行政文风、结构、因果表述、标题与正文一致性后填写结果"}
+  }
+}

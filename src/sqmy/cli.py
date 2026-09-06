@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 from .config import Settings, load_dotenv
+from .delivery import check_draft, register_review
 from .budget import (
     budget_adjustments,
     recent_usage,
@@ -22,6 +23,8 @@ from .research_gate import check_pre_research, review_pre_research
 from .maintenance import CleanupManager, preflight
 from .snapshots import SNAPSHOT_REASONS, capture_evidence_snapshot
 from .workflow import Workflow
+from .retrieval import execute_retrieval
+from .tavily import retrieval_usage
 
 
 def _add_scan_arguments(command: argparse.ArgumentParser) -> None:
@@ -68,7 +71,16 @@ def parser() -> argparse.ArgumentParser:
     _add_refresh_arguments(refresh)
     thursday = sub.add_parser("thursday", help="兼容旧命令；等同于 refresh")
     _add_refresh_arguments(thursday)
-    draft = sub.add_parser("draft", help="证据闸门通过后，将固定结构 Markdown 导出为送审 DOCX")
+    draft_check = sub.add_parser("draft-check", help="零模型检查稿件并输出稿件、证据指纹")
+    draft_check.add_argument("topic_id")
+    draft_check.add_argument("--source", type=Path, required=True)
+    draft_check.add_argument("--major", action="store_true")
+    draft_review = sub.add_parser("draft-review", help="登记绑定当前稿件与证据的四项内容审查")
+    draft_review.add_argument("run_id")
+    draft_review.add_argument("topic_id")
+    draft_review.add_argument("--source", type=Path, required=True)
+    draft_review.add_argument("--record", type=Path, required=True)
+    draft = sub.add_parser("draft", help="证据和送审检查通过后导出 DOCX")
     draft.add_argument("run_id")
     draft.add_argument("topic_id")
     draft.add_argument("--source", type=Path, required=True)
@@ -132,6 +144,14 @@ def parser() -> argparse.ArgumentParser:
     novelty_report = sub.add_parser("novelty-report", help="生成制度新意闸门和自然周产出漏斗滚动评估")
     novelty_report.add_argument("--days", type=int, default=None, help="统计窗口，默认21天")
     sub.add_parser("discovery-report", help="生成来源健康和制度覆盖影子滚动评估")
+    retrieve = sub.add_parser("retrieve", help="按人工固定问题单进行有界Tavily补充，不调用写作模型")
+    retrieve.add_argument("--plan", type=Path, required=True, help="具体检索问题及页面JSON，不放凭证")
+    target = retrieve.add_mutually_exclusive_group(required=True)
+    target.add_argument("--run-id", help="绑定已有运行；恢复必须用原运行")
+    target.add_argument("--diagnostic", action="store_true", help="新建隔离诊断；会真实调用搜索API")
+    retrieve.add_argument("--retry-failed", action="store_true", help="明确重试失败或未知请求；可能重复付费，仍计入原行为上限")
+    retrieval_report = sub.add_parser("retrieval-usage", help="查看单运行搜索积分、缓存和等价费用；零网络调用")
+    retrieval_report.add_argument("run_id")
     novelty_review = sub.add_parser("novelty-review", help="为早期阻断结果补充后续复核标签")
     novelty_review.add_argument("audit_id")
     novelty_review.add_argument(
@@ -198,6 +218,12 @@ def main(argv: list[str] | None = None) -> int:
             print(f"下一步：{wf.record_incremental_decision(args.run_id, args.decision, args.note)}")
         else:
             print(json.dumps(wf.incremental_review(args.run_id, args.fixture), ensure_ascii=False, indent=2))
+    elif args.command == "draft-check":
+        result = check_draft(s, args.topic_id, args.source, major=args.major)
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return 0 if result["ok"] else 2
+    elif args.command == "draft-review":
+        print(register_review(s, args.run_id, args.topic_id, args.source, args.record))
     elif args.command == "draft":
         print(wf.draft(args.run_id, args.topic_id, args.source, candidate_id=args.candidate_id))
     elif args.command == "approve":
@@ -219,6 +245,7 @@ def main(argv: list[str] | None = None) -> int:
                 "pre_research": budget_cfg["pre_research_tokens"],
                 "deep_research": budget_cfg["deep_research_tokens"],
                 "writing": budget_cfg["writing_tokens"],
+                "diagnostic": budget_cfg["diagnostic_tokens"],
             },
             "max_calls_per_action": s.section("model")["max_calls_per_action"],
             "weekly_cost_limit_cny": budget_cfg["weekly_cost_limit_cny"],
@@ -298,6 +325,24 @@ def main(argv: list[str] | None = None) -> int:
     elif args.command == "discovery-report":
         path = write_discovery_evaluation(s)
         print(json.dumps({"report": str(path)}, ensure_ascii=False, indent=2))
+    elif args.command == "retrieve":
+        plan = json.loads(args.plan.read_text(encoding="utf-8"))
+        if not isinstance(plan, dict):
+            raise ValueError("检索问题单必须是JSON对象")
+        run_id = wf.init_run("diagnostic") if args.diagnostic else args.run_id
+        print(f"检索运行：{run_id}", flush=True)
+        try:
+            result = execute_retrieval(s, wf.db, run_id, plan, retry_failed=args.retry_failed)
+        except (Exception, KeyboardInterrupt):
+            if args.diagnostic or plan.get("stage") == "diagnostic":
+                wf.db.checkpoint(run_id, phase="discovery", status="needs_review", data={"next": "使用原run-id和问题单恢复，检查retrieval_calls审计"})
+            raise
+        if args.diagnostic or plan.get("stage") == "diagnostic":
+            wf.db.checkpoint(run_id, phase="discovery", status=result["status"], data=result)
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return 0 if result["status"] == "completed" else 2
+    elif args.command == "retrieval-usage":
+        print(json.dumps(retrieval_usage(wf.db, args.run_id), ensure_ascii=False, indent=2))
     elif args.command == "novelty-review":
         record_review(s, args.audit_id, args.outcome, args.reason)
         print("已记录复核结果")

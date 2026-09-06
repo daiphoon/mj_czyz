@@ -4,6 +4,7 @@ from pathlib import Path
 import shutil
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from sqmy.config import Settings
 from sqmy.db import Database, now
@@ -56,6 +57,33 @@ class NoveltyAuditTest(unittest.TestCase):
         self.assertEqual(audit.coverage_status, "covered")
         self.assertEqual(audit.decision, "block_original_gap")
         self.assertTrue(audit.policy_matches)
+
+    def test_search_failure_is_not_counterevidence_or_score_penalty(self):
+        event = self.event("待核验其他制度缺口", "coordination_gap")
+        event.title = "居民供水计费纠错"
+        event.summary = "多次抄表异议处理"
+        event.model_analysis["counter_queries"] = ["供水计费规则"]
+        auditor = NoveltyAuditor(self.settings)
+        with patch.object(auditor.collector, "search_query", side_effect=TimeoutError("offline")):
+            audit = auditor.audit("run-1", [event], live_search=True)[0]
+        self.assertEqual(audit.coverage_status, "unclear")
+        self.assertEqual(audit.search_status, "failed")
+
+    def test_beijing_mechanism_does_not_block_national_or_other_city_topic(self):
+        auditor = NoveltyAuditor(self.settings)
+        for region in ("全国", "上海"):
+            event = self.event("尚未建立未成年人网络纠纷向平台规则反馈的机制", "policy_absence")
+            event.region = region
+            audit = auditor.audit("run-1", [event], live_search=False)[0]
+            self.assertEqual(audit.coverage_status, "unclear")
+            self.assertNotEqual(audit.decision, "block_original_gap")
+
+    def test_future_policy_does_not_prove_current_coverage(self):
+        auditor = NoveltyAuditor(self.settings)
+        with self.db.connect() as conn:
+            conn.execute("UPDATE policy_mechanisms SET valid_from='2099-01-01'")
+        audit = auditor.audit("run-1", [self.event("尚未建立未成年人网络纠纷向平台规则反馈的机制", "policy_absence")], live_search=False)[0]
+        self.assertEqual(audit.coverage_status, "unclear")
 
     def test_generic_platform_terms_do_not_match_unrelated_minor_policy(self):
         event = EventItem(
@@ -251,7 +279,7 @@ class NoveltyAuditTest(unittest.TestCase):
         self.assertEqual(current["approved_count"], 1)
         self.assertEqual(current["submitted_count"], 1)
         self.assertEqual(current["recorded_token_used"], 1234)
-        self.assertTrue(current["minimum_target_met"])
+        self.assertFalse(current["minimum_target_met"])
         self.assertFalse(current["is_closed_week"])
         self.assertFalse(result["stability_evaluation_ready"])
 

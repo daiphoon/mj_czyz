@@ -12,6 +12,7 @@ from .budget import record_stage_usage
 from .collector import SourceCollector
 from .cadence import refresh_due, require_source_freshness
 from .config import Settings
+from .delivery import require_review, verify_export, verify_approved_integrity
 from .db import Database, now
 from .document import atomic_copy, export_submission, parse_submission_markdown
 from .evidence import assess_topic
@@ -445,9 +446,11 @@ class Workflow:
         candidate = candidates[candidate_id]
         require_pre_research_approval(self.s, run_id, candidate_id, topic_id)
         title, sections = parse_submission_markdown(source)
+        quality = require_review(self.s, run_id, topic_id, source)
         template = self.s.root / self.s.section("document")["template_path"]
         input_hash = hashlib.sha256(
             source.read_bytes() + template.read_bytes() + json.dumps(gate, sort_keys=True).encode()
+            + topic_id.encode() + quality["evidence_sha256"].encode()
         ).hexdigest()
         record_stage_usage(
             self.db,
@@ -516,6 +519,11 @@ class Workflow:
                     None,
                 ),
             )
+            conn.execute(
+                """INSERT INTO delivery_events(topic_id,run_id,ready_at,output_path,output_sha256,evidence_sha256,review_id)
+                   VALUES(?,?,?,?,?,?,?) ON CONFLICT(topic_id) DO NOTHING""",
+                (topic_id, run_id, now(), str(output), output_hash, quality["evidence_sha256"], quality["review_id"]),
+            )
             prior_exports = conn.execute(
                 """SELECT id,result_json FROM tasks
                    WHERE run_id=? AND kind='draft_export' AND input_hash<>? AND status=?""",
@@ -551,7 +559,9 @@ class Workflow:
                     input_hash,
                     TaskStatus.COMPLETED,
                     json.dumps(
-                        {"topic_id": topic_id, "path": str(output), "output_sha256": output_hash},
+                        {"topic_id": topic_id, "path": str(output), "output_sha256": output_hash,
+                         "source_sha256": quality["source_sha256"], "evidence_sha256": quality["evidence_sha256"],
+                         "quality_review_id": quality["review_id"], "delivery_verified": True},
                         ensure_ascii=False,
                     ),
                     0,
@@ -579,10 +589,12 @@ class Workflow:
         if topic["approval_status"] == "approved" and topic["final_path"]:
             final = Path(topic["final_path"])
             if final.exists():
+                verify_approved_integrity(self.s, topic)
                 return final
         review = Path(topic["review_path"] or "")
         if not review.is_file():
             raise ValueError("送审稿不存在，不能记录人工通过")
+        verify_export(self.s, topic, review)
         safe_title = "".join("_" if char in '/\\:*?\"<>|' else char for char in topic["title"]).strip()
         final = self.s.root / "outputs/submission" / f"{safe_title}.docx"
         atomic_copy(review, final)
@@ -626,6 +638,7 @@ class Workflow:
             raise ValueError("稿件尚未人工通过，不能登记实际报送")
         if not topic["final_path"] or not Path(topic["final_path"]).is_file():
             raise ValueError("待报送正式文件不存在")
+        verify_approved_integrity(self.s, topic)
         with self.db.connect() as conn:
             conn.execute(
                 """UPDATE topics SET submitted_at=?,submission_level=?,actually_submitted=1

@@ -132,9 +132,10 @@ def test_cli_reports_a_safe_discovery_pause_without_claiming_candidates(capsys):
         settings = Settings(root, raw)
 
         with patch("sqmy.cli.Settings.load", return_value=settings), patch(
-            "sqmy.discovery.build_router"
-        ):
+            "sqmy.providers.CodexCliClient.analyze", side_effect=AssertionError("must stop before dispatch")
+        ) as analyze:
             assert main(["--config", "unused.toml", "scan", "--fixture", str(ROOT / "tests/fixtures/monday_observability.json")]) == 0
+            analyze.assert_not_called()
 
         output = capsys.readouterr().out
         assert "已完成零模型采集" in output
@@ -157,6 +158,7 @@ def test_budget_cli_reports_action_limits_and_keeps_recent_tokens_observational(
             "pre_research": 30_000,
             "deep_research": 40_000,
             "writing": 15_000,
+            "diagnostic": 30_000,
         }
         assert payload["max_calls_per_action"] == 3
         assert "weekly_token_limit" not in payload

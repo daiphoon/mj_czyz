@@ -26,7 +26,19 @@ class FakeRouter:
         self.prompt = None
         self.schema = None
 
-    def analyze(self, prompt, schema):
+    def analyze(self, prompt, schema, *, attempt=None):
+        if attempt:
+            from sqmy.providers import ProviderRouter
+            parent = self
+
+            class Client:
+                provider = "codex_cli"
+                model = "test"
+
+                def analyze(self, p, s):
+                    return parent.analyze(p, s)[0]
+
+            return ProviderRouter(Client(), None, []).analyze(prompt, schema, attempt=attempt)
         self.calls += 1
         self.prompt = prompt
         self.schema = schema
