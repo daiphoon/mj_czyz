@@ -761,7 +761,7 @@ class LiveDiscovery:
         return False, "deferred_small_batch"
 
     def _model_rank(self, run_id: str, events: list, *, use_cache: bool = True) -> tuple[list, bool, int]:
-        from .materials import compact_reposts
+        from .materials import compact_reposts, split_discovery_summary
         model_cfg = self.s.section("model")
         limit = self.s.section("discovery")["screened_max"]
         pool = events[:limit]
@@ -773,11 +773,11 @@ class LiveDiscovery:
         pool = sorted(pool, key=lambda x: (problem_priority(x, self.s.section('discovery')), x.rule_score), reverse=True)
         material_path = self.s.root / 'data/runs' / run_id / 'screening_materials.json'
         material_path.parent.mkdir(parents=True, exist_ok=True)
-        self._atomic_json(material_path, {
-            'frozen_event_ids': [x.id for x in events[:limit]],
-            'model_event_ids': [x.id for x in pool], 'merged_reposts': merged,
-            'note': '仅整理冻结输入；不补题、不改原事件；合并不代表独立核验或政策覆盖判断',
-        })
+        # 旧运行恢复沿用原提示契约，避免已完成调用因升级而失去缓存。
+        input_contract = (
+            json.loads(material_path.read_text(encoding='utf-8')).get('input_contract', 'legacy')
+            if material_path.exists() else 'fact_first_v1'
+        )
         compact = [
             {
                 "id": x.id,
@@ -802,6 +802,15 @@ class LiveDiscovery:
         history = self._approved_history()
         for item in compact:
             item['history_review_hints'] = mechanism_hints(item['title'] + item['summary'], history, self.s.section('history_review'))
+        if input_contract == 'fact_first_v1':
+            for item in compact:
+                item.update(split_discovery_summary(item.pop('summary')))
+        self._atomic_json(material_path, {
+            'frozen_event_ids': [x.id for x in events[:limit]],
+            'model_event_ids': [x.id for x in pool], 'merged_reposts': merged,
+            'input_contract': input_contract, 'model_input': compact,
+            'note': '仅整理冻结输入；不补题、不改原事件；分隔或合并不代表事实核验或政策覆盖判断',
+        })
         prompt = (
             "你是社情民意选题初筛员。仅依据以下标题、摘要和元数据进行低成本判断，不得补造事实。"
             "source_name用于判断来源属性；source_region_hint只是检索频道提示，"
@@ -829,9 +838,23 @@ class LiveDiscovery:
             "其中beijing_relevance仅表示北京相关性；全国题该项可为0，不代表公共价值为0。"
             "applied_penalties只列元数据已有依据的扣分，不得为凑低分而猜测。"
             f"正向评分上限：{json.dumps(self.s.section('scoring'), ensure_ascii=False)}；"
-            f"扣分配置：{json.dumps(self.s.section('penalties'), ensure_ascii=False)}。\n"
-            + json.dumps(compact, ensure_ascii=False)
+            f"扣分配置：{json.dumps(self.s.section('penalties'), ensure_ascii=False)}。"
         )
+        if input_contract == 'fact_first_v1':
+            prompt += (
+                "输入解释：reported_excerpt只是发现材料陈述，不等于已验证事实，可能仍有单方说法或未标注的推断；"
+                "upstream_hypotheses是显式分隔的上游缺口、原因或切口设想，不得继承为事实。标题也须核验。"
+                "没有分隔标记不代表陈述可靠；只读到了摘要不得声称已读原文。保留办理结果、各方分歧及时间限制。"
+                "先从材料中具体可核验的问题形成命题，suggested_title用群体、场景和中性研究问题表达，未证实的原因或缺口留在gap_hypothesis。"
+                "研究路径包括具体事件与执行问题、政策衔接与适用边界、前瞻性风险。"
+                "后两类须有具体规则变化或接口、受影响对象及可反证机制，不必虚构已发生损害；缺口尚不明确时gap_type用unclear。"
+                "不能仅凭热点或政策发布生成缺机制建议；已有政策不等于执行有效，投诉不等于机制失效，个案办结也不单独否定事前预防价值。"
+                "仅有政策标题或摘要不得认定完整覆盖，须核对适用对象、权限与机制是否对应。"
+                "data_assessment交代材料依据与决定性未知，recommendation交代研究价值与可信核验路径；无法从输入判断就写待核。"
+                "决定性未知须区分问题真实性、权限与证据路径等前提，以及前提成立后留给深研的边界细化、成本和效果问题。"
+                "不得为获得候选而将前提改为深研任务；本次只初筛，不表示预研通过。"
+            )
+        prompt += "\n" + json.dumps(compact, ensure_ascii=False)
         scoring_cfg = self.s.section("scoring")
         penalty_keys = list(self.s.section("penalties"))
         score_properties = {
@@ -1553,6 +1576,8 @@ class LiveDiscovery:
             "",
             "> 扩展层级：1=海淀和北京主题源，2=北京增补权威源，3=全国权威与调查源，"
             "4=投诉、论坛和社交平台待核线索；自动候选不得直接用于报送。",
+            "> 以下为模型初筛结果，分数不是成稿概率。人工推荐前按 docs/candidate_entry_trial.md "
+            "填写研究入口；未填写不表示已通过复核，不改变自动排序或闸门。",
             "",
         ]
         if pool_quality and pool_quality.get("checked"):
@@ -1573,7 +1598,9 @@ class LiveDiscovery:
                 + "。影子结果不参与本轮排序、阻断或模型输入取舍。",
                 "",
             ]
+        from .materials import split_discovery_summary
         for c in candidates:
+            material_parts = split_discovery_summary(c.summary)
             components = c.score_reasons.get("正向分项", {})
             component_text = "；".join(
                 f"{name}{value.get('得分', 0)}/{value.get('满分', 0)}"
@@ -1590,16 +1617,25 @@ class LiveDiscovery:
                 f"- 正向分项：{component_text}",
                 f"- 扣分项：{deduction_text}",
                 f"- 时间与地域：{c.event_date}；{c.region}",
-                f"- 事件概述：{c.summary}",
-                f"- 可反证缺口：{c.gap_hypothesis}（{c.gap_type}）",
+                f"- 发现材料陈述（未回源，不等于已核事实）：{material_parts['reported_excerpt']}",
+                f"- 上游缺口/原因设想（待核）：{material_parts['upstream_hypotheses'] or '未显式标注；不代表材料中没有推断'}",
+                f"- 缺口假设（待核）：{c.gap_hypothesis}（{c.gap_type}）",
                 f"- 制度覆盖审查：{c.coverage_status}；{c.novelty_decision}",
                 f"- 制度矛盾：{c.institutional_conflict}",
                 f"- 权限判断：{c.authority}",
                 f"- 数据条件：{c.data_sufficiency}",
                 f"- 历史关系：{c.history_relation}",
                 f"- 风险：{c.risk}",
-                f"- 结论：{c.recommendation}",
+                f"- 模型初筛意见（非人工推荐）：{c.recommendation}",
                 f"- 来源：{c.score_reasons.get('来源名称', '')}；{c.score_reasons.get('来源URL', '')}",
+                "",
+                "### 人工研究入口复核（待填写）",
+                "",
+                "- 事实依据：待填写具体群体、场景、受阻环节、事件日期及来源；元数据与已核事实分开。",
+                "- 现行机制与历史增量：待填写已有规则、适用边界及相对历史研究的新证据。",
+                "- 待证问题与证据入口：待填写具体材料、获取路径、预期能回答的问题及无法取得时的处理。",
+                "- 核验投入与限制：待填写复用材料、本次实际请求及预算占用、获取失败；占位项不代表已执行。",
+                "- 人工推荐：待填写主选、备选或仅保留线索及理由；不据此自动选题或放行深研。",
                 "",
             ]
         if not candidates:

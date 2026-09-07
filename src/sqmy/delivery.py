@@ -8,6 +8,7 @@ import re
 from .db import Database, now
 from .document import parse_submission_markdown
 from .evidence import assess_topic
+from .research_gate import require_pre_research_approval
 
 REVIEW_KINDS = ("facts", "mechanism_red_team", "problem_suggestion_mapping", "style_structure")
 
@@ -112,8 +113,11 @@ def register_review(settings, run_id, topic_id, source: Path, record: Path):
     key = _review_key(topic_id, check["source_sha256"], check["evidence_sha256"])
     task_id = f"{run_id}:draft_quality_review:{key[:16]}"
     with db.connect() as conn:
-        if not conn.execute("SELECT 1 FROM research_reviews WHERE run_id=? AND topic_id=? AND human_decision='proceed' AND research_allowed=1", (run_id, topic_id)).fetchone():
+        candidate = conn.execute("SELECT candidate_id FROM research_reviews WHERE run_id=? AND topic_id=? ORDER BY created_at DESC,rowid DESC LIMIT 1", (run_id, topic_id)).fetchone()
+        if not candidate:
             raise ValueError("未找到本题人工深研放行记录")
+    require_pre_research_approval(settings, run_id, candidate["candidate_id"], topic_id)
+    with db.connect() as conn:
         conn.execute("""INSERT INTO tasks(id,run_id,kind,input_hash,status,result_json,updated_at)
                      VALUES(?,?,'draft_quality_review',?,'completed',?,?)
                      ON CONFLICT(run_id,kind,input_hash) DO UPDATE SET result_json=excluded.result_json,updated_at=excluded.updated_at""",

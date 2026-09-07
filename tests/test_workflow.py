@@ -279,6 +279,7 @@ class WorkflowTest(unittest.TestCase):
                 "content_hash": "official-v1",
                 "source_role": "official_policy",
                 "checked_at": checked_at,
+                "excerpt": "测试正式政策已经公布相关流程。",
             }],
             "claims": [{
                 "id": f"{topic_id}-claim",

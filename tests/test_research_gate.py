@@ -36,6 +36,7 @@ def valid_brief(run_id: str) -> dict:
                 "source_level": 1,
                 "source_role": "official_policy",
                 "origin_group": "policy-origin",
+                "excerpt": "现行规范要求平台设置未成年人退款机制。",
             },
             {
                 "key": "court",
@@ -46,6 +47,7 @@ def valid_brief(run_id: str) -> dict:
                 "source_level": 1,
                 "source_role": "court_case",
                 "origin_group": "court-origin",
+                "excerpt": "司法个案显示前端限制可被低成本解除。",
             },
         ],
         "verified_facts": [{

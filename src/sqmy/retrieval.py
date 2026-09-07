@@ -122,8 +122,8 @@ def execute_retrieval(settings, db, run_id, plan, *, retry_failed=False):
 
 def _execute_retrieval(settings, db, run_id, plan, *, retry_failed=False):
     """人工固定问题单后的有界检索，不进入模型、证据闸门或自动深研。"""
-    if not isinstance(plan, dict) or set(plan) - {"stage", "candidate_id", "queries", "pages"}:
-        raise ValueError("问题单只接受stage、candidate_id、queries、pages")
+    if not isinstance(plan, dict) or set(plan) - {"stage", "candidate_id", "queries", "pages", "repair"}:
+        raise ValueError("问题单只接受stage、candidate_id、queries、pages及有界repair")
     stage, candidate_id = plan.get("stage"), plan.get("candidate_id", "")
     if stage not in {"diagnostic", "pre_research", "research"}:
         raise ValueError("检索阶段只能是diagnostic、pre_research或research")
@@ -141,7 +141,7 @@ def _execute_retrieval(settings, db, run_id, plan, *, retry_failed=False):
             if context["phase"] != "research" or context["status"] in {"completed", "skipped", "failed", "paused_quota"}:
                 raise ValueError("本题当前状态不允许启动研究检索")
             if stage == "research":
-                review = conn.execute("SELECT human_decision,research_allowed FROM research_reviews WHERE run_id=? AND candidate_id=? ORDER BY created_at DESC LIMIT 1", (run_id, candidate_id)).fetchone()
+                review = conn.execute("SELECT human_decision,research_allowed FROM research_reviews WHERE run_id=? AND candidate_id=? ORDER BY created_at DESC,rowid DESC LIMIT 1", (run_id, candidate_id)).fetchone()
                 if not review or review["human_decision"] != "proceed" or not review["research_allowed"]:
                     raise ValueError("正式研究检索须先通过预研闸门和人工确认")
     cfg = settings.raw["tavily"]
@@ -155,6 +155,9 @@ def _execute_retrieval(settings, db, run_id, plan, *, retry_failed=False):
     if any(not isinstance(page, dict) or not page.get("url") or not page.get("terms") or page.get("reason") not in {"http_failed", "http_incomplete"} for page in pages):
         raise ValueError("页面须有URL、目标词、普通HTTP失败或内容不完整的原因")
     action = stage + (":" + candidate_id if candidate_id else "")
+    # 检查点按补查轮次分开，调用账本仍使用原action；不增加搜索、提取或积分额度。
+    repair_round = _validate_repair(settings, db, run_id, plan, action)
+    checkpoint_action = action + (f":repair:{repair_round}" if repair_round else "")
     client = TavilyClient(settings, db, run_id, action)
     serialized = json.dumps(plan, ensure_ascii=False, sort_keys=True)
     if client._text(serialized, len(serialized)) != serialized:
@@ -168,7 +171,7 @@ def _execute_retrieval(settings, db, run_id, plan, *, retry_failed=False):
         _public_http_url(page["url"])
         if not isinstance(page["terms"], list) or not 1 <= len(page["terms"]) <= 8 or any(not isinstance(term, str) or not term.strip() or len(term) > 100 for term in page["terms"]):
             raise ValueError("每页需要1—8个100字以内的目标词")
-    path = settings.root / "data/runs" / run_id / ("retrieval-" + action.replace(":", "-") + ".json")
+    path = settings.root / "data/runs" / run_id / ("retrieval-" + checkpoint_action.replace(":", "-") + ".json")
     digest = hashlib.sha256(json.dumps(plan, sort_keys=True).encode()).hexdigest()
     if path.exists():
         state = json.loads(path.read_text(encoding="utf-8"))
@@ -189,7 +192,7 @@ def _execute_retrieval(settings, db, run_id, plan, *, retry_failed=False):
             conn.execute("""INSERT INTO tasks(id,run_id,kind,input_hash,status,result_json,error,updated_at)
                 VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(run_id,kind,input_hash) DO UPDATE SET
                 status=excluded.status,result_json=excluded.result_json,error=excluded.error,updated_at=excluded.updated_at""",
-                (run_id + ":retrieval:" + action, run_id, "retrieval:" + action, digest, state["status"],
+                (run_id + ":retrieval:" + checkpoint_action, run_id, "retrieval:" + checkpoint_action, digest, state["status"],
                  json.dumps({"report": str(path), "completed_steps": len(state["results"]), "next": "使用原问题单和run-id恢复"}, ensure_ascii=False), state.get("error"), now()))
     checkpoint()
     try:
@@ -222,3 +225,48 @@ def _execute_retrieval(settings, db, run_id, plan, *, retry_failed=False):
         checkpoint()
     return {"run_id": run_id, "report": str(path), "status": state["status"], "usage": state["usage"],
             "next": "完成来源和适用范围核验，不直接据搜索摘要下结论" if state["status"] == "completed" else "使用同一run-id及原问题单恢复；显式--retry-failed也受原行为预算限制"}
+
+
+def _validate_repair(settings, db, run_id, plan, action):
+    if "repair" not in plan:
+        return 0
+    repair = plan["repair"]
+    if plan["stage"] not in {"pre_research", "research"} or not isinstance(repair, dict):
+        raise ValueError("补查只能用于已选题的预研或深研，不用于发现或诊断扩题")
+    if set(repair) != {"round", "review_id", "unknown_indexes", "reason"}:
+        raise ValueError("repair须记录轮次、最新决策单、关键未知编号和补查理由")
+    cfg = settings.raw["tavily"]
+    limit, count = cfg.get("max_repair_rounds", 0), cfg.get("max_repair_unknowns", 0)
+    number = repair["round"]
+    if type(limit) is not int or type(count) is not int or limit < 0 or count < 1:
+        raise ValueError("补查配置无效；轮数须为非负整数，问题数须为正整数")
+    if type(number) is not int or not 1 <= number <= limit:
+        raise ValueError("补查轮数超过配置上限或功能已关闭")
+    indexes = repair["unknown_indexes"]
+    if (not isinstance(indexes, list) or not 1 <= len(indexes) <= count
+            or any(type(i) is not int or i < 0 for i in indexes) or len(set(indexes)) != len(indexes)):
+        raise ValueError("每轮须针对不重复的1—2个关键未知编号")
+    if not isinstance(repair["reason"], str) or not repair["reason"].strip():
+        raise ValueError("须说明补查如何改变判断，不能重复原提示词")
+    with db.connect() as conn:
+        review = conn.execute(
+            "SELECT * FROM research_reviews WHERE run_id=? AND candidate_id=? ORDER BY created_at DESC,rowid DESC LIMIT 1",
+            (run_id, plan["candidate_id"]),
+        ).fetchone()
+    if not review or repair["review_id"] != review["id"]:
+        raise ValueError("补查必须绑定本候选最新决策单，不能继承旧题状态")
+    payload = json.loads(review["data_json"])
+    if review["human_decision"] == "stop" or payload.get("decision_reason") == "fact_contradicted":
+        raise ValueError("本题已明确停止或核心事实已被否定，不能由补查自动重启")
+    unknowns = payload.get("critical_unknowns", [])
+    if any(i >= len(unknowns) or not isinstance(unknowns[i], dict)
+           or not unknowns[i].get("question") or not unknowns[i].get("resolution_plan") for i in indexes):
+        raise ValueError("补查编号未指向最新决策单的具体未知和获取路径")
+    previous_action = action + (f":repair:{number - 1}" if number > 1 else "")
+    previous = settings.root / "data/runs" / run_id / ("retrieval-" + previous_action.replace(":", "-") + ".json")
+    if not previous.exists():
+        raise ValueError("须先完成前一轮问题单，不能跳轮补查")
+    previous_state = json.loads(previous.read_text(encoding="utf-8"))
+    if previous_state["status"] not in {"completed", "failed", "needs_review"}:
+        raise ValueError("前一轮仍在执行或预算/额度阻断，须在原行为内处理")
+    return number

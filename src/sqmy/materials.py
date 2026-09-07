@@ -5,6 +5,16 @@ import hashlib
 import re
 
 
+def split_discovery_summary(summary: str) -> dict[str, str]:
+    """只分隔显式标注的上游设想；前半仍是待回源陈述，不自动认证事实。"""
+    boundary = re.search(
+        r"(?:^|(?<=[。；！？\n]))\s*(?:可核验缺口是|缺口假设(?:（待核）)?|待核假设|待核问题|原因推测|建议切口)\s*[:：]",
+        summary,
+    )
+    index = boundary.start() if boundary else len(summary)
+    return {"reported_excerpt": summary[:index], "upstream_hypotheses": summary[index:]}
+
+
 def compact_reposts(events):
     """近日期长摘要高度重合时合并模型材料；保留原始事件，不视作独立核验。"""
     kept, merged = [], {}

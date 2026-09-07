@@ -42,8 +42,11 @@ def _bounded_stage_context(
                 if ok else "有限预研要求运行已进入research且至少人工选择1题"
             )
         review = conn.execute(
-            """SELECT topic_id FROM research_reviews
+            """SELECT topic_id FROM research_reviews rr
                WHERE run_id=? AND research_allowed=1 AND human_decision='proceed'
+               AND rr.rowid=(SELECT newer.rowid FROM research_reviews newer
+                   WHERE newer.run_id=rr.run_id AND newer.candidate_id=rr.candidate_id
+                   ORDER BY newer.created_at DESC,newer.rowid DESC LIMIT 1)
                ORDER BY reviewed_at DESC,created_at DESC,rowid DESC LIMIT 1""",
             (run_id,),
         ).fetchone()

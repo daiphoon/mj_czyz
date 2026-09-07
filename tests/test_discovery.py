@@ -12,7 +12,7 @@ from sqmy.collector import SourceCollector, canonical_url, infer_event_region
 from sqmy.budget import BudgetExceeded
 from sqmy.config import Settings
 from sqmy.discovery import LiveDiscovery, same_origin_event
-from sqmy.models import EventItem
+from sqmy.models import Candidate, EventItem
 from sqmy.providers import ModelResult, ProviderError
 from sqmy.screener import classify
 
@@ -57,6 +57,34 @@ class DiscoveryTest(unittest.TestCase):
     def setUpClass(cls):
         cls.root = Path(__file__).parents[1]
         cls.settings = Settings.load(cls.root / "config/settings.toml")
+
+    def test_report_keeps_model_opinion_separate_from_pending_human_review(self):
+        with tempfile.TemporaryDirectory() as temp:
+            settings = Settings(Path(temp), deepcopy(self.settings.raw))
+            discovery = LiveDiscovery(settings)
+            candidate = Candidate(
+                id="C1", title="测试办理争议", summary="模型摘要，尚未核验",
+                event_date="2026-09-07", region="全国", affected_group="申请人",
+                institutional_conflict="待核", pain_point="反复补件", policy_gap="待核",
+                policy_entry="待核", authority="待核", data_sufficiency="待核",
+                policy_window="待核", history_relation="待核", priority="中",
+                risk="只有元数据", recommendation="建议预研", score=60,
+                gap_hypothesis="模型认为材料衔接不畅",
+                score_reasons={"来源URL": "https://example.test/case"},
+            )
+            original = deepcopy(candidate)
+            path = discovery._report(
+                "fixture-entry-review", [candidate], [], 1, 1, 1, 0, False, 0,
+                0, "fixture", 1, 4,
+            )
+            report = path.read_text(encoding="utf-8")
+            self.assertIn("缺口假设（待核）：模型认为材料衔接不畅", report)
+            self.assertIn("模型初筛意见（非人工推荐）：建议预研", report)
+            self.assertIn("人工研究入口复核（待填写）", report)
+            self.assertIn("待证问题与证据入口：待填写", report)
+            self.assertNotIn("- 结论：建议预研", report)
+            self.assertEqual(candidate, original)
+            self.assertEqual(discovery.wf.status("fixture-entry-review"), [])
 
     def test_unwraps_search_redirect(self):
         url = "https://www.bing.com/news/apiclick.aspx?url=https%3A%2F%2Fwww.beijing.gov.cn%2Fpolicy%3Futm_source%3Dx"

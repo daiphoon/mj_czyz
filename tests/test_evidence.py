@@ -49,6 +49,8 @@ class EvidenceTest(unittest.TestCase):
             ],
             "claims": normalized_claims,
         }
+        for source in payload["sources"]:
+            source["excerpt"] = "测试材料：法规规定投诉机制；发布会按测试口径公布数据。"
         path = self.root / "evidence.json"
         path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
         return path

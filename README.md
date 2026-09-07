@@ -97,13 +97,19 @@ sqmy retrieve --run-id RUN_ID --plan data/sources/TOPIC_retrieval_plan.json
 sqmy retrieve --run-id RUN_ID --plan data/sources/TOPIC_retrieval_plan.json --retry-failed
 ```
 
-问题单只能包含 `stage`、`candidate_id`、`queries`、`pages`；每条query必须说明用途，每页必须有目标词及普通HTTP失败/内容不完整的原因。`pre_research`要求已人工选题；`research`还要求最新预研闸门通过和人工proceed。问题单、时间窗口和检索参数一经执行即固定；恢复不能改词扩题。`--diagnostic`会新建隔离诊断并真实请求API，普通回归不会执行它，不得通过反复新建诊断规避同一行为预算。
+初轮问题单包含 `stage`、`candidate_id`、`queries`、`pages`；显式补查可增加绑定最新决策单的 `repair`，字段见[补查说明](docs/research_workflow_revision.md)。每条query必须说明用途，每页必须有目标词及普通HTTP失败/内容不完整的原因。`pre_research`要求已人工选题；`research`还要求最新预研闸门通过和人工proceed。每轮问题单、时间窗口和检索参数一经执行即固定；恢复不能改词扩题，补查也不增加原行为额度。`--diagnostic`会新建隔离诊断并真实请求API，普通回归不会执行它，不得通过反复新建诊断规避同一行为预算。
 
 检查点和检索报告位于 `data/runs/RUN_ID/`，SQLite `retrieval_calls` 是积分权威账本，`retrieval_calls.json`为可重建审计副本。成功输入永久用于同一行为恢复；跨运行相同请求按24小时复用精简结果。硬中断和失败未知用量保留占额，不自动重试、不自动切换DeepSeek。可选发现通道失败时停止Tavily补充、记录原因，已有RSS继续原流程；预研检索失败则保存步骤并要求明确恢复。旧 `.env` 不因程序运行被覆盖。
 
 接下来沿用来源漏斗和预研反馈，观察“独有有效线索、预研通过/有效停止、成稿贡献、每次有用决策的积分和Token”；当前只完成工程验收，不能声称产量已经提高。小诊断默认仅JSON/Markdown和调用审计，不再默认生成HTML仪表盘、图表或Notebook。
 
 ### 常规运行与质量边界
+
+2026-09-07的[候选研究入口方法](docs/candidate_entry_trial.md)已接入原有入口，无需另贴提示词或换命令。新 `sqmy scan`（含 `monday` 兼容入口）的初筛输入将显式标注的上游设想与材料陈述分开，二者都不自动成为已核事实；实际初筛提示要求中性命题、材料依据及决定性未知，保留事件、政策衔接和前瞻性风险路径。原摘要、输出Schema、排序规则、证据闸门与预算不变。旧运行恢复沿用原提示版本和缓存。
+
+在本项目中让Codex按正常方式启动扫描后，Codex按 `AGENTS.md` 对少数拟推荐题复用证据并在已有授权和剩余额度内回源，将依据、政策边界、研究价值、未知及投入写入原扫描复核文件；独立CLI仍只输出初筛报告，不会自动读完原文或批准研究。选题后用同一事实材料作一次有边界的重构，事实前提不足仍停止。模型是否更少继承推断、候选质量和后续成稿收益尚待真实运行观察。
+
+此前仅改Tavily公共服务场景的一条检索词的试行继续观察，本次不扩大查询、来源或预算。随后3次用户发起的正常扫描分别记录该组是否暴露及新输入方法的使用情况，不以离线接线验证代替成稿收益。
 
 - 任意日期扫描：用户需要时运行一次 `sqmy scan`。项目通常每个自然日至多扫描一次，检索近90天公开信息，缓存RSS元数据，完成时间过滤、URL还原、去重、主题分类和规则筛选，生成最多5个新候选；每周1—2篇仍是质量目标，不设每日成稿指标。
 - 模型前去重：真实运行会先对比之前真实运行的URL、“标题+发布日”及同日同机构同主题的跨站转述，内容未变化或属于同源转载时不再进入模型。测试、mock、诊断和回放运行不会污染真实历史。
@@ -130,6 +136,7 @@ sqmy retrieve --run-id RUN_ID --plan data/sources/TOPIC_retrieval_plan.json --re
 - 有限预研：`pre-research-check` 导入结构化决策单，强制分开事实、推断、假设和分析判断，同时检查反证、替代解释、关键未知、权限边界、研究问题、放弃条件、阶段预算和机制压力测试。新决策单还应填写标准化 `decision_reason`（如 `policy_covered`、`insufficient_evidence`、`no_local_authority`、`mechanism_not_viable` 或 `reframe_required`）；旧决策单缺失该字段仍可读取，但停止原因会标为未分类。有效预研会自动回写对应制度新意审计，人工填写的复核标签不会被覆盖。分析结论为 `proceed` 或 `reframe` 仍停在人工闸门；只有 `pre-research-review --decision proceed` 才能进入深研，阻断性关键未知不能人工越过。
   - 停止反馈区分记录完整性（`record_valid`）与深研许可（`research_allowed`）：字段及基本校验合格、但有阻断性未知的 `stop` 也会写入停止反馈；字段错误不计为有效反馈。纳入反馈不改变深研闸门，旧决策单可用原路径重复执行 `pre-research-check` 补记，不重复累计阶段Token或制造新研究结论。
 - 正式起草：深研仍由人工与Codex协作完成。固定结构 Markdown 必须先取得预研人工放行，再经 `evidence-check` 放行，才可使用 `sqmy draft` 确定性导出送审 DOCX；它不会调用模型。改稿覆盖同名送审文件时，旧导出任务会标记为 `skipped`，缓存只有在文件 SHA-256 与任务记录一致时才复用，避免旧输入哈希误指向新版文件。
+  - 2026-09-07证据传递修复：预研报告显示摘录与限制，获取失败不能当作已核证据；辅助事实缺证同样挡在写作前。审批只绑定候选最新决策版本。`retrieve`支持显式绑定关键未知的有限补查，全部轮次仍共用原调用和积分上限，详见[研究证据传递与有界补查](docs/research_workflow_revision.md)。
 - 审核和报送：`sqmy approve` 仅记录人工通过并复制到 `outputs/submission/`，不会发送材料；只有人工实际报送后才能执行 `mark-submitted`。
 - mock 隔离：`generate-mock` 只用于测试，真实流程没有名为 `generate` 或 `export` 的模糊命令。
 - 暂停/恢复：`sqmy pause RUN_ID --quota` 保存原阶段和下一动作，`sqmy resume RUN_ID` 只恢复暂停或失败运行。发现阶段通过 `sqmy scan --resume RUN_ID` 使用同一运行ID继续。

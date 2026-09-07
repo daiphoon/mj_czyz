@@ -13,6 +13,7 @@ from .config import Settings
 from .db import Database, now
 from .models import Phase, TaskStatus
 from .novelty import record_pre_research_feedback
+from .source_trace import pre_research_trace
 
 
 DECISIONS = {"proceed", "reframe", "stop"}
@@ -27,6 +28,10 @@ DECISION_REASONS = {
     "mechanism_not_viable",
     "reframe_required",
     "other",
+    "fact_contradicted",
+    "source_unread",
+    "tool_failure",
+    "claim_too_broad",
 }
 SOURCE_ROLES = {
     "official_policy",
@@ -247,6 +252,16 @@ def validate_pre_research_payload(settings: Settings, payload: dict[str, Any]) -
 
     # 记录可用于停止原因反馈，不代表证据充分或允许进入深研。
     record_valid = not errors
+    diagnostics = pre_research_trace(payload) if record_valid else {
+        "reason_codes": ["RECORD_INVALID"], "evidence_checks": [], "open_questions": [],
+    }
+    for check in diagnostics["evidence_checks"]:
+        if check["code"] != "TRACE_PRESENT":
+            errors.append(f"{check['claim_ref']} 来源 {check['source_key']}：{check['reason']}")
+    if any(c.get("legacy") for c in diagnostics["evidence_checks"]):
+        warnings.append("旧来源保留摘录但未结构化记录抓取状态；兼容读取，不补称全文核验")
+    if decision_reason == "fact_contradicted":
+        errors.append("已记录核心事实被可靠证据否定，须纠正命题并重新核验，不能直接放行")
     if decision in {"proceed", "reframe"}:
         if len(source_keys) < 2 or len(origin_groups) < 2:
             errors.append("继续研究至少需要两个独立原始信息链")
@@ -256,6 +271,15 @@ def validate_pre_research_payload(settings: Settings, payload: dict[str, Any]) -
         errors.append("仍有阻断性关键未知：" + "；".join(blocking_unknowns))
 
     research_allowed = decision in {"proceed", "reframe"} and not errors
+    diagnostics["disposition"] = (
+        "record_invalid" if not record_valid else
+        "rejected_cut" if "FACT_FALSE" in diagnostics["reason_codes"] else
+        "tech_blocked" if "TOOL_FAILURE" in diagnostics["reason_codes"] else
+        "human_review" if research_allowed else
+        "unclassified" if "UNCLASSIFIED_DECISION" in diagnostics["reason_codes"] else
+        "rejected_cut" if diagnostics["reason_codes"] and set(diagnostics["reason_codes"]) <= {"FACT_FALSE", "POLICY_DUPLICATE"} else
+        "needs_evidence"
+    )
     return {
         "valid": not errors,
         "record_valid": record_valid,
@@ -263,6 +287,7 @@ def validate_pre_research_payload(settings: Settings, payload: dict[str, Any]) -
         "errors": errors,
         "warnings": warnings,
         "blocking_unknowns": blocking_unknowns,
+        "diagnostics": diagnostics,
     }
 
 
@@ -328,7 +353,11 @@ def _render_report(payload: dict[str, Any], gate: dict[str, Any]) -> str:
     source_lines = [
         f"- [{item.get('key', '')}] L{item.get('source_level', '')} "
         f"{item.get('publisher', '')}｜{item.get('source_role', '')}｜"
-        f"原始链 {item.get('origin_group', '')}｜{item.get('url', '')}"
+        f"原始链 {item.get('origin_group', '')}｜{item.get('url', '')}\n"
+        f"  - 获取状态：{item.get('fetch_status', 'legacy_unclassified')}；定位：{item.get('locator', '未结构化记录')}\n"
+        f"  - 必要摘录：{item.get('excerpt', '未提供')}\n"
+        f"  - 适用限制：{item.get('limitation', item.get('data_scope', '未结构化记录'))}\n"
+        f"  - 不能推出：{item.get('cannot_infer', '需结合主张核验')}"
         for item in payload.get("sources", [])
     ]
     lines = [
@@ -346,6 +375,9 @@ def _render_report(payload: dict[str, Any], gate: dict[str, Any]) -> str:
         "",
         *(_render_items(gate["errors"]) if gate["errors"] else ["- 无阻断项"]),
         *[f"- 提醒：{item}" for item in gate["warnings"]],
+        f"- 处置分类：{gate.get('diagnostics', {}).get('disposition', '未分类')}",
+        f"- 原因码：{', '.join(gate.get('diagnostics', {}).get('reason_codes', [])) or '无'}",
+        "- 以上是记录及引用检查，不是自动内容审查结论。",
         "",
         "## 核心来源",
         "",
@@ -449,6 +481,17 @@ def check_pre_research(
 
     gate = validate_pre_research_payload(settings, payload)
     input_hash = _canonical_hash(payload)
+    with db.connect() as conn:
+        latest = conn.execute(
+            "SELECT input_hash FROM research_reviews WHERE run_id=? AND candidate_id=? ORDER BY created_at DESC,rowid DESC LIMIT 1",
+            (run_id, candidate_id),
+        ).fetchone()
+        previous = conn.execute(
+            "SELECT 1 FROM research_reviews WHERE run_id=? AND candidate_id=? AND input_hash=?",
+            (run_id, candidate_id, input_hash),
+        ).fetchone()
+    if previous and latest["input_hash"] != input_hash:
+        raise ValueError("不能用旧版本决策单恢复放行；请基于最新证据形成新版本并重新确认")
     review_id = f"{run_id}:{candidate_id}:{input_hash[:12]}"
     report = (
         settings.root
@@ -628,13 +671,15 @@ def require_pre_research_approval(
     db.initialize()
     with db.connect() as conn:
         review = conn.execute(
-            """SELECT research_allowed,human_decision FROM research_reviews
-               WHERE run_id=? AND candidate_id=? AND topic_id=?
+            """SELECT topic_id,research_allowed,human_decision FROM research_reviews
+               WHERE run_id=? AND candidate_id=?
                ORDER BY created_at DESC,rowid DESC LIMIT 1""",
-            (run_id, candidate_id, topic_id),
+            (run_id, candidate_id),
         ).fetchone()
     if review is None:
         raise ValueError("预研闸门未通过：尚未形成有限预研决策单")
+    if review["topic_id"] != topic_id:
+        raise ValueError("预研闸门未通过：尚未形成该题目最新版本的人工放行")
     if not review["research_allowed"]:
         raise ValueError("预研闸门未通过：决策单仍有阻断项")
     if review["human_decision"] != "proceed":

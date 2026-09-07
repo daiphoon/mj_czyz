@@ -78,6 +78,9 @@ enabled = true
 max_searches_per_action = 4
 max_results_per_query = 5
 max_extracts_per_action = 2
+# 显式绑定最新决策单才可补查；全部轮次共用上述请求数和下述积分上限。
+max_repair_rounds = 2
+max_repair_unknowns = 2
 max_retries = 1
 action_credit_limit = 10.0
 action_cost_limit_usd = 0.08
@@ -104,7 +107,8 @@ scenario_queries = [
   { id = "employment", query = "中国 求职 招聘 培训贷 退费 调查", signals = ["培训贷", "招聘陷阱"] },
   { id = "community", query = "中国 小区 消防维修 责任 维修资金 业主 困难", signals = ["消防维修", "维修资金"] },
   { id = "accessibility", query = "中国 残疾人 无障碍 服务办理 投诉 调查", signals = ["无障碍", "残疾人"] },
-  { id = "public_service", query = "中国 老年人 异地就医 证明材料 反复提交 困难", signals = ["反复提交", "多头证明"] },
+  # 2026-09-07单组试行：保留场景ID和轮换信号，仅聚焦具体办理过程；复盘见docs/candidate_entry_trial.md。
+  { id = "public_service", query = "中国 老年人 异地就医 报销申请 材料反复提交 退回 处理结果 调查", signals = ["反复提交", "多头证明"] },
 ]
 
 [history_review]

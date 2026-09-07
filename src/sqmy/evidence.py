@@ -10,6 +10,7 @@ from typing import Any
 from .budget import record_stage_usage
 from .config import Settings
 from .db import Database, now
+from .source_trace import read_issue
 
 
 @dataclass(frozen=True)
@@ -187,8 +188,11 @@ def import_evidence_package(settings: Settings, path: Path) -> str:
                 )
     with db.connect() as conn:
         review = conn.execute(
-            """SELECT run_id FROM research_reviews
+            """SELECT run_id FROM research_reviews rr
                WHERE topic_id=? AND research_allowed=1 AND human_decision='proceed'
+               AND rr.rowid=(SELECT newer.rowid FROM research_reviews newer
+                   WHERE newer.run_id=rr.run_id AND newer.candidate_id=rr.candidate_id
+                   ORDER BY newer.created_at DESC,newer.rowid DESC LIMIT 1)
                ORDER BY reviewed_at DESC,created_at DESC,rowid DESC LIMIT 1""",
             (topic_id,),
         ).fetchone()
@@ -223,10 +227,12 @@ def assess_topic(settings: Settings, topic_id: str) -> dict[str, Any]:
                 (topic_id, claim["id"]),
             ).fetchall()
             supporting = [row for row in links if row["evidence_role"] == "supports"]
-            contradicting = [row for row in links if row["evidence_role"] == "contradicts"]
+            contradicting = [row for row in links if row["evidence_role"] == "contradicts"
+                             and not read_issue(_parse_json_object(row["metadata_json"]))]
             # Third-tier material remains a clue, not an independent verification chain.
             qualified = [row for row in supporting if row["source_level"] in {1, 2}
                          and _nonempty(row["origin_group"])
+                         and not read_issue(_parse_json_object(row["metadata_json"]))
                          and _parse_json_object(row["metadata_json"]).get("source_role") != "pain_signal"]
             if rules["same_origin_reprints_count_once"]:
                 origins = {row["origin_group"].strip() for row in qualified}
@@ -265,6 +271,10 @@ def assess_topic(settings: Settings, topic_id: str) -> dict[str, Any]:
             if claim["importance"] not in {"critical", "supporting"}:
                 metadata_issues.append("主张重要性分类无效")
             for row in links:
+                if row["evidence_role"] in {"supports", "contradicts"}:
+                    issue = read_issue(_parse_json_object(row["metadata_json"]))
+                    if issue:
+                        metadata_issues.append(f"来源 {row['source_id']} [{issue[0]}] {issue[1]}")
                 if row["source_level"] not in {1, 2, 3} or row["evidence_role"] not in {"supports", "contradicts", "context"}:
                     metadata_issues.append("来源等级或支持关系无效")
                 if not _nonempty(row["origin_group"]):
@@ -328,7 +338,7 @@ def assess_topic(settings: Settings, topic_id: str) -> dict[str, Any]:
     blocking = set(rules["blocking_statuses"])
     blockers = [
         a.claim_id for a in assessments
-        if (a.importance == "critical" and a.status in blocking)
+        if (a.status in blocking and (a.importance == "critical" or a.status != "single_source"))
         or bool(a.metadata_issues)
     ]
     gate_errors: list[str] = []
