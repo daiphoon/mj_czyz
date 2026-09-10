@@ -187,7 +187,7 @@ sqmy draft RUN_ID TOPIC_ID --source 稿件.md
 
 DeepSeek密钥可通过终端环境变量或本地 `.env` 提供；`.env` 已被Git忽略。调用记录保存提供商、模型、提示哈希、可获得的Token和估算成本。Codex订阅通道成本记为0元；DeepSeek按配置单价估算。
 
-当前初筛显式使用 `screening_model`，与深研和诊断模型分开配置。备用模型固定为 `deepseek-v4-pro`，显式启用思考模式并设置 `reasoning_effort = "max"`；价格变化时应同步更新配置。
+当前初筛显式使用 `screening_model = "gpt-5.6-terra"`，沿用模型默认思考深度，不额外固定 `medium`；与深研和诊断模型分开配置。备用模型固定为 `deepseek-v4-pro`，显式启用思考模式并设置 `reasoning_effort = "max"`；价格变化时应同步更新配置。
 
 `sqmy budget` 按最近7天分列三类账：`measured_model_tokens` 是提供商返回的用量；`estimated_unconfirmed_model_tokens` 是未返回可靠用量或进程中断的保守预留；`estimated_interactive_tokens` 是有限预研、深研和写作在耐久产物落库时按行为上限作出的估算。后两者不是ChatGPT Plus官方Token或账单。近7日Token只用于观察和复盘，不会因前几天用量较高而阻断今天的新任务。硬闸门分别是候选初筛55000、有限预研30000、深研40000和写作15000 Token；诊断另设30000 Token上限及1024输出Token上限，不提高已有研究额度。参数以 `config/settings.toml` 为准。同一运行内续跑或重试累计，新运行重新计算。付费备用 API 的近7日金额上限仍是独立安全闸门。
 
