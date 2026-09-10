@@ -104,3 +104,87 @@ summary = "交通运输部2022年答复已明确要求提前详细告知并重�
 keywords = ["ETC", "注销方式", "解约提示", "发行渠道", "注销门槛"]
 source_url = "https://xxgk.mot.gov.cn/2020/jigou/glj/202211/t20221117_3710863.html"
 last_verified_at = "2026-09-06"
+
+[[mechanisms]]
+id = "national-extraterritorial-coordination-2026"
+name = "反外国不当域外管辖的统筹协调与特殊情形申请"
+problem_type = "extraterritorial_coordination"
+jurisdiction = "全国"
+actor = "国务院法治部门与有关机关；省级以上有关部门依职责提供指导服务"
+summary = "2026年条例第5、6条已设置统筹协调、信息共享、识别建议和特殊情形申请；中国公民、组织须经同意才能在特定范围内执行相关措施。仅反证协调与申请制度空白，不证明实际办理充分，也不替代其他法定义务。"
+keywords = ["不当域外管辖", "外国补贴", "跨境调查", "特殊情形申请", "统筹协调"]
+source_url = "https://xzfg.moj.gov.cn/front/law/detail?LawID=1813"
+valid_from = "2026-04-07"
+last_verified_at = "2026-09-07"
+
+[[mechanisms]]
+id = "national-consumer-service-promises-2024"
+name = "消费服务承诺履行与预付款合同退还约定"
+problem_type = "consumer_service_promises_refund"
+jurisdiction = "全国"
+actor = "消费服务经营者、市场监管等有关部门；人民法院依法处理合同争议"
+summary = "消费者权益保护法实施条例第12、13、17、22条已规范承诺履行、真实经营者披露、不公平格式条款和预付款合同的服务及退还约定。仅反证一般义务空白，不证明人工咨询已实际履约，不把使用AI或录取不理想直接等同违约，也不当然要求全额退款。"
+keywords = ["志愿填报", "服务承诺", "预付款", "退款条件", "实际经营者"]
+source_url = "https://xzfg.moj.gov.cn/front/law/detail?LawID=1708"
+valid_from = "2024-07-01"
+last_verified_at = "2026-09-07"
+
+[[mechanisms]]
+id = "national-occupational-injury-multiplatform-2025"
+name = "职业伤害保障多平台首接单责任与订单数据调取"
+problem_type = "occupational_injury_multiplatform_handling"
+jurisdiction = "全国试点适用范围"
+actor = "人社部门、试点平台企业及平台服务机构"
+summary = "人社厅函〔2025〕79号经办规程第29条已规定执行订单平台责任、重合路程难以区分时首接单责任、责任确认前主动申报不得推诿，以及人社部门经全国信息平台按日查询各平台订单数据。仅反证一般规则空白，不证明实际数据完整或办理顺畅；须核准平台及事故时间适用范围，不处理商业保险给付。"
+keywords = ["职业伤害", "多平台接单", "首接单", "订单数据", "主动申报"]
+source_url = "https://shanghai.chinatax.gov.cn/zcfw/zcfgk/sbf/202509/t477651.html"
+valid_from = "2025-07-01"
+last_verified_at = "2026-09-07"
+
+[[mechanisms]]
+id = "beijing-eldercare-medical-referral-2026"
+name = "北京医养协议、双向转诊与家庭两床衔接"
+problem_type = "eldercare_medical_referral"
+jurisdiction = "北京市"
+actor = "民政、卫生健康、医疗保障部门及符合条件的服务机构"
+summary = "北京市养老服务条例第42、43、46条已规定医养协议合作、符合条件机构纳入医联体促进双向转诊，以及家庭病床与家庭养老床位信息共享和服务协同。仅反证一般制度空白，不证明当前转介顺畅或所有评估应互认，不当然扩大医保及长护险支付范围。"
+keywords = ["医养结合", "双向转诊", "家庭病床", "家庭养老床位", "服务衔接"]
+source_url = "https://www.beijing.gov.cn/zhengce/dfxfg/202602/t20260206_4496358.html"
+valid_from = "2026-07-01"
+last_verified_at = "2026-09-07"
+
+[[mechanisms]]
+id = "national-platform-rule-execution-review-2026"
+name = "平台规则执行监督、省级评估与不合理保证金约束"
+problem_type = "platform_deposit_execution_review"
+jurisdiction = "全国；规则执行评估依省级以上权限及辖区范围"
+actor = "市场监督管理、网信部门及网络交易平台经营者"
+summary = "第116号令第19、28、33、36条已有不利措施告知与申诉、不合理保证金限制、规则执行监督和省级以上评估路径。反证一般监督与申诉空白，不证明实际执行充分，不赋予地方新增司法冻结权，也不授权普遍提高商家保证金。2026年生效，不能追溯评价2025年交易。"
+keywords = ["平台规则", "保证金", "风险处置", "规则执行评估", "商家申诉"]
+source_url = "https://www.samr.gov.cn/zw/zfxxgk/fdzdgknr/fgs/art/2026/art_85b474fc5a08494bb60ca6a280b98d7d.html"
+valid_from = "2026-02-01"
+last_verified_at = "2026-09-07"
+
+[[mechanisms]]
+id = "national-sme-payment-contract-compliance-2025"
+name = "中小企业付款条件与大型企业合规管理"
+problem_type = "payment_contract"
+jurisdiction = "全国"
+actor = "国务院有关部门、属地主管部门与大型采购企业"
+summary = "支付条例第7、9、11条规范不合理条件及非现金支付，第19条要求大型企业纳入风险控制和合规体系。不能把新增一般禁令或合规体系当新建议；不证明各企业审查已经有效。"
+keywords = ["中小企业款项", "商业汇票", "付款条件", "采购合同", "合规管理"]
+source_url = "https://www.miit.gov.cn/jgsj/zfs/xzfg/art/2025/art_d9b6cd05f3734869aa34caff247089ff.html"
+valid_from = "2025-06-01"
+last_verified_at = "2026-09-07"
+
+[[mechanisms]]
+id = "national-sme-complaint-litigation-boundary-2021"
+name = "中小企业款项投诉与已诉事项受理边界"
+problem_type = "payment_complaint"
+jurisdiction = "全国"
+actor = "省级以上受理部门及按职责处理部门"
+summary = "2021暂行办法第6至8条规定材料及已诉已处理事项不予受理，当前工信部办事指南仍列该办法为依据；与2025条例并读，不由行政投诉代替司法裁判。"
+keywords = ["中小企业款项", "清欠投诉", "已诉事项", "不予受理"]
+source_url = "https://www.miit.gov.cn/zwgk/zcwj/wjfb/tz/art/2021/art_14f3ee02ac0549a6a3b4068d52edeac3.html"
+valid_from = "2021-12-30"
+last_verified_at = "2026-09-07"
