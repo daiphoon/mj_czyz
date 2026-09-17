@@ -1,0 +1,87 @@
+{
+  "topic_id": "TOPIC_ID",
+  "sources": [
+    {
+      "key": "0",
+      "source_name": "测试来源",
+      "page_title": "测试资料",
+      "url": "https://example.test/0",
+      "source_role": "media_investigation",
+      "checked_at": "填写实际日期",
+      "excerpt": "v2-topic",
+      "used_at": "v2-topic",
+      "fetched_at": "填写实际日期",
+      "published_at": "填写实际日期"
+    },
+    {
+      "key": "1",
+      "source_name": "测试来源",
+      "page_title": "测试资料",
+      "url": "https://example.test/1",
+      "source_role": "media_investigation",
+      "checked_at": "填写实际日期",
+      "excerpt": "v2-topic",
+      "used_at": "v2-topic",
+      "fetched_at": "填写实际日期",
+      "published_at": "填写实际日期"
+    }
+  ],
+  "claims": [
+    {
+      "id": "c1",
+      "claim_text": "v2-topic",
+      "claim_type": "statistic",
+      "importance": "critical",
+      "epistemic_status": "verified_fact",
+      "confidence": "high",
+      "uncertainty_reason": "测试口径限制",
+      "falsifier": "原始资料更正",
+      "as_of_date": "2026-09-14T13:19:13.567013+00:00",
+      "scope": {
+        "time_period": "2026",
+        "region": "测试",
+        "population": "居民",
+        "unit": "人",
+        "definition": "测试定义"
+      },
+      "sources": [
+        {
+          "source": "0",
+          "role": "supports",
+          "origin_group": "0",
+          "source_level": 2,
+          "evidence_detail": {
+            "claim_part": "样本范围内的统计结论",
+            "locator": "表 1 及表下注释",
+            "excerpt": "仅在样本总体内记录结果。",
+            "excerpt_kind": "verbatim",
+            "support_scope": "支持样本范围内的结论",
+            "limitation": "不支持其他地区",
+            "fetch_status": "excerpt_verified",
+            "checked_at": "填写实际核验日期",
+            "context": "填写原文必要上下文，包括条件、例外、表注或脚注；没有附加条件也须如实说明核对范围"
+          }
+        },
+        {
+          "source": "1",
+          "role": "supports",
+          "origin_group": "1",
+          "source_level": 2,
+          "evidence_detail": {
+            "claim_part": "样本范围内的统计结论",
+            "locator": "表 1 及表下注释",
+            "excerpt": "仅在样本总体内记录结果。",
+            "excerpt_kind": "verbatim",
+            "support_scope": "支持样本范围内的结论",
+            "limitation": "不支持其他地区",
+            "fetch_status": "excerpt_verified",
+            "checked_at": "填写实际核验日期",
+            "context": "填写原文必要上下文，包括条件、例外、表注或脚注；没有附加条件也须如实说明核对范围"
+          }
+        }
+      ]
+    }
+  ],
+  "evidence_contract": "evidence_v2",
+  "example_only": true
+}

@@ -762,6 +762,7 @@ class LiveDiscovery:
 
     def _model_rank(self, run_id: str, events: list, *, use_cache: bool = True) -> tuple[list, bool, int]:
         from .materials import compact_reposts, split_discovery_summary
+        from .candidate_eligibility import CONTRACT, SCHEMA as ELIGIBILITY_SCHEMA, attach_shadow
         model_cfg = self.s.section("model")
         limit = self.s.section("discovery")["screened_max"]
         pool = events[:limit]
@@ -774,10 +775,14 @@ class LiveDiscovery:
         material_path = self.s.root / 'data/runs' / run_id / 'screening_materials.json'
         material_path.parent.mkdir(parents=True, exist_ok=True)
         # 旧运行恢复沿用原提示契约，避免已完成调用因升级而失去缓存。
-        input_contract = (
-            json.loads(material_path.read_text(encoding='utf-8')).get('input_contract', 'legacy')
-            if material_path.exists() else 'fact_first_v1'
-        )
+        frozen_material = json.loads(material_path.read_text(encoding='utf-8')) if material_path.exists() else None
+        mode = self.s.raw.get('candidate_eligibility', {}).get('mode', 'off')
+        if mode not in {'off', 'shadow'}:
+            raise ValueError('candidate_eligibility 仅支持 off/shadow；正式排序切换尚未验收')
+        input_contract = (frozen_material.get('input_contract', 'legacy') if frozen_material
+                          else CONTRACT if mode == 'shadow' else 'fact_first_v1')
+        if input_contract not in {'legacy', 'fact_first_v1', CONTRACT}:
+            raise ValueError('未知初筛输入契约，不能按旧提示恢复')
         compact = [
             {
                 "id": x.id,
@@ -799,18 +804,18 @@ class LiveDiscovery:
             }
             for x in pool
         ]
-        history = self._approved_history()
+        history = [] if input_contract == CONTRACT and frozen_material and 'prompt' in frozen_material else self._approved_history()
         for item in compact:
             item['history_review_hints'] = mechanism_hints(item['title'] + item['summary'], history, self.s.section('history_review'))
-        if input_contract == 'fact_first_v1':
+        if input_contract in {'fact_first_v1', CONTRACT}:
             for item in compact:
                 item.update(split_discovery_summary(item.pop('summary')))
-        self._atomic_json(material_path, {
+        material = {
             'frozen_event_ids': [x.id for x in events[:limit]],
             'model_event_ids': [x.id for x in pool], 'merged_reposts': merged,
             'input_contract': input_contract, 'model_input': compact,
             'note': '仅整理冻结输入；不补题、不改原事件；分隔或合并不代表事实核验或政策覆盖判断',
-        })
+        }
         prompt = (
             "你是社情民意选题初筛员。仅依据以下标题、摘要和元数据进行低成本判断，不得补造事实。"
             "source_name用于判断来源属性；source_region_hint只是检索频道提示，"
@@ -840,7 +845,7 @@ class LiveDiscovery:
             f"正向评分上限：{json.dumps(self.s.section('scoring'), ensure_ascii=False)}；"
             f"扣分配置：{json.dumps(self.s.section('penalties'), ensure_ascii=False)}。"
         )
-        if input_contract == 'fact_first_v1':
+        if input_contract in {'fact_first_v1', CONTRACT}:
             prompt += (
                 "输入解释：reported_excerpt只是发现材料陈述，不等于已验证事实，可能仍有单方说法或未标注的推断；"
                 "upstream_hypotheses是显式分隔的上游缺口、原因或切口设想，不得继承为事实。标题也须核验。"
@@ -853,6 +858,14 @@ class LiveDiscovery:
                 "data_assessment交代材料依据与决定性未知，recommendation交代研究价值与可信核验路径；无法从输入判断就写待核。"
                 "决定性未知须区分问题真实性、权限与证据路径等前提，以及前提成立后留给深研的边界细化、成本和效果问题。"
                 "不得为获得候选而将前提改为深研任务；本次只初筛，不表示预研通过。"
+            )
+        if input_contract == CONTRACT:
+            prompt += (
+                "candidate_shadow_v1：在同一调用给出eligibility影子意见，不按此字段改变原选题范围或评分。"
+                "eligible仅表示具体问题、公共价值、权限路径和可信核验入口值得有限投入；不是事实已核验。"
+                "needs_evidence表示关键研究前提尚待证；reject须有依据说明该版本命题不值得继续。"
+                "元数据缺失不是反证。reason写判断依据；decisive_unknown写决定性未知或已被解决的前提；"
+                "verification_entry写具体核验入口，确实无法判断写待核；这些字段计入原有每题字数上限。"
             )
         prompt += "\n" + json.dumps(compact, ensure_ascii=False)
         scoring_cfg = self.s.section("scoring")
@@ -891,12 +904,27 @@ class LiveDiscovery:
                 },
             },
         }
+        if input_contract == CONTRACT:
+            selection_properties['eligibility'] = ELIGIBILITY_SCHEMA
         schema = {"type": "object", "additionalProperties": False, "properties": {
             "selections": {"type": "array", "minItems": 0, "maxItems": self.s.section("novelty")["audit_pool_size"], "items": {
                 "type": "object", "additionalProperties": False, "properties": selection_properties,
                 "required": list(selection_properties),
             }}}, "required": ["selections"]}
+        if input_contract == CONTRACT:
+            if frozen_material and 'prompt' in frozen_material:
+                material = frozen_material
+                prompt, schema, model_cfg = material['prompt'], material['schema'], material['model_config']
+                if material['model_event_ids'] != [x.id for x in pool]:
+                    raise ValueError('恢复模型输入与冻结事件不一致，不能混入新线索')
+                if hashlib.sha256(prompt.encode()).hexdigest() != material['prompt_sha256']:
+                    raise ValueError('冻结提示哈希不匹配')
+            else:
+                material.update(prompt=prompt, schema=schema, model_config=model_cfg,
+                                frozen_at=now(), prompt_sha256=hashlib.sha256(prompt.encode()).hexdigest())
+        self._atomic_json(material_path, material)
         prompt_hash = hashlib.sha256(prompt.encode()).hexdigest()
+        attach = (lambda items, data: attach_shadow(items, data, material, self._attach_analyses)) if input_contract == CONTRACT else self._attach_analyses
         with self.wf.db.connect() as conn:
             cached_rows = conn.execute(
                 """SELECT result_json,token_used,run_id FROM tasks
@@ -915,7 +943,7 @@ class LiveDiscovery:
                     continue
                 try:
                     data = json.loads(cached["result_json"])
-                    screened = self._attach_analyses(pool, data)
+                    screened = attach(pool, data)
                 except (ProviderError, json.JSONDecodeError):
                     continue
                 self._write_screening_audit(run_id, data)
@@ -929,7 +957,7 @@ class LiveDiscovery:
             return events, False, 0
         ledger = CallLedger(
             self.wf.db, self.s, run_id, "screening", prompt_hash,
-            validate=lambda data: self._attach_analyses(pool, data),
+            validate=lambda data: attach(pool, data),
             task_kind="model_screening",
         )
         try:
@@ -944,7 +972,7 @@ class LiveDiscovery:
             self._checkpoint_interruption(run_id, TaskStatus.FAILED, str(exc))
             raise
         self._budget_overrun = ledger.overrun
-        screened = self._attach_analyses(pool, result.data)
+        screened = attach(pool, result.data)
         self._write_screening_audit(run_id, result.data)
         return screened, False, 0
 
@@ -1559,6 +1587,7 @@ class LiveDiscovery:
                 pending_before_count: int = 0,
                 shadow_reviews: list | None = None,
                 pool_quality: dict | None = None) -> Path:
+        from .candidate_eligibility import candidate_hash, current_candidate_review
         path = self.s.root / "outputs/candidates" / f"{run_id}.md"
         path.parent.mkdir(parents=True, exist_ok=True)
         blocked = [item for item in audits if item.decision == "block_original_gap"]
@@ -1627,6 +1656,9 @@ class LiveDiscovery:
                 f"- 历史关系：{c.history_relation}",
                 f"- 风险：{c.risk}",
                 f"- 模型初筛意见（非人工推荐）：{c.recommendation}",
+                f"- 研究入口影子意见（不参与排序）：{json.dumps(c.eligibility, ensure_ascii=False) if c.eligibility else 'legacy / 未做新版评估'}",
+                f"- 候选材料版本：{candidate_hash(c)}",
+                f"- 已登记回源推荐：{json.dumps(current_candidate_review(self.wf.db, run_id, c), ensure_ascii=False)}；最新记录以 candidates --json 为准。",
                 f"- 来源：{c.score_reasons.get('来源名称', '')}；{c.score_reasons.get('来源URL', '')}",
                 "",
                 "### 人工研究入口复核（待填写）",

@@ -14,6 +14,7 @@ from .db import Database, now
 from .models import Phase, TaskStatus
 from .novelty import record_pre_research_feedback
 from .source_trace import pre_research_trace
+from .problem_mechanism import validate_problem, render_problem
 
 
 DECISIONS = {"proceed", "reframe", "stop"}
@@ -32,6 +33,7 @@ DECISION_REASONS = {
     "source_unread",
     "tool_failure",
     "claim_too_broad",
+    "causal_gap",
 }
 SOURCE_ROLES = {
     "official_policy",
@@ -81,9 +83,9 @@ def _valid_date(value: Any) -> bool:
     return True
 
 
-def _require_nonempty_list(payload: dict[str, Any], key: str, errors: list[str]) -> list[Any]:
-    value = payload.get(key)
-    if not isinstance(value, list) or not value:
+def _require_nonempty_list(payload: dict[str, Any], key: str, errors: list[str], *, required=True) -> list[Any]:
+    value = payload.get(key, [] if not required else None)
+    if not isinstance(value, list) or (required and not value):
         errors.append(f"{key} 必须是非空列表")
         return []
     return value
@@ -92,6 +94,11 @@ def _require_nonempty_list(payload: dict[str, Any], key: str, errors: list[str])
 def validate_pre_research_payload(settings: Settings, payload: dict[str, Any]) -> dict[str, Any]:
     errors: list[str] = []
     warnings: list[str] = []
+    contract = payload.get("research_contract", "research_v1")
+    v3 = contract == "research_v3"
+    stopped = v3 and payload.get("decision") == "stop"
+    if contract not in {"research_v1", "research_v3"}:
+        errors.append("不支持的 research_contract")
     for key in ("run_id", "candidate_id", "topic_id", "working_title", "confidence_reason"):
         if not _is_nonempty(payload.get(key)):
             errors.append(f"{key} 不能为空")
@@ -101,14 +108,14 @@ def validate_pre_research_payload(settings: Settings, payload: dict[str, Any]) -
         errors.append("decision 只能是 proceed、reframe 或 stop")
     decision_reason = payload.get("decision_reason")
     if decision_reason is None:
-        warnings.append("缺少 decision_reason；本次预研只能生成未分类反馈，后续决策单应补齐")
+        (errors if v3 else warnings).append("缺少 decision_reason；本次预研只能生成未分类反馈，后续决策单应补齐")
     elif decision_reason not in DECISION_REASONS:
         errors.append("decision_reason 不是支持的标准原因")
     confidence = payload.get("confidence")
     if confidence not in CONFIDENCE_LEVELS:
         errors.append("confidence 只能是 low、medium 或 high")
 
-    sources = _require_nonempty_list(payload, "sources", errors)
+    sources = _require_nonempty_list(payload, "sources", errors, required=not stopped)
     source_keys: set[str] = set()
     origin_groups: set[str] = set()
     has_level_one = False
@@ -144,7 +151,8 @@ def validate_pre_research_payload(settings: Settings, payload: dict[str, Any]) -
         "counterevidence",
     )
     for section in referenced_sections:
-        items = _require_nonempty_list(payload, section, errors)
+        items = _require_nonempty_list(payload, section, errors,
+                                       required=not stopped and not (v3 and section == "evidence_based_inferences"))
         for index, item in enumerate(items, 1):
             if not isinstance(item, dict) or not _is_nonempty(item.get("statement")):
                 errors.append(f"{section}[{index}] 缺少 statement")
@@ -163,7 +171,7 @@ def validate_pre_research_payload(settings: Settings, payload: dict[str, Any]) -
             if section == "counterevidence" and not _is_nonempty(item.get("implication")):
                 errors.append(f"{section}[{index}] 缺少 implication")
 
-    hypotheses = _require_nonempty_list(payload, "unverified_hypotheses", errors)
+    hypotheses = _require_nonempty_list(payload, "unverified_hypotheses", errors, required=not v3)
     for index, item in enumerate(hypotheses, 1):
         if not isinstance(item, dict):
             errors.append(f"unverified_hypotheses[{index}] 必须是对象")
@@ -172,7 +180,7 @@ def validate_pre_research_payload(settings: Settings, payload: dict[str, Any]) -
             if not _is_nonempty(item.get(field)):
                 errors.append(f"unverified_hypotheses[{index}] 缺少 {field}")
 
-    judgments = _require_nonempty_list(payload, "analyst_judgments", errors)
+    judgments = _require_nonempty_list(payload, "analyst_judgments", errors, required=not v3)
     for index, item in enumerate(judgments, 1):
         if not isinstance(item, dict):
             errors.append(f"analyst_judgments[{index}] 必须是对象")
@@ -181,7 +189,7 @@ def validate_pre_research_payload(settings: Settings, payload: dict[str, Any]) -
             if not _is_nonempty(item.get(field)):
                 errors.append(f"analyst_judgments[{index}] 缺少 {field}")
 
-    alternatives = _require_nonempty_list(payload, "alternative_explanations", errors)
+    alternatives = _require_nonempty_list(payload, "alternative_explanations", errors, required=not v3)
     for index, item in enumerate(alternatives, 1):
         if not isinstance(item, dict) or not _is_nonempty(item.get("statement")) or not _is_nonempty(item.get("test")):
             errors.append(f"alternative_explanations[{index}] 必须包含 statement 和 test")
@@ -206,12 +214,14 @@ def validate_pre_research_payload(settings: Settings, payload: dict[str, Any]) -
     ]
 
     for key in ("discard_conditions", "research_questions"):
-        values = _require_nonempty_list(payload, key, errors)
+        values = _require_nonempty_list(payload, key, errors, required=not (stopped and key == "research_questions"))
         if any(not _is_nonempty(item) for item in values):
             errors.append(f"{key} 只能包含非空字符串")
 
     authority = payload.get("authority")
-    if not isinstance(authority, dict):
+    if stopped and authority is None:
+        pass
+    elif not isinstance(authority, dict):
         errors.append("authority 必须是对象")
     else:
         for field in ("actor", "power", "boundary"):
@@ -234,7 +244,7 @@ def validate_pre_research_payload(settings: Settings, payload: dict[str, Any]) -
             if not _is_nonempty(budget.get(field)):
                 errors.append(f"budget 缺少 {field}")
 
-    mechanisms = _require_nonempty_list(payload, "mechanism_cards", errors)
+    mechanisms = _require_nonempty_list(payload, "mechanism_cards", errors, required=not v3)
     for index, mechanism in enumerate(mechanisms, 1):
         if not isinstance(mechanism, dict):
             errors.append(f"mechanism_cards[{index}] 必须是对象")
@@ -249,6 +259,21 @@ def validate_pre_research_payload(settings: Settings, payload: dict[str, Any]) -
             for field in sorted(SCENARIO_FIELDS):
                 if not _is_nonempty(scenarios.get(field)):
                     errors.append(f"mechanism_cards[{index}].scenarios 缺少 {field}")
+
+    if v3:
+        if stopped:
+            for field in ("stop_summary", "reopen_condition", "effort_note"):
+                if not _is_nonempty(payload.get(field)):
+                    errors.append(f"停止记录缺少 {field}")
+        else:
+            claim_ids = [item.get("id") for section in referenced_sections for item in payload.get(section, []) if isinstance(item, dict)]
+            if any(not _is_nonempty(i) for i in claim_ids) or len(set(i for i in claim_ids if isinstance(i, str))) != len(claim_ids):
+                errors.append("新版预研的事实、推断与反证 id 必须非空且唯一")
+            errors.extend(validate_problem(payload.get("problem_mechanism"), {i for i in claim_ids if isinstance(i, str)}))
+            feasibility = payload.get("initial_feasibility", {})
+            for field in ("authority", "major_risks", "lower_cost_alternative"):
+                if not isinstance(feasibility, dict) or not _is_nonempty(feasibility.get(field)):
+                    errors.append(f"初步可行性缺少 {field}")
 
     # 记录可用于停止原因反馈，不代表证据充分或允许进入深研。
     record_valid = not errors
@@ -308,7 +333,8 @@ def _render_detailed_items(items: list[Any], fields: tuple[tuple[str, str], ...]
         if not isinstance(item, dict):
             lines.append(f"- {item}")
             continue
-        lines.append(f"- {item.get('statement', '')}")
+        prefix = f"[{item['id']}] " if item.get('id') else ""
+        lines.append(f"- {prefix}{item.get('statement', '')}")
         for field, label in fields:
             value = item.get(field)
             if value:
@@ -319,7 +345,7 @@ def _render_detailed_items(items: list[Any], fields: tuple[tuple[str, str], ...]
 
 
 def _render_report(payload: dict[str, Any], gate: dict[str, Any]) -> str:
-    authority = payload.get("authority", {})
+    authority = payload.get("authority") or {}
     budget = payload.get("budget", {})
     unknown_lines = []
     for item in payload.get("critical_unknowns", []):
@@ -367,6 +393,7 @@ def _render_report(payload: dict[str, Any], gate: dict[str, Any]) -> str:
         f"- 候选：{payload.get('candidate_id', '')}",
         f"- 题目ID：{payload.get('topic_id', '')}",
         f"- 分析决定：{payload.get('decision', '')}",
+        *([f"- 研究契约：{payload['research_contract']}"] if payload.get('research_contract') else []),
         f"- 决定原因：{payload.get('decision_reason', 'unclassified')}",
         f"- 置信度：{payload.get('confidence', '')}（{payload.get('confidence_reason', '')}）",
         f"- 允许进入人工深研确认：{'是' if gate['research_allowed'] else '否'}",
@@ -443,6 +470,12 @@ def _render_report(payload: dict[str, Any], gate: dict[str, Any]) -> str:
         "## 机制压力测试",
         "",
         *(mechanism_lines or ["- 无"]),
+        *render_problem(payload.get("problem_mechanism")),
+        *(["## 停止依据与重开条件", "", f"- {payload.get('stop_summary', '')}",
+           f"- 重开条件：{payload.get('reopen_condition', '')}", f"- 实际投入：{payload.get('effort_note', '')}", ""]
+          if payload.get("research_contract") == "research_v3" and payload.get("decision") == "stop" else []),
+        *(["## 初步可行性", "", *[f"- {k}：{v}" for k, v in payload['initial_feasibility'].items()], ""]
+          if isinstance(payload.get('initial_feasibility'), dict) else []),
         "> 本决策单是内部研究记录，不得作为正式报送正文。只有人工记录 proceed 后才能进入深研。",
     ]
     return "\n".join(lines) + "\n"
@@ -464,7 +497,7 @@ def check_pre_research(
     db.initialize()
     with db.connect() as conn:
         candidate = conn.execute(
-            """SELECT c.title,c.selected FROM candidates c
+            """SELECT c.title,c.selected,c.data_json FROM candidates c
                WHERE c.run_id=? AND c.id=?""",
             (run_id, f"{run_id}:{candidate_id}"),
         ).fetchone()
@@ -477,19 +510,24 @@ def check_pre_research(
         raise ValueError(f"候选题不存在：{candidate_id}")
     if not candidate["selected"]:
         raise ValueError("候选题尚未人工选择")
+    candidate_contract = (json.loads(candidate['data_json']).get('eligibility') or {}).get('contract')
+    if candidate_contract == 'candidate_shadow_v1' and payload.get('research_contract') != 'research_v3':
+        raise ValueError('新版候选须使用 research_v3 分阶段预研契约；旧运行仍按原版本恢复')
     require_source_freshness(settings, db, run_id)
 
     gate = validate_pre_research_payload(settings, payload)
     input_hash = _canonical_hash(payload)
     with db.connect() as conn:
         latest = conn.execute(
-            "SELECT input_hash FROM research_reviews WHERE run_id=? AND candidate_id=? ORDER BY created_at DESC,rowid DESC LIMIT 1",
+            "SELECT input_hash,data_json FROM research_reviews WHERE run_id=? AND candidate_id=? ORDER BY created_at DESC,rowid DESC LIMIT 1",
             (run_id, candidate_id),
         ).fetchone()
         previous = conn.execute(
             "SELECT 1 FROM research_reviews WHERE run_id=? AND candidate_id=? AND input_hash=?",
             (run_id, candidate_id, input_hash),
         ).fetchone()
+    if latest and json.loads(latest["data_json"]).get("research_contract") == "research_v3" and payload.get("research_contract") != "research_v3":
+        raise ValueError("新版研究记录不能降级为旧契约")
     if previous and latest["input_hash"] != input_hash:
         raise ValueError("不能用旧版本决策单恢复放行；请基于最新证据形成新版本并重新确认")
     review_id = f"{run_id}:{candidate_id}:{input_hash[:12]}"

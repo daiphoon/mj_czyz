@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import asdict
 import json
 from pathlib import Path
+from . import __version__
 
 from .config import Settings, load_dotenv
 from .delivery import check_draft, register_review
@@ -49,6 +51,7 @@ def _add_refresh_arguments(command: argparse.ArgumentParser) -> None:
 
 def parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="sqmy", description="社情民意信息研究与生成工作流")
+    p.add_argument('--version', action='version', version=f'sqmy {__version__}')
     p.add_argument("--config", default="config/settings.toml")
     sub = p.add_subparsers(dest="command", required=True)
     sub.add_parser("init", help="初始化数据库和正式模板")
@@ -63,6 +66,11 @@ def parser() -> argparse.ArgumentParser:
     sub.add_parser("scan-mock", help="运行纯 mock 候选扫描")
     sub.add_parser("monday-mock", help="兼容旧命令；等同于 scan-mock")
     show = sub.add_parser("candidates", help="查看候选题"); show.add_argument("run_id")
+    show.add_argument("--json", action="store_true", help="含材料版本、影子意见及回源推荐记录")
+    candidate_review = sub.add_parser("candidate-review", help="登记绑定材料版本的回源推荐，不自动选题")
+    candidate_review.add_argument("run_id")
+    candidate_review.add_argument("candidate_id")
+    candidate_review.add_argument("--record", type=Path, required=True)
     pool = sub.add_parser("candidate-pool", help="查看近期仍可复核使用的未选候选")
     pool.add_argument("--days", type=int, default=None)
     sel = sub.add_parser("select", help="人工确认 1—2 个候选题"); sel.add_argument("run_id"); sel.add_argument("candidate_ids", nargs="+")
@@ -80,6 +88,18 @@ def parser() -> argparse.ArgumentParser:
     draft_review.add_argument("topic_id")
     draft_review.add_argument("--source", type=Path, required=True)
     draft_review.add_argument("--record", type=Path, required=True)
+    research_brief = sub.add_parser("research-brief", help="登记或读取深研的唯一版本化写作输入")
+    research_brief.add_argument("run_id")
+    research_brief.add_argument("topic_id")
+    research_brief.add_argument("--record", type=Path)
+    semantic = sub.add_parser("semantic-review", help="准备或执行独立上下文的证据影子复核；默认零调用")
+    semantic.add_argument("run_id")
+    semantic.add_argument("topic_id")
+    semantic.add_argument("--package", type=Path, help="可在深研证据导入记账前，复核已整理的证据包")
+    semantic.add_argument("--run", action="store_true", help="显式执行，须已启用且原深研行为仍有额度")
+    semantic.add_argument("--retry", action="store_true", help="重试同一失败记录；仍受原行为额度限制")
+    semantic.add_argument("--adjudication", type=Path, help="登记回到原文后的内容裁决，不发请求")
+    semantic.add_argument("--show", action="store_true", help="读取当前证据对应的最新意见")
     draft = sub.add_parser("draft", help="证据和送审检查通过后导出 DOCX")
     draft.add_argument("run_id")
     draft.add_argument("topic_id")
@@ -205,7 +225,17 @@ def main(argv: list[str] | None = None) -> int:
         print(run_id)
         print(f"已离线回放，生成 {len(candidates)} 个候选；新增模型调用 0 次")
     elif args.command == "candidates":
-        for c in wf.candidates(args.run_id): print(f"{c.id} {c.score} {c.title}")
+        from .candidate_eligibility import candidate_hash, current_candidate_review
+        candidates = wf.candidates(args.run_id)
+        if args.json:
+            print(json.dumps([asdict(c) | {"candidate_sha256": candidate_hash(c),
+                "source_review": current_candidate_review(wf.db, args.run_id, c)} for c in candidates], ensure_ascii=False, indent=2))
+        else:
+            for c in candidates:
+                print(f"{c.id} {c.score} {c.title} [研究入口影子：{(c.eligibility or {}).get('status', 'legacy/未评估')}]")
+    elif args.command == "candidate-review":
+        from .candidate_eligibility import register_candidate_review
+        print(json.dumps(register_candidate_review(s, args.run_id, args.candidate_id, args.record), ensure_ascii=False, indent=2))
     elif args.command == "candidate-pool":
         print(json.dumps(wf.candidate_pool(args.days), ensure_ascii=False, indent=2))
     elif args.command == "select":
@@ -224,6 +254,21 @@ def main(argv: list[str] | None = None) -> int:
         return 0 if result["ok"] else 2
     elif args.command == "draft-review":
         print(register_review(s, args.run_id, args.topic_id, args.source, args.record))
+    elif args.command == "research-brief":
+        from .research_brief import register_brief, latest_brief
+        result = register_brief(s, args.run_id, args.topic_id, args.record) if args.record else latest_brief(wf.db, args.topic_id, args.run_id)
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+    elif args.command == "semantic-review":
+        from .semantic_review import semantic_review, current_review, register_adjudication
+        if sum(bool(v) for v in (args.adjudication, args.show, args.run)) > 1:
+            raise ValueError("执行、读取和登记裁决须分别操作")
+        if args.adjudication:
+            result = register_adjudication(s, args.run_id, args.topic_id, args.adjudication)
+        elif args.show:
+            result = current_review(s, args.topic_id, args.run_id)
+        else:
+            result = semantic_review(s, args.run_id, args.topic_id, package_path=args.package, execute=args.run, retry=args.retry)
+        print(json.dumps(result, ensure_ascii=False, indent=2))
     elif args.command == "draft":
         print(wf.draft(args.run_id, args.topic_id, args.source, candidate_id=args.candidate_id))
     elif args.command == "approve":

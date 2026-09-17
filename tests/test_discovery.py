@@ -58,6 +58,13 @@ class DiscoveryTest(unittest.TestCase):
         cls.root = Path(__file__).parents[1]
         cls.settings = Settings.load(cls.root / "config/settings.toml")
 
+    def setUp(self):
+        # 排序/队列单测也会经 LiveDiscovery 初始化数据库，必须隔离根目录。
+        workspace = tempfile.TemporaryDirectory(prefix='sqmy-discovery-test-')
+        self.addCleanup(workspace.cleanup)
+        self.settings = Settings(Path(workspace.name), deepcopy(type(self).settings.raw))
+        shutil.copytree(self.root / 'config', self.settings.root / 'config')
+
     def test_report_keeps_model_opinion_separate_from_pending_human_review(self):
         with tempfile.TemporaryDirectory() as temp:
             settings = Settings(Path(temp), deepcopy(self.settings.raw))

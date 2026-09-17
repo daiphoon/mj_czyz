@@ -16,7 +16,12 @@ def valid_text():
 
 def review_record(settings, run, topic, source):
     check = check_draft(settings, topic, source)
-    payload = {key: check[key] for key in ("topic_id", "source_sha256", "evidence_sha256", "problem_ids")}
+    payload = {key: check[key] for key in ("topic_id", "source_sha256", "evidence_sha256", "problem_ids", "evidence_contract", "research_brief_sha256")}
+    if check["research_brief_sha256"]:
+        from sqmy.research_brief import latest_brief
+        from sqmy.db import Database
+        brief = latest_brief(Database(settings.database_path), topic, run)
+        payload["problem_option_map"] = {key: brief["selected_option_ids"] for key in check["problem_ids"]}
     payload.update(claim_ids=check["critical_claim_ids"], reviewed_at=datetime.now(timezone.utc).isoformat(),
                    reviews={kind: {"status": "passed", "reason": "离线夹具验证记录字段，不代表真实内容审查", "reviewer": "fixture"} for kind in REVIEW_KINDS})
     record = source.with_suffix(".review.json")

@@ -467,7 +467,7 @@ class CleanupManager:
             for path in base.iterdir():
                 if not path.is_dir():
                     continue
-                if path.name in {"pre_research", "deep_research", "metrics"}:
+                if path.name in {"pre_research", "deep_research", "research_briefs", "metrics"}:
                     continue
                 if path.name in delete_runs:
                     mark(path, "disposable_run_output")
@@ -521,7 +521,7 @@ class CleanupManager:
             ],
             "preserve": [
                 ".env", ".venv", "data/cache", "data/sources",
-                "outputs/review/pre_research", "outputs/review/deep_research", "templates",
+                "outputs/review/pre_research", "outputs/review/deep_research", "outputs/review/research_briefs", "templates",
                 "每个docx_qa目录中编号最高的render-vN与fidelity-vN",
             ],
         }

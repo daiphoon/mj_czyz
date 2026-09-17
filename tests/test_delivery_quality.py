@@ -98,6 +98,23 @@ def test_evidence_change_invalidates_review_and_export(draft_context):
     assert require_review(settings, run, "delivery-topic", source)["evidence_sha256"] != before["evidence_sha256"]
 
 
+@pytest.mark.parametrize('value', [None, 0, 12.5, -1, float('nan'), True])
+def test_human_minutes_are_optional_and_never_invented(draft_context, value):
+    settings, wf, run, source = draft_context
+    path = review_record(settings, run, 'delivery-topic', source)
+    payload = json.loads(path.read_text()); payload['human_effort'] = {'review_minutes': value, 'major_fact_changes': None}
+    path.write_text(json.dumps(payload))
+    if value is None or (type(value) in (int, float) and value >= 0):
+        key = register_review(settings, run, 'delivery-topic', source, path)
+        with wf.db.connect() as conn:
+            record = json.loads(conn.execute('SELECT result_json FROM tasks WHERE id=?', (key,)).fetchone()[0])
+        assert record['human_effort']['review_minutes'] == value
+        assert record['human_effort']['major_fact_changes'] is None
+    else:
+        with pytest.raises(ValueError, match='人工投入'):
+            register_review(settings, run, 'delivery-topic', source, path)
+
+
 def test_tampered_docx_cannot_be_approved_and_revisions_count_once(draft_context):
     settings, wf, run, source = draft_context
     record_valid_review(settings, run, "delivery-topic", source)

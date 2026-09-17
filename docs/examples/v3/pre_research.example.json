@@ -1,0 +1,145 @@
+{
+  "run_id": "RUN_ID",
+  "candidate_id": "CANDIDATE_ID",
+  "topic_id": "TOPIC_ID",
+  "working_title": "关于完善北京市未成年人网络消费退款举证与对称核验机制的建议",
+  "decision": "reframe",
+  "decision_reason": "reframe_required",
+  "confidence": "medium",
+  "confidence_reason": "现行规范和司法个案可验证，但问题规模及平台差异仍待深研",
+  "sources": [
+    {
+      "key": "policy",
+      "url": "https://example.gov.cn/policy",
+      "publisher": "主管部门",
+      "published_at": "填写原材料发布日期",
+      "checked_at": "填写实际核验时间",
+      "source_level": 1,
+      "source_role": "official_policy",
+      "origin_group": "policy-origin",
+      "excerpt": "现行规范要求平台设置未成年人退款机制。"
+    },
+    {
+      "key": "court",
+      "url": "https://example.gov.cn/court",
+      "publisher": "人民法院",
+      "published_at": "填写原材料发布日期",
+      "checked_at": "填写实际核验时间",
+      "source_level": 1,
+      "source_role": "court_case",
+      "origin_group": "court-origin",
+      "excerpt": "司法个案显示前端限制可被低成本解除。"
+    }
+  ],
+  "verified_facts": [
+    {
+      "statement": "现行规范已经要求平台设置未成年人退款机制",
+      "source_keys": [
+        "policy"
+      ],
+      "id": "F1"
+    }
+  ],
+  "evidence_based_inferences": [
+    {
+      "statement": "政策缺口更可能位于退款举证与前端核验不对称，而非完全没有退款渠道",
+      "basis": "规范已经规定退款，司法个案显示前端限制可被低成本解除",
+      "uncertainty": "尚不能从单一个案推断所有平台均存在相同机制",
+      "falsifier": "平台公开流程及代表性案件证明前后端核验强度对称",
+      "source_keys": [
+        "policy",
+        "court"
+      ],
+      "id": "I1"
+    }
+  ],
+  "unverified_hypotheses": [
+    {
+      "statement": "部分平台退款环节要求的证明强度显著高于支付或解除限制环节",
+      "verification_plan": "抽取规则文本、司法案例和投诉样本比较各环节材料要求",
+      "discard_if": "主要平台均已提供同等强度且可复核的前后端核验记录"
+    }
+  ],
+  "analyst_judgments": [
+    {
+      "statement": "将题目改写为对称核验比泛泛要求加强保护更有制度新意",
+      "rationale": "既承认已有退款规则，又把责任与信息掌握关系落到可执行流程"
+    }
+  ],
+  "counterevidence": [
+    {
+      "statement": "现行规范已明确要求平台建立未成年人退款机制",
+      "implication": "不得继续以退款制度完全缺失作为核心主张",
+      "source_keys": [
+        "policy"
+      ],
+      "id": "C1"
+    }
+  ],
+  "critical_unknowns": [
+    {
+      "question": "不同平台现行退款材料要求是否存在实质差异",
+      "blocking": false,
+      "resolution_plan": "深研阶段抽样核对公开规则和典型裁判文书"
+    }
+  ],
+  "discard_conditions": [
+    "无法获得两个独立来源链证明对称核验缺口具有制度性"
+  ],
+  "authority": {
+    "actor": "北京市网信、市场监管等部门及属地互联网法院协同",
+    "power": "可通过合规指引、消费争议治理和试点推动最小凭证规则",
+    "boundary": "不得代替中央立法，也不得要求地方直接改写全国平台算法"
+  },
+  "research_questions": [
+    "前端支付或解除限制与后端退款分别核验哪些事实和材料"
+  ],
+  "budget": {
+    "token_limit": 30000,
+    "reason": "示例占位；请填写本题阶段预算理由",
+    "expected_benefit": "尽早证伪泛化假设，避免把深研Token用于已有政策覆盖内容"
+  },
+  "research_contract": "research_v3",
+  "problem_mechanism": {
+    "route": "observed_problem",
+    "question": "哪个环节的证据要求产生了具体差异？",
+    "process_boundary": "支付至退款",
+    "process_step": "退款核验",
+    "baseline": "沿用现行处理规则",
+    "policy_maturation": "需核对新规则的适用和实施时间",
+    "working_hypothesis_ids": [
+      "H1"
+    ],
+    "hypotheses": [
+      {
+        "id": "H1",
+        "statement": "前后端信息核验要求不一致",
+        "prediction": "若解释成立，应观察到相应办理记录",
+        "supporting_claim_ids": [
+          "F1",
+          "I1"
+        ],
+        "counter_claim_ids": [],
+        "discriminating_test": "比较同类办理流程和结果",
+        "falsifier": "有适用且相反的办理材料",
+        "status": "supported"
+      },
+      {
+        "id": "H2",
+        "statement": "差异来自风险及个案条件",
+        "prediction": "若解释成立，应观察到相应办理记录",
+        "supporting_claim_ids": [],
+        "counter_claim_ids": [],
+        "discriminating_test": "比较同类办理流程和结果",
+        "falsifier": "有适用且相反的办理材料",
+        "status": "unresolved"
+      }
+    ]
+  },
+  "initial_feasibility": {
+    "authority": "沿用已核权限",
+    "major_risks": "先核对是否扩大个人信息收集",
+    "lower_cost_alternative": "先说明现行举证规则"
+  },
+  "example_only": true
+}

@@ -7,7 +7,7 @@ import re
 
 from .db import Database, now
 from .document import parse_submission_markdown
-from .evidence import assess_topic
+from .evidence import assess_topic, evidence_contract
 from .research_gate import require_pre_research_approval
 
 REVIEW_KINDS = ("facts", "mechanism_red_team", "problem_suggestion_mapping", "style_structure")
@@ -18,16 +18,20 @@ def _nonempty(value):
 
 
 def evidence_fingerprint(db, topic_id):
+    contract = evidence_contract(db, topic_id)
+    detail_column = ",cs.evidence_detail_json" if contract == "evidence_v2" else ""
     with db.connect() as conn:
         claims = [dict(row) for row in conn.execute("SELECT * FROM claims WHERE topic_id=? ORDER BY id", (topic_id,))]
         links = [dict(row) for row in conn.execute(
-            """SELECT cs.*,su.metadata_json,su.needs_review FROM claim_sources cs
+            f"""SELECT cs.claim_id,cs.source_id,cs.evidence_role,cs.origin_group,
+               cs.source_level,cs.primary_source,cs.notes{detail_column},su.metadata_json,su.needs_review FROM claim_sources cs
                JOIN claims c ON c.id=cs.claim_id
                LEFT JOIN source_usages su ON su.topic_id=c.topic_id AND su.source_id=cs.source_id
                WHERE c.topic_id=? ORDER BY cs.claim_id,cs.source_id""", (topic_id,))]
     for row in claims:
         row.pop("created_at", None)
-    return hashlib.sha256(json.dumps([claims, links], sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+    value = [claims, links] if contract == "evidence_v1" else {"contract": contract, "claims": claims, "links": links}
+    return hashlib.sha256(json.dumps(value, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
 
 
 def check_draft(settings, topic_id, source: Path, *, major=False):
@@ -69,7 +73,17 @@ def check_draft(settings, topic_id, source: Path, *, major=False):
     gate = assess_topic(settings, topic_id)
     if not gate["draft_allowed"]:
         errors.append("证据闸门未通过")
+    from .research_brief import brief_status
+    brief = brief_status(settings, topic_id)
+    errors.extend(brief["errors"])
+    from .semantic_review import current_review
+    semantic = current_review(settings, topic_id)
+    if semantic:
+        warnings.append(f"存在语义影子意见：{semantic['status']}；事实审查应回到原文裁决，模型意见不改变证据闸门。")
     return dict(topic_id=topic_id, source_sha256=hashlib.sha256(source.read_bytes()).hexdigest(),
+                evidence_contract=evidence_contract(db, topic_id),
+                research_brief_sha256=brief["sha256"],
+                semantic_review_sha256=semantic['review_sha256'] if semantic else None,
                 evidence_sha256=evidence_fingerprint(db, topic_id), major=major, body_chars=count,
                 title=title, problem_ids=markers[headings[1]],
                 critical_claim_ids=[r["claim_id"] for r in gate["claims"] if r["importance"] == "critical"],
@@ -77,8 +91,8 @@ def check_draft(settings, topic_id, source: Path, *, major=False):
                 note="仅核验确定性规则；措辞提示不等于空泛，事实、机制与副作用仍须有依据的内容审查")
 
 
-def _review_key(topic_id, source_hash, evidence_hash):
-    return hashlib.sha256((topic_id + source_hash + evidence_hash).encode()).hexdigest()
+def _review_key(topic_id, source_hash, evidence_hash, brief_hash=None):
+    return hashlib.sha256((topic_id + source_hash + evidence_hash + (brief_hash or "")).encode()).hexdigest()
 
 
 def register_review(settings, run_id, topic_id, source: Path, record: Path):
@@ -90,6 +104,19 @@ def register_review(settings, run_id, topic_id, source: Path, record: Path):
     for key in ("topic_id", "source_sha256", "evidence_sha256"):
         if payload.get(key) != check[key]:
             errors.append(f"审查记录与当前版本不一致：{key}")
+    if payload.get("evidence_contract", "evidence_v1") != check["evidence_contract"]:
+        errors.append("审查记录与当前证据契约不一致：evidence_contract")
+    if payload.get("research_brief_sha256") != check["research_brief_sha256"]:
+        errors.append("审查记录与研究简报版本不一致：research_brief_sha256")
+    if check["research_brief_sha256"]:
+        from .research_brief import latest_brief
+        brief = latest_brief(Database(settings.database_path), topic_id, run_id)
+        mapping = payload.get("problem_option_map")
+        selected = set(brief.get("selected_option_ids", [])) if brief else set()
+        if (not isinstance(mapping, dict) or set(mapping) != set(check["problem_ids"])
+            or any(not isinstance(refs, list) or not refs or any(not isinstance(r, str) or r not in selected for r in refs)
+                   for refs in mapping.values())):
+            errors.append("问题—建议审查须逐项映射到研究简报中选定的方案")
     reviews = payload.get("reviews", {})
     for kind in REVIEW_KINDS:
         item = reviews.get(kind, {}) if isinstance(reviews, dict) else {}
@@ -107,10 +134,22 @@ def register_review(settings, run_id, topic_id, source: Path, record: Path):
             raise ValueError()
     except (KeyError, TypeError, ValueError):
         errors.append("审查日期须含时区且不得在未来")
+    effort = payload.get("human_effort")
+    if effort is not None:
+        import math
+        if not isinstance(effort, dict) or set(effort) - {"review_minutes", "major_fact_changes", "major_mechanism_changes"}:
+            errors.append("人工投入字段无效")
+        else:
+            for name in ("review_minutes", "major_fact_changes", "major_mechanism_changes"):
+                value = effort.get(name)
+                if value is not None and (isinstance(value, bool) or not isinstance(value, (int, float))
+                                          or not math.isfinite(value) or value < 0
+                                          or (name != "review_minutes" and not isinstance(value, int))):
+                    errors.append(f"人工投入 {name} 必须为非负数（修改次数为整数），未知留 null")
     if errors:
         raise ValueError("送审检查未通过：" + "；".join(errors))
     db = Database(settings.database_path)
-    key = _review_key(topic_id, check["source_sha256"], check["evidence_sha256"])
+    key = _review_key(topic_id, check["source_sha256"], check["evidence_sha256"], check["research_brief_sha256"])
     task_id = f"{run_id}:draft_quality_review:{key[:16]}"
     with db.connect() as conn:
         candidate = conn.execute("SELECT candidate_id FROM research_reviews WHERE run_id=? AND topic_id=? ORDER BY created_at DESC,rowid DESC LIMIT 1", (run_id, topic_id)).fetchone()
@@ -129,7 +168,11 @@ def require_review(settings, run_id, topic_id, source):
     db = Database(settings.database_path)
     source_hash = hashlib.sha256(source.read_bytes()).hexdigest()
     evidence_hash = evidence_fingerprint(db, topic_id)
-    key = _review_key(topic_id, source_hash, evidence_hash)
+    from .research_brief import brief_status
+    brief = brief_status(settings, topic_id, run_id)
+    if brief["errors"]:
+        raise ValueError("送审检查未通过：" + "；".join(brief["errors"]))
+    key = _review_key(topic_id, source_hash, evidence_hash, brief["sha256"])
     with db.connect() as conn:
         row = conn.execute("SELECT id,result_json FROM tasks WHERE run_id=? AND kind='draft_quality_review' AND input_hash=? AND status='completed'", (run_id, key)).fetchone()
     if not row:
@@ -152,6 +195,8 @@ def verify_export(settings, topic, path):
             break
         check = require_review(settings, topic["run_id"], topic["id"], Path(topic["draft_source_path"]))
         if check["source_sha256"] != result.get("source_sha256") or check["evidence_sha256"] != result.get("evidence_sha256"):
+            break
+        if check["research_brief_sha256"] != result.get("research_brief_sha256"):
             break
         if hashlib.sha256(path.read_bytes()).hexdigest() != result.get("output_sha256"):
             raise ValueError("送审文件在导出后发生变化，须重新导出并审核")

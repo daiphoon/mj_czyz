@@ -61,6 +61,18 @@ pending_batch_max_wait_hours = 48
 urgent_rule_score_threshold = 90
 urgent_keywords = ["突发", "事故", "紧急", "重大风险", "征求意见", "专项通报"]
 
+[candidate_eligibility]
+# 仅新版运行在原初筛调用内观察；不改变评分、名额、C编号或人工选择。
+mode = "shadow"
+
+[semantic_review]
+# 真实对照预算尚未批准；默认只准备/读取材料。启用后仍须显式 --run。
+enabled = false
+mode = "shadow"
+max_claims = 3
+max_input_chars = 16000
+max_output_tokens = 2048
+
 [observability]
 enabled = true
 exclusion_sample_per_stage = 2

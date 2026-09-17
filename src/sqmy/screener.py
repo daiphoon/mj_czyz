@@ -396,6 +396,7 @@ def to_candidate(
         history_relation="已执行标题和历史库轻量匹配", priority="高" if adjusted_score >= 70 else "中",
         risk=analysis.get("risk", "自动初筛结果，必须人工复核；不得直接用于报送"),
         recommendation=analysis.get("recommendation", "建议进入有限预研" if adjusted_score >= 60 else "建议保留观察"), score=adjusted_score,
+        eligibility=analysis.get("_eligibility"),
         gap_hypothesis=(audit.gap_hypothesis if audit else analysis.get("gap_hypothesis", analysis.get("policy_gap", ""))),
         gap_type=(audit.gap_type if audit else analysis.get("gap_type", "unclear")),
         coverage_status=(audit.coverage_status if audit else "unchecked"),

@@ -1,8 +1,20 @@
-# 第一版技术设计
+# v3.0 候选版技术设计
 
 ## 边界
 
 当前版本保持单机 Python + SQLite 架构：候选发现可在任意日期由用户发起，受控公开来源先进入跨日发现队列，再由可审计模型分批初筛；超过新鲜度期限时采用零模型增量复核。深研和正式写作仍由人工与Codex协作完成，再由程序执行证据闸门、确定性DOCX导出和人工审核状态登记。不建设批量全文抓取、自动定时任务或自动对外报送。
+
+## v3.0 契约与兼容
+
+版本为 `3.0.0rc1`。`candidate_eligibility` 在原筛选调用内附带 `candidate_shadow_v1`，保存于 `Candidate.eligibility` / `candidates.data_json`；`candidate_review` 任务保存回源推荐和材料版本。`_rank_candidates`、`candidates()`、`candidate_pool()` 仍按现有综合分排序。旧 `legacy/fact_first_v1` 输入恢复原提示，新契约冻结提示、Schema、模型配置及输入，避免升级后重复调用。
+
+`research_v3` 预研按停止/继续分类，复用 `research_reviews`；`problem_mechanism` 校验解释和证据引用。`research_brief` 使用 `tasks` 保存单一深研内容，JSON/Markdown为可重建副本，按内容哈希保留版本。写作输入关联最新预研批准、证据哈希、问题解释、基线/最低干预及选择理由；`no_draft` 保持不成稿。
+
+数据库结构版本由 0 迁至 1，仅给 `claim_sources` 增加可空 `evidence_detail_json`。旧指纹明确列举旧字段，空新列不使旧审查失效；`evidence_v2` 指纹纳入关系级摘录和支持范围。来源用途元数据保存内部契约标记，导入不能降级。研究简报哈希追加到新版内容审查键和导出键，未使用新版简报的旧键原样保留。迁移备份和实测结果见实施验收记录。
+
+`semantic_review` 默认只准备原文输入，显式启用后经 `CallLedger` 调用 provider；来源及主张先逐条后组合检查，输出支持关系和问题代码。影子意见及原文裁决分别保存于 `semantic_evidence` / `semantic_adjudication` 任务。失败状态不改写事实。语义动作按 `deep_research:TOPIC_ID` 记账并与本题 `stage_usage` 共用深研上限；先有模型调用时，阶段估算只补足上限余量；已有估算不释放。真实调用、切换排序及质量收益均不由离线测试推定。
+
+`replay` 为现有回放脚本增加不可覆盖的清单和内容哈希；可知时间/依据不足标 `incomplete_replay`，不借当前配置补齐。包内预研评估只运行确定性规则，不执行模型，不宣称端到端 A/B。操作与数据示例见 [v3.0 工作流](v3_0_workflow.md)。
 
 ## 模块
 

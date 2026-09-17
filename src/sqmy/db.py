@@ -83,7 +83,7 @@ CREATE TABLE IF NOT EXISTS claim_sources (
   source_id INTEGER NOT NULL REFERENCES sources(id),
   evidence_role TEXT NOT NULL, origin_group TEXT NOT NULL,
   source_level INTEGER NOT NULL, primary_source INTEGER NOT NULL DEFAULT 0,
-  notes TEXT, PRIMARY KEY (claim_id, source_id)
+  notes TEXT, evidence_detail_json TEXT, PRIMARY KEY (claim_id, source_id)
 );
 CREATE INDEX IF NOT EXISTS idx_claims_topic ON claims(topic_id);
 CREATE INDEX IF NOT EXISTS idx_claim_sources_claim ON claim_sources(claim_id);
@@ -260,7 +260,12 @@ class Database:
 
     def initialize(self) -> None:
         with self.connect() as conn:
+            if conn.execute("PRAGMA user_version").fetchone()[0] > 1:
+                raise ValueError("数据库版本高于当前程序支持范围，不得使用旧程序写入")
             conn.executescript(SCHEMA)
+            link_columns = {row[1] for row in conn.execute("PRAGMA table_info(claim_sources)")}
+            if "evidence_detail_json" not in link_columns:
+                conn.execute("ALTER TABLE claim_sources ADD COLUMN evidence_detail_json TEXT")
             efficiency_columns = {row[1] for row in conn.execute("PRAGMA table_info(run_efficiency)")}
             efficiency_migrations = {
                 "deferred_count": "INTEGER NOT NULL DEFAULT 0",
@@ -383,6 +388,7 @@ class Database:
                      0,r.created_at
                    FROM runs r"""
             )
+            conn.execute("PRAGMA user_version=1")
 
     @staticmethod
     def _backfill_source_usages(conn: sqlite3.Connection) -> None:
