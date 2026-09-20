@@ -11,7 +11,7 @@ from pathlib import Path
 from difflib import SequenceMatcher
 import re
 
-from .collector import SourceCollector
+from .collector import SourceCollector, infer_event_region
 from .budget import BudgetExceeded
 from .model_calls import CallLedger
 from .history_match import mechanism_hints
@@ -23,11 +23,13 @@ from .models import EventItem
 from .novelty import NoveltyAudit, NoveltyAuditor, write_rolling_evaluation
 from .providers import ProviderError, QuotaExceeded, RateLimited, build_router
 from .retrieval import collect_discovery
+from .discovery_coverage import coverage_summary
 from .screener import (
     MODEL_SCORE_KEYS,
     local_date,
     normalize_title,
     problem_priority,
+    reported_text,
     rule_screen_with_decisions,
     score as event_score,
     to_candidate,
@@ -737,7 +739,7 @@ class LiveDiscovery:
         cfg = self.s.section("discovery")
         urgent = any(
             event.rule_score >= cfg["urgent_rule_score_threshold"]
-            and any(word in event.title + " " + event.summary for word in cfg["urgent_keywords"])
+            and any(word in reported_text(event) for word in cfg["urgent_keywords"])
             for event in events
         )
         if urgent:
@@ -1194,6 +1196,10 @@ class LiveDiscovery:
             "start_tier": start_tier,
             "expansion_tier": expansion_tier,
             "source_funnel": rows,
+            "coverage_dimensions": {
+                "rule_qualified": coverage_summary(rule_results, collection_stats),
+                "model_input": coverage_summary(model_pool, []),
+            },
             "exclusion_counts": {
                 stage: len(items) for stage, items in stage_groups.items()
             },
@@ -1357,6 +1363,14 @@ class LiveDiscovery:
                 event = EventItem(**json.loads(row["event_json"]))
             except (TypeError, ValueError, json.JSONDecodeError):
                 continue
+            # 新行为重新核验含显式假设的旧待筛记录；不改写原队列或已冻结运行。
+            from .materials import split_discovery_summary
+            if split_discovery_summary(event.summary)['upstream_hypotheses']:
+                event.region, event.region_evidence = infer_event_region(
+                    event.title, event.summary, event.url, event.source_region)
+                qualified, _ = rule_screen_with_decisions([event], self.s.section('discovery'))
+                if not qualified:
+                    continue
             records.append((event, first_seen.astimezone(timezone.utc)))
         records.sort(
             key=lambda item: (

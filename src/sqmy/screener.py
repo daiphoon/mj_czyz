@@ -7,6 +7,7 @@ from .collector import canonical_url
 from zoneinfo import ZoneInfo
 
 from .models import Candidate, EventItem
+from .materials import split_discovery_summary
 
 
 TOPICS = {
@@ -89,30 +90,36 @@ def normalize_title(title: str) -> str:
     return re.sub(r"[\W_]+", "", title.lower())
 
 
+def reported_text(item: EventItem) -> str:
+    """规则只读取标题与材料陈述；保留原摘要供后续研究判断。"""
+    return item.title + " " + split_discovery_summary(item.summary)['reported_excerpt']
+
+
 def classify(item: EventItem) -> list[str]:
-    text = item.title + " " + item.summary
+    text = reported_text(item)
     return [name for name, words in TOPICS.items() if any(word in text for word in words)]
 
 
 def problem_priority(item: EventItem, config: dict) -> int:
     """只调整排序；问题或征求意见窗口不得因宣传性标题被机械删除。"""
+    summary = split_discovery_summary(item.summary)['reported_excerpt']
     if (item.material.get('promotion_suspected')
-            and any(word in item.summary for word in config.get('promotional_material_signals', []))):
+            and any(word in summary for word in config.get('promotional_material_signals', []))):
         return 1  # 销售性文本不因标题含“陷阱”抢占问题优先位；仍可送模型复核。
     if any(word in item.title for word in ('结构化面试', '模拟题', '备考')):
         return 0  # 问题词出现在练习材料中，不等于真实事件。
-    if ('征求意见' in item.title + item.summary
+    if ('征求意见' in item.title + summary
             or item.source_level == 1 and any(word in item.title for word in ('国标', '国家标准'))
             or any(word in item.title for word in PROBLEM_SIGNALS)):
         return 2
     promotional = any(word in item.title for word in EMPTY_PHRASES + tuple(config.get('promotional_title_signals', [])))
-    if promotional and not any(word in item.summary for word in ('投诉', '纠纷', '退费', '拖欠', '误伤', '转嫁成本', '申诉')):
+    if promotional and not any(word in summary for word in ('投诉', '纠纷', '退费', '拖欠', '误伤', '转嫁成本', '申诉')):
         return 0
     return 1
 
 
 def score(item: EventItem) -> int:
-    text = item.title + " " + item.summary
+    text = reported_text(item)
     value = 25 if item.region == "海淀" else 18 if item.region == "北京" else 7
     value += 18 if item.source_level == 1 else 10 if item.source_level == 2 else 3
     value += min(20, 6 * len(item.topics))
@@ -182,7 +189,7 @@ def rule_screen(items: list[EventItem], settings: dict) -> list[EventItem]:
 def rule_screen_with_decisions(
     items: list[EventItem], settings: dict
 ) -> tuple[list[EventItem], list[dict]]:
-    """保持原规则筛选结果不变，同时为小样本误杀复核记录排除原因。"""
+    """使用材料陈述筛选，显式待核假设不参与规则评分与准入。"""
     for item in items:
         item.topics = classify(item)
         item.rule_score = score(item)
@@ -191,7 +198,7 @@ def rule_screen_with_decisions(
         x for x in unique
         if x.topics and x.rule_score >= 35
         and not (any(word in x.title for word in EMPTY_PHRASES) and problem_priority(x, settings) == 0)
-        and any(word in x.title + " " + x.summary for word in PROBLEM_SIGNALS + EVIDENCE_SIGNALS)
+        and any(word in reported_text(x) for word in PROBLEM_SIGNALS + EVIDENCE_SIGNALS)
     ]
     ranked = sorted(relevant_all, key=lambda x: (problem_priority(x, settings), x.rule_score, x.published_at), reverse=True)
     selected = ranked[: settings["initial_max"]]
@@ -415,7 +422,7 @@ def to_candidate(
 
 
 def primary_topic(item: EventItem) -> str:
-    text = item.title + " " + item.summary
+    text = reported_text(item)
     if any(word in text for word in ("贴息", "中小微", "融资", "营商")):
         return "营商环境与中小企业"
     if any(word in text for word in ("骑手", "职业伤害", "新就业形态")):
