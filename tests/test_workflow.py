@@ -28,7 +28,14 @@ class WorkflowTest(unittest.TestCase):
         shutil.copy(project_root / "config/sources.toml", self.settings.root / "config/sources.toml")
         shutil.copy(project_root / "config/policy_mechanisms.toml", self.settings.root / "config/policy_mechanisms.toml")
         cfg = self.settings.section("document")
-        create_template(Path(cfg["reference_path"]), self.settings.root / cfg["template_path"], cfg, self.settings.section("project")["signature"])
+        # The production reference document is intentionally local. Tests use
+        # the versioned template so they remain reproducible in CI.
+        create_template(
+            project_root / cfg["template_path"],
+            self.settings.root / cfg["template_path"],
+            cfg,
+            self.settings.section("project")["signature"],
+        )
 
     def tearDown(self):
         self.tempdir.cleanup()

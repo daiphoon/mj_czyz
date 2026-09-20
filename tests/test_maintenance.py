@@ -138,7 +138,11 @@ def test_recent_token_usage_is_report_only_in_scan_and_refresh_preflight():
         shutil.copy(project / "templates/submission_template.docx", root / "templates/submission_template.docx")
         for name in ("data", "outputs", "logs"):
             (root / name).mkdir()
-        settings = Settings(root, deepcopy(base.raw))
+        raw = deepcopy(base.raw)
+        raw["document"]["reference_path"] = str(
+            project / raw["document"]["template_path"]
+        )
+        settings = Settings(root, raw)
         usage = {
             "window_days": 7,
             "token_used": 999_999,
@@ -175,7 +179,11 @@ def test_pre_research_preflight_uses_distinct_budget_and_bounded_run_context():
         )
         for name in ("data", "outputs", "logs"):
             (root / name).mkdir()
-        settings = Settings(root, deepcopy(base.raw))
+        raw = deepcopy(base.raw)
+        raw["document"]["reference_path"] = str(
+            project / raw["document"]["template_path"]
+        )
+        settings = Settings(root, raw)
         workflow = Workflow(settings)
         run_id = workflow.init_run("live")
         workflow.scan(run_id)
