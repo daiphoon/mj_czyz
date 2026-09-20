@@ -1,4 +1,18 @@
 import pytest
+from pathlib import Path
+
+
+@pytest.fixture(autouse=True)
+def no_workspace_database_in_tests(monkeypatch):
+    """回归只能用隔离库，连只读测试也不得隐式初始化用户真实历史。"""
+    from sqmy.db import Database
+    original = Database.connect
+    real_path = (Path(__file__).parents[1] / 'data/history/workflow.db').resolve()
+    def isolated(self):
+        if self.path.resolve() == real_path:
+            raise AssertionError('普通测试不得连接工作区真实数据库')
+        return original(self)
+    monkeypatch.setattr(Database, 'connect', isolated)
 
 
 @pytest.fixture(autouse=True)

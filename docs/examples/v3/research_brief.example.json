@@ -1,0 +1,109 @@
+{
+  "brief_contract": "research_brief_v1",
+  "run_id": "RUN_ID",
+  "candidate_id": "CANDIDATE_ID",
+  "topic_id": "TOPIC_ID",
+  "pre_research_review_id": "复制最新人工proceed对应的review_id",
+  "evidence_sha256": "复制draft-check输出的evidence_sha256",
+  "example_only": true,
+  "outcome": "write",
+  "conclusion": "填写研究结论及证据边界",
+  "comparison_reason": "填写为何选定方案优于基线；基线也可以胜出",
+  "remaining_unknowns": [
+    {
+      "question": "填写剩余未知",
+      "blocking": true
+    }
+  ],
+  "problem_mechanism": {
+    "route": "observed_problem",
+    "question": "哪个环节的证据要求产生了具体差异？",
+    "process_boundary": "支付至退款",
+    "process_step": "退款核验",
+    "baseline": "沿用现行处理规则",
+    "policy_maturation": "需核对新规则的适用和实施时间",
+    "working_hypothesis_ids": [
+      "H1"
+    ],
+    "hypotheses": [
+      {
+        "id": "H1",
+        "statement": "前后端信息核验要求不一致",
+        "prediction": "若解释成立，应观察到相应办理记录",
+        "supporting_claim_ids": [
+          "c1"
+        ],
+        "counter_claim_ids": [],
+        "discriminating_test": "比较同类办理流程和结果",
+        "falsifier": "有适用且相反的办理材料",
+        "status": "supported"
+      },
+      {
+        "id": "H2",
+        "statement": "差异来自风险及个案条件",
+        "prediction": "若解释成立，应观察到相应办理记录",
+        "supporting_claim_ids": [],
+        "counter_claim_ids": [],
+        "discriminating_test": "比较同类办理流程和结果",
+        "falsifier": "有适用且相反的办理材料",
+        "status": "unresolved"
+      }
+    ],
+    "actors": [
+      "填写各行动主体"
+    ],
+    "flows": [
+      "填写信息、成本、责任或资源流"
+    ]
+  },
+  "options": [
+    {
+      "id": "O0",
+      "kind": "baseline",
+      "proposal": "继续实施现行安排",
+      "target_mechanism_ids": [
+        "H1"
+      ],
+      "expected_effect": "填写继续实施的预期",
+      "cost": "填写原成本",
+      "risk": "填写等待风险"
+    },
+    {
+      "id": "O1",
+      "kind": "minimum",
+      "target_mechanism_ids": [
+        "H1"
+      ],
+      "target": "填写具体内容；不适用时说明理由",
+      "proposal": "填写具体内容；不适用时说明理由",
+      "actor": "填写具体内容；不适用时说明理由",
+      "expected_behavior": "填写具体内容；不适用时说明理由",
+      "trigger": "填写具体内容；不适用时说明理由",
+      "lower_cost_alternative": "填写具体内容；不适用时说明理由",
+      "beneficiary": "填写具体内容；不适用时说明理由",
+      "cost_bearer": "填写具体内容；不适用时说明理由",
+      "cost_transfer_risk": "填写具体内容；不适用时说明理由",
+      "verification": "填写具体内容；不适用时说明理由",
+      "exit_condition": "填写具体内容；不适用时说明理由",
+      "evasion_risk": "填写具体内容；不适用时说明理由",
+      "correction": "填写具体内容；不适用时说明理由",
+      "information": "填写具体内容；不适用时说明理由",
+      "expected_effect": "填写改善路径",
+      "cost": "填写成本比较",
+      "risk": "填写主要风险",
+      "authority_basis": "填写权限原文与适用范围",
+      "rights_impact": "填写公平和权利影响",
+      "implementation_capacity": "填写已有实施能力及短板",
+      "outcome_indicator": "填写结果指标",
+      "warning_indicator": "填写误伤和规避预警指标",
+      "scenarios": {
+        "baseline": "填写情形、行为反应及核验方法",
+        "most_likely": "填写情形、行为反应及核验方法",
+        "adverse": "填写情形、行为反应及核验方法"
+      }
+    }
+  ],
+  "selected_option_ids": [
+    "O1"
+  ]
+}

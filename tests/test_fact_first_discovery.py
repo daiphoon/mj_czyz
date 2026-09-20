@@ -65,7 +65,7 @@ def test_normal_cli_loads_fact_first_input_without_extra_calls(settings, monkeyp
         assert instruction in router.prompt
     audit_path = next((settings.root / "data/runs").glob("*/screening_materials.json"))
     audit = json.loads(audit_path.read_text())
-    assert audit["input_contract"] == "fact_first_v1"
+    assert audit["input_contract"] == "candidate_shadow_v1"
     assert audit["model_input"] == payload
     frozen = json.loads((audit_path.parent / "scan_input.json").read_text())
     original = next(x for x in frozen["model_pool"] if x["id"] == item["id"])
@@ -93,12 +93,13 @@ def test_bounded_model_view_does_not_mutate_event_or_repeat_call(settings, monke
     assert router.calls == 1
 
 
-def test_legacy_resume_keeps_original_prompt_and_cache(settings, monkeypatch):
+@pytest.mark.parametrize("contract", ["legacy", "fact_first_v1"])
+def test_legacy_resume_keeps_original_prompt_and_cache(settings, monkeypatch, contract):
     discovery = LiveDiscovery(settings)
     run_id = discovery.wf.init_run("test_fixture")
     path = settings.root / "data/runs" / run_id / "screening_materials.json"
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text('{"model_event_ids": ["case"]}')
+    path.write_text(json.dumps({"model_event_ids": ["case"], **({"input_contract": contract} if contract != "legacy" else {})}))
     event = EventItem(id="case", source_id="s", source_name="s", source_level=2,
                       title="结算争议", url="https://example.test/case", region="全国",
                       published_at="2026-09-07", summary="报道陈述。待核假设：原因未明。")
@@ -107,9 +108,13 @@ def test_legacy_resume_keeps_original_prompt_and_cache(settings, monkeypatch):
     discovery._model_rank(run_id, [event])
     first_prompt = router.prompt
     item = json.loads(first_prompt.rsplit("\n", 1)[1])[0]
-    assert item["summary"] == event.summary
-    assert "reported_excerpt" not in item
-    assert json.loads(path.read_text())["input_contract"] == "legacy"
+    if contract == "legacy":
+        assert item["summary"] == event.summary
+        assert "reported_excerpt" not in item
+    else:
+        assert item["reported_excerpt"] + item["upstream_hypotheses"] == event.summary
+    assert "candidate_shadow_v1" not in first_prompt
+    assert json.loads(path.read_text())["input_contract"] == contract
     settings.raw["budget"]["screening_tokens"] = 0
     assert discovery._model_rank(run_id, [event])[1] is True
     assert router.calls == 1

@@ -24,3 +24,5 @@ outputs/submission/*
 !outputs/review/pre_research/**
 !outputs/review/deep_research/
 !outputs/review/deep_research/**
+!outputs/review/research_briefs/
+!outputs/review/research_briefs/**

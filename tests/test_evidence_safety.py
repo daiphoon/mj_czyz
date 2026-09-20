@@ -117,7 +117,7 @@ def test_legacy_shared_source_requires_reimport_for_each_topic(tmp_path):
     with db.connect() as conn:
         conn.execute("UPDATE sources SET source_role='media_investigation',checked_at=?", (datetime.now(timezone.utc).isoformat(),))
         conn.execute("INSERT INTO claims(id,topic_id,claim_text,claim_type,importance,created_at) VALUES('legacy-b','topic-b','b','policy','critical',?)", (datetime.now(timezone.utc).isoformat(),))
-        conn.execute("INSERT INTO claim_sources SELECT 'legacy-b',source_id,evidence_role,origin_group,source_level,primary_source,notes FROM claim_sources WHERE claim_id='c1'")
+        conn.execute("INSERT INTO claim_sources(claim_id,source_id,evidence_role,origin_group,source_level,primary_source,notes) SELECT 'legacy-b',source_id,evidence_role,origin_group,source_level,primary_source,notes FROM claim_sources WHERE claim_id='c1'")
         conn.execute("DELETE FROM source_usages")
     assert not assess_topic(settings, "topic-a")["draft_allowed"]
     ingest(settings, package())

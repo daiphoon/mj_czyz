@@ -9,10 +9,11 @@ from urllib.parse import urlparse
 
 from .collector import canonical_url, infer_event_region, infer_source_level, parse_date
 from .db import now
-from .materials import material_notes, mark_reposts
+from .materials import material_notes, mark_reposts, split_discovery_summary
 from .models import EventItem
 from .snapshots import _public_http_url
 from .tavily import TavilyClient, TavilyError, atomic_json, retrieval_usage
+from .discovery_coverage import provenance, coverage_summary
 
 
 def _parameters(cfg):
@@ -26,22 +27,39 @@ def discovery_queries(events, cfg, day):
     offset = day.toordinal() % len(scenarios)
     rotated = scenarios[offset:] + scenarios[:offset]
     def count(scenario):
-        return sum(any(term in event.title + event.summary for term in scenario["signals"]) for event in events)
+        return sum(any(term in event.title + split_discovery_summary(event.summary)['reported_excerpt']
+                       for term in scenario["signals"]) for event in events)
     # 只补当前结果较少的具体场景；配置规模不改变模型输入池。
-    return sorted(rotated, key=count)[:cfg["max_searches_per_action"]]
+    ordered = sorted(rotated, key=count)
+    roles = cfg.get('discovery_roles', [])
+    if not roles:
+        return ordered[:cfg['max_searches_per_action']]
+    selected, seen = [], set()
+    for scenario in ordered:
+        role = scenario.get('role')
+        if role in roles and role not in seen:
+            selected.append(scenario)
+            seen.add(role)
+    return selected[:cfg['max_searches_per_action']]
 
 
 def collect_discovery(collector, settings, db, run_id, *, fixture=None, clue_file=None):
     cfg = settings.raw.get("tavily", {})
     if fixture or not cfg.get("enabled", False) or settings.section("model")["provider"] == "mock":
-        return collector.collect(run_id, fixture=fixture, clue_file=clue_file)
+        events = collector.collect(run_id, fixture=fixture, clue_file=clue_file)
+        atomic_json(settings.root / 'data/runs' / run_id / 'discovery_coverage.json', dict(
+            run_id=run_id, **coverage_summary(events, collector.collection_stats)))
+        return events
     directory = settings.root / "data/runs" / run_id
     path = directory / "collection_checkpoint.json"
     if path.exists():
         state = json.loads(path.read_text(encoding="utf-8"))
         if state.get("finished"):
             collector.collection_stats = state["stats"]
-            return [EventItem(**item) for item in state["events"]]
+            events = [EventItem(**item) for item in state["events"]]
+            atomic_json(directory / 'discovery_coverage.json', dict(
+                run_id=run_id, **coverage_summary(events, state['stats'])))
+            return events
         if state["parameters"] != _parameters(cfg):
             raise ValueError("本次发现输入已经固定；恢复前请还原检索参数，不混入新输入")
     else:
@@ -86,6 +104,9 @@ def collect_discovery(collector, settings, db, run_id, *, fixture=None, clue_fil
                                       region=region, source_region="全国", region_evidence=region_evidence, expansion_tier=4,
                                       collected_at=now(), material=material_notes(title, summary, stamp, source_level=level, updated_at=item["updated_at"]))
                     event.material["retrieval_call_id"] = response["call_id"]
+                    event.material['discovery_provenance'] = provenance(
+                        url, channel='tavily', source_id=publisher_id, date_basis='provider_date',
+                        query_id=query['id'], query_role=query.get('role'))
                     state["events"].append(asdict(event))
                     publisher["collected_count"] += 1
             except TavilyError as exc:
@@ -104,6 +125,8 @@ def collect_discovery(collector, settings, db, run_id, *, fixture=None, clue_fil
     state.update(finished=True, events=[asdict(item) for item in events])
     collector.collection_stats = state["stats"]
     atomic_json(path, state)
+    atomic_json(directory / 'discovery_coverage.json', dict(
+        run_id=run_id, **coverage_summary(events, state['stats'])))
     return events
 
 

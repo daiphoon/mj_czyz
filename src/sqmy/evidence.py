@@ -86,6 +86,51 @@ def _unresolved_conflicts(value: str | None) -> list[Any]:
     return [item for item in parsed if not isinstance(item, dict) or not item.get("resolved")]
 
 
+def _stored_contract(conn, topic_id):
+    rows = conn.execute("SELECT metadata_json FROM source_usages WHERE topic_id=?", (topic_id,)).fetchall()
+    return "evidence_v2" if any(_parse_json_object(r[0]).get("_evidence_contract") == "evidence_v2" for r in rows) else "evidence_v1"
+
+
+def evidence_contract(db: Database, topic_id: str) -> str:
+    with db.connect() as conn:
+        return _stored_contract(conn, topic_id)
+
+
+def normalize_evidence_detail(detail: Any) -> dict:
+    if not isinstance(detail, dict):
+        raise ValueError("evidence_v2 的每条引用须包含 evidence_detail")
+    for field in ("claim_part", "support_scope", "limitation"):
+        if not _nonempty(detail.get(field)):
+            raise ValueError(f"evidence_detail 缺少 {field}")
+    if detail.get("fetch_status") not in {"fulltext_ok", "excerpt_verified", "summary_only", "access_failed", "irrelevant", "access_restricted", "source_explicitly_not_public", "source_unread"}:
+        raise ValueError("evidence_detail.fetch_status 未分类")
+    if detail.get("excerpt_kind") not in {"verbatim", "paraphrase", "unavailable"}:
+        raise ValueError("excerpt_kind 必须区分 verbatim、paraphrase 或 unavailable")
+    for field in ("excerpt", "locator"):
+        if not isinstance(detail.get(field), str):
+            raise ValueError(f"evidence_detail.{field} 必须为字符串")
+        if detail["fetch_status"] in {"fulltext_ok", "excerpt_verified"} and not detail[field].strip():
+            raise ValueError(f"已读片段缺少 {field}")
+    if detail["fetch_status"] in {"fulltext_ok", "excerpt_verified"} and detail["excerpt_kind"] == "unavailable":
+        raise ValueError("已读片段不能标为 unavailable")
+    checked = _parse_datetime(detail.get("checked_at"))
+    if checked is None or checked > datetime.now(timezone.utc):
+        raise ValueError("片段 checked_at 必须是有效且非未来的日期")
+    digest = hashlib.sha256(detail["excerpt"].encode()).hexdigest()
+    if detail.get("excerpt_sha256", digest) != digest:
+        raise ValueError("片段摘录哈希不一致")
+    return dict(detail, excerpt_sha256=digest)
+
+
+def link_metadata(row) -> dict:
+    """来源的不同片段分别核验；一个已读片段不能替其他引用兜底。"""
+    metadata = _parse_json_object(row["metadata_json"])
+    detail = _parse_json_object(row["evidence_detail_json"])
+    if detail:
+        metadata.update({k: detail[k] for k in ("excerpt", "locator", "fetch_status", "checked_at") if k in detail})
+    return metadata
+
+
 def import_evidence_package(settings: Settings, path: Path) -> str:
     """Import a small, reviewable claim/source package idempotently."""
     raw_bytes = path.read_bytes()
@@ -99,11 +144,31 @@ def import_evidence_package(settings: Settings, path: Path) -> str:
         identifiers = [item.get(field) if isinstance(item, dict) else None for item in payload[key]]
         if any(not _nonempty(value) for value in identifiers) or len(set(identifiers)) != len(identifiers):
             raise ValueError(f"{key}中的{field}必须非空且不得重复")
+    contract = payload.get("evidence_contract", "evidence_v1")
+    if contract not in {"evidence_v1", "evidence_v2"}:
+        raise ValueError("不支持的 evidence_contract")
+    if any(key in payload for key in ('problem_mechanism', 'options', 'selected_option_ids')):
+        raise ValueError('问题机制和方案应通过 research-brief 登记，不能在证据导入中静默丢弃')
+    if contract == "evidence_v2" and (not payload["sources"] or not payload["claims"]):
+        raise ValueError("evidence_v2 不能使用空来源或空主张降级已有证据")
+    for source in payload["sources"]:
+        source.pop("_evidence_contract", None)
+    for claim in payload["claims"]:
+        if not isinstance(claim.get('sources', []), list) or any(not isinstance(link, dict) for link in claim.get('sources', [])):
+            raise ValueError('主张来源关系须为对象列表')
+        for link in claim.get("sources", []):
+            if contract == "evidence_v2":
+                link["evidence_detail"] = normalize_evidence_detail(link.get("evidence_detail"))
+            elif "evidence_detail" in link:
+                raise ValueError("关系级摘录必须显式使用 evidence_v2，不能静默丢弃")
     topic_id = payload["topic_id"]
     db = Database(settings.database_path)
     db.initialize()
     source_ids: dict[str, int] = {}
     with db.connect() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        if _stored_contract(conn, topic_id) == "evidence_v2" and contract != "evidence_v2":
+            raise ValueError("已使用 evidence_v2 的题目不能降级为旧证据契约")
         for source in payload["sources"]:
             fetched_at = source.get("fetched_at", now())
             conn.execute(
@@ -127,6 +192,8 @@ def import_evidence_package(settings: Settings, path: Path) -> str:
             ).fetchone()
             source_ids[source["key"]] = int(row[0])
             metadata = dict(source, fetched_at=fetched_at)
+            if contract == "evidence_v2":
+                metadata["_evidence_contract"] = contract
             conn.execute(
                 """INSERT INTO source_usages(topic_id,source_id,metadata_json,needs_review)
                    VALUES(?,?,?,0) ON CONFLICT(topic_id,source_id) DO UPDATE SET
@@ -178,12 +245,13 @@ def import_evidence_package(settings: Settings, path: Path) -> str:
                 conn.execute(
                     """INSERT INTO claim_sources(
                          claim_id,source_id,evidence_role,origin_group,source_level,
-                         primary_source,notes
-                       ) VALUES(?,?,?,?,?,?,?)""",
+                         primary_source,notes,evidence_detail_json
+                       ) VALUES(?,?,?,?,?,?,?,?)""",
                     (
                         stored_id, source_ids[link["source"]], link["role"],
                         link["origin_group"], link["source_level"],
                         int(link.get("primary_source", False)), link.get("notes"),
+                        _json_value(link.get("evidence_detail")),
                     ),
                 )
     with db.connect() as conn:
@@ -228,11 +296,11 @@ def assess_topic(settings: Settings, topic_id: str) -> dict[str, Any]:
             ).fetchall()
             supporting = [row for row in links if row["evidence_role"] == "supports"]
             contradicting = [row for row in links if row["evidence_role"] == "contradicts"
-                             and not read_issue(_parse_json_object(row["metadata_json"]))]
+                             and not read_issue(link_metadata(row))]
             # Third-tier material remains a clue, not an independent verification chain.
             qualified = [row for row in supporting if row["source_level"] in {1, 2}
                          and _nonempty(row["origin_group"])
-                         and not read_issue(_parse_json_object(row["metadata_json"]))
+                         and not read_issue(link_metadata(row))
                          and _parse_json_object(row["metadata_json"]).get("source_role") != "pain_signal"]
             if rules["same_origin_reprints_count_once"]:
                 origins = {row["origin_group"].strip() for row in qualified}
@@ -272,7 +340,7 @@ def assess_topic(settings: Settings, topic_id: str) -> dict[str, Any]:
                 metadata_issues.append("主张重要性分类无效")
             for row in links:
                 if row["evidence_role"] in {"supports", "contradicts"}:
-                    issue = read_issue(_parse_json_object(row["metadata_json"]))
+                    issue = read_issue(link_metadata(row))
                     if issue:
                         metadata_issues.append(f"来源 {row['source_id']} [{issue[0]}] {issue[1]}")
                 if row["source_level"] not in {1, 2, 3} or row["evidence_role"] not in {"supports", "contradicts", "context"}:
@@ -306,7 +374,7 @@ def assess_topic(settings: Settings, topic_id: str) -> dict[str, Any]:
                 max_age = int(rules["critical_source_max_age_days"])
                 stale_before = datetime.now(timezone.utc) - timedelta(days=max_age)
                 for row in supporting:
-                    metadata = _parse_json_object(row["metadata_json"])
+                    metadata = link_metadata(row)
                     role = metadata.get("source_role")
                     if not _nonempty(role) or role not in SOURCE_ROLES:
                         metadata_issues.append(f"来源 {row['source_id']} 未标注用途")
@@ -346,10 +414,19 @@ def assess_topic(settings: Settings, topic_id: str) -> dict[str, Any]:
         gate_errors.append("未录入任何主张")
     elif not any(item.importance == "critical" for item in assessments):
         gate_errors.append("未录入核心主张")
-    return {
+    result = {
         "topic_id": topic_id,
         "draft_allowed": not blockers and not gate_errors,
         "blocking_claims": blockers,
         "gate_errors": gate_errors,
         "claims": [asdict(item) for item in assessments],
     }
+    if evidence_contract(db, topic_id) == "evidence_v2":
+        result["evidence_contract"] = "evidence_v2"
+        with db.connect() as conn:
+            for item in result["claims"]:
+                item["evidence_details"] = [dict(source_id=r["source_id"], evidence_role=r["evidence_role"],
+                                                origin_group=r["origin_group"], detail=_parse_json_object(r["evidence_detail_json"]))
+                    for r in conn.execute("""SELECT cs.* FROM claim_sources cs JOIN claims c ON cs.claim_id=c.id
+                        WHERE c.topic_id=? AND c.local_id=? ORDER BY cs.source_id""", (topic_id, item["claim_id"]))]
+    return result

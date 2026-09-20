@@ -11,10 +11,14 @@ from .providers import ProviderError
 
 
 class CallLedger:
-    def __init__(self, db, settings, run_id, stage, prompt_hash, *, validate=None, task_kind=None):
+    def __init__(self, db, settings, run_id, stage, prompt_hash, *, validate=None, task_kind=None, topic_id=None):
         self.db, self.s, self.run_id = db, settings, run_id
         self.stage, self.prompt_hash = stage, prompt_hash
         self.validate, self.task_kind = validate, task_kind
+        self.topic_id = topic_id
+        self.action_id = f"{stage}:{topic_id}" if topic_id else stage
+        if stage not in {"screening", "diagnostic", "deep_research"} or (topic_id and stage != "deep_research"):
+            raise ValueError("未支持的模型行为阶段")
         self.overrun = None
         self.last_call_id = None
 
@@ -34,20 +38,24 @@ class CallLedger:
         # 保守预留整个预计Token数按较高单价计费，未知用量时不擅自释放。
         reserved_cost = estimated * max(prices) / 1_000_000
         cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
-        limit = budget["diagnostic_tokens" if self.stage == "diagnostic" else "screening_tokens"]
+        limit = budget[f"{self.stage}_tokens"]
         stamp = now()
         with self.db.connect() as conn:
             conn.execute("BEGIN IMMEDIATE")
             usage = conn.execute(
                 "SELECT COALESCE(SUM(input_tokens+output_tokens),0),COUNT(*) FROM model_calls WHERE run_id=? AND task_id=?",
-                (self.run_id, self.stage),
+                (self.run_id, self.action_id),
             ).fetchone()
-            guard = BudgetGuard(limit, int(usage[0]), cfg["max_calls_per_action"], int(usage[1]))
+            interactive = 0
+            if self.topic_id:
+                interactive = conn.execute("SELECT COALESCE(SUM(token_used),0) FROM stage_usage WHERE run_id=? AND topic_id=? AND stage=?",
+                                           (self.run_id, self.topic_id, self.stage)).fetchone()[0]
+            guard = BudgetGuard(limit, int(usage[0]) + int(interactive), cfg["max_calls_per_action"], int(usage[1]))
             guard.reserve(estimated)
             failures = conn.execute(
                 """SELECT COUNT(*) FROM model_calls WHERE run_id=? AND task_id=?
                    AND prompt_hash=? AND provider=? AND status NOT IN ('completed','diagnostic')""",
-                (self.run_id, self.stage, self.prompt_hash, provider),
+                (self.run_id, self.action_id, self.prompt_hash, provider),
             ).fetchone()[0]
             if failures > cfg["max_retries"]:
                 raise BudgetExceeded("同一输入的失败重试次数已达配置上限")
@@ -64,7 +72,7 @@ class CallLedger:
                 """INSERT INTO model_calls(run_id,task_id,provider,model,prompt_hash,
                    input_tokens,output_tokens,estimated_cost_cny,status,estimated_tokens,
                    stage_limit,accounting_method,created_at) VALUES(?,?,?,?,?,?,0,?,'running',?,?,'reserved_estimate',?)""",
-                (self.run_id, self.stage, provider, model, self.prompt_hash, estimated,
+                (self.run_id, self.action_id, provider, model, self.prompt_hash, estimated,
                  reserved_cost, estimated, limit, stamp),
             )
             call_id = cursor.lastrowid
@@ -113,7 +121,7 @@ class CallLedger:
                        status=excluded.status,result_json=excluded.result_json,
                        token_used=tasks.token_used+excluded.token_used,attempts=tasks.attempts+1,
                        error=excluded.error,updated_at=excluded.updated_at""",
-                    (f"{self.run_id}:{self.stage}:{self.prompt_hash[:12]}", self.run_id,
+                    (f"{self.run_id}:{self.action_id}:{self.prompt_hash[:12]}", self.run_id,
                      self.task_kind, self.prompt_hash, "failed" if failure else "completed",
                      json.dumps(result.data, ensure_ascii=False) if result else None, actual,
                      str(failure) if result and isinstance(failure, ProviderError) else code, now()),

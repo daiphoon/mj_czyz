@@ -116,6 +116,7 @@ class Workflow:
                 "created_at": row["created_at"],
                 "run_status": row["status"],
                 "refresh_required": refresh_due(self.s, row["run_created_at"]),
+                "eligibility": json.loads(row["data_json"]).get("eligibility"),
             }
             for row in rows
         ]
@@ -451,6 +452,7 @@ class Workflow:
         input_hash = hashlib.sha256(
             source.read_bytes() + template.read_bytes() + json.dumps(gate, sort_keys=True).encode()
             + topic_id.encode() + quality["evidence_sha256"].encode()
+            + (quality["research_brief_sha256"] or "").encode()
         ).hexdigest()
         record_stage_usage(
             self.db,
@@ -561,6 +563,7 @@ class Workflow:
                     json.dumps(
                         {"topic_id": topic_id, "path": str(output), "output_sha256": output_hash,
                          "source_sha256": quality["source_sha256"], "evidence_sha256": quality["evidence_sha256"],
+                         "research_brief_sha256": quality["research_brief_sha256"],
                          "quality_review_id": quality["review_id"], "delivery_verified": True},
                         ensure_ascii=False,
                     ),

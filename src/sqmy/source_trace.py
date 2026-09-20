@@ -8,7 +8,7 @@ def read_issue(source):
         return "SOURCE_UNREAD", "fetch_status 未分类或无效"
     if status == "access_failed":
         return "TOOL_FAILURE", "access_failed：来源访问失败，不能据此验证或否定事实"
-    if status in {"summary_only", "irrelevant"}:
+    if status in {"summary_only", "irrelevant", "access_restricted", "source_explicitly_not_public", "source_unread"}:
         return "SOURCE_UNREAD", f"{status}：未取得相关正文证据"
     if status is not None and status not in {"fulltext_ok", "excerpt_verified"}:
         return "SOURCE_UNREAD", "fetch_status 未分类或无效"
@@ -45,6 +45,7 @@ def pre_research_trace(payload):
         "no_local_authority": "AUTHORITY_MISMATCH", "mechanism_not_viable": "NO_MECHANISM",
         "fact_contradicted": "FACT_FALSE", "source_unread": "SOURCE_UNREAD",
         "tool_failure": "TOOL_FAILURE", "claim_too_broad": "CLAIM_TOO_BROAD",
+        "causal_gap": "CAUSAL_GAP",
         "low_public_value": "LOW_PUBLIC_VALUE", "high_side_effect_risk": "HIGH_SIDE_EFFECT_RISK",
     }
     codes = {r["code"] for r in checks if r["code"] != "TRACE_PRESENT"}

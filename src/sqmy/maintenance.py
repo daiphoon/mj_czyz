@@ -9,6 +9,7 @@ import shutil
 import sqlite3
 import stat
 import tomllib
+from urllib.parse import urlparse
 
 from .budget import recent_usage
 from .config import Settings
@@ -160,6 +161,7 @@ def preflight(
         and isinstance(discovery.get("cache_ttl_hours"), int)
         and not isinstance(discovery.get("cache_ttl_hours"), bool)
         and discovery["cache_ttl_hours"] > 0
+        and isinstance(discovery.get('rss_endpoint_circuit_breaker', False), bool)
         and isinstance(discovery.get("pending_batch_max_wait_hours"), int)
         and not isinstance(discovery.get("pending_batch_max_wait_hours"), bool)
         and discovery["pending_batch_max_wait_hours"] > 0
@@ -180,7 +182,9 @@ def preflight(
                     (item.get("type") == "rss_search" and isinstance(item.get("query"), str) and item["query"])
                     or (item.get("type") == "html_index"
                         and str(item.get("url", "")).startswith("https://")
-                        and str(item.get("item_url_prefix", "")).startswith(item["url"])
+                        and str(item.get("item_url_prefix", "")).startswith("https://")
+                        and urlparse(item["item_url_prefix"]).netloc == urlparse(item["url"]).netloc
+                        and item.get("listing_format", "plain") in {"plain", "haidian_medical", "court_date"}
                         and isinstance(item.get("max_items"), int) and 0 < item["max_items"] <= 30)
                 )
                 and item.get("level") in {1, 2, 3}
@@ -467,7 +471,7 @@ class CleanupManager:
             for path in base.iterdir():
                 if not path.is_dir():
                     continue
-                if path.name in {"pre_research", "deep_research", "metrics"}:
+                if path.name in {"pre_research", "deep_research", "research_briefs", "metrics"}:
                     continue
                 if path.name in delete_runs:
                     mark(path, "disposable_run_output")
@@ -521,7 +525,7 @@ class CleanupManager:
             ],
             "preserve": [
                 ".env", ".venv", "data/cache", "data/sources",
-                "outputs/review/pre_research", "outputs/review/deep_research", "templates",
+                "outputs/review/pre_research", "outputs/review/deep_research", "outputs/review/research_briefs", "templates",
                 "每个docx_qa目录中编号最高的render-vN与fidelity-vN",
             ],
         }

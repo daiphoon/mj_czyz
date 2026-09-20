@@ -2,6 +2,8 @@
 
 这是一个面向海淀区民建区委报送场景的本地、可恢复、可追溯工作流。当前版本已接入真实公开来源的低成本发现层，并保留 mock 回归流程。所有自动候选和 mock 稿均带有“不得直接报送”约束。
 
+当前为 **v3.0 发布候选版 `3.0.0rc1`**。新研究接通逐主张摘录、分阶段预研、竞争解释、方案比较和版本化写作输入；候选资格保持影子观察，旧评分与排序继续使用，真实语义调用默认关闭。参见 [v3.0 操作说明](docs/v3_0_workflow.md)、[实施验收记录](docs/v3_0_implementation.md)及[变更说明](CHANGELOG.md)。研究质量收益与正式行为切换尚待真实样本验证。
+
 ## 快速开始
 
 使用 Python 3.12：
@@ -32,10 +34,14 @@ sqmy pre-research-review "$RUN_ID" C1 --decision proceed --note "确认按改写
 sqmy preflight --stage research --run-id "$RUN_ID"
 sqmy evidence-import data/sources/TOPIC_evidence.json
 sqmy evidence-check TOPIC_ID
+# 新版研究还须登记完整研究简报，绑定最新预研批准和证据哈希：
+sqmy research-brief "$RUN_ID" TOPIC_ID --record data/sources/TOPIC_research_brief.json
 # 仅对正式研究实际使用、且内容易变化的核心公开来源执行：
 sqmy evidence-snapshot data/sources/TOPIC_evidence.json SOURCE_KEY \
   --reason dynamic_content --file /path/to/page.pdf
 sqmy preflight --stage writing --run-id "$RUN_ID"
+sqmy draft-check TOPIC_ID --source outputs/review/deep_research/RUN_ID/formal_draft.md
+sqmy draft-review "$RUN_ID" TOPIC_ID --source outputs/review/deep_research/RUN_ID/formal_draft.md --record data/sources/TOPIC_draft_review.json
 sqmy draft "$RUN_ID" TOPIC_ID --source outputs/review/deep_research/RUN_ID/formal_draft.md --candidate-id C1
 sqmy approve TOPIC_ID
 # 仅在人工实际完成报送后登记：
@@ -133,7 +139,7 @@ sqmy retrieve --run-id RUN_ID --plan data/sources/TOPIC_retrieval_plan.json --re
 - 人工选择：`sqmy select RUN_ID C1 [C2]`，最多 2 个。
 - 新鲜度复核：候选在扫描后24小时内可直接进入有限预研；超过24小时、事件快速变化或临近正式写作时，运行 `sqmy refresh RUN_ID` 做零模型增量发现，再通过同一命令的 `--decision` 和 `--note` 记录保留、修订或替换决定。正式稿导出会阻断过期或尚未人工确认的复核结果。
 - 近期候选池：`sqmy candidate-pool` 列出最近30天仍未选择且未关闭的最多5个真实候选。旧候选不会重新调用模型，实际选择时仍按24小时规则复核。
-- 有限预研：`pre-research-check` 导入结构化决策单，强制分开事实、推断、假设和分析判断，同时检查反证、替代解释、关键未知、权限边界、研究问题、放弃条件、阶段预算和机制压力测试。新决策单还应填写标准化 `decision_reason`（如 `policy_covered`、`insufficient_evidence`、`no_local_authority`、`mechanism_not_viable` 或 `reframe_required`）；旧决策单缺失该字段仍可读取，但停止原因会标为未分类。有效预研会自动回写对应制度新意审计，人工填写的复核标签不会被覆盖。分析结论为 `proceed` 或 `reframe` 仍停在人工闸门；只有 `pre-research-review --decision proceed` 才能进入深研，阻断性关键未知不能人工越过。
+- 有限预研：`pre-research-check` 导入结构化决策单。新版 `research_v3` 按停止/继续分配材料负担：停止题可不写完整方案，继续题比较主要与竞争解释，并保留事实、反证、关键未知、权限、预算和人工门槛。完整方案压力测试放在深研。新契约须填写标准化 `decision_reason`，旧记录保持兼容。有效预研回写制度新意反馈，不覆盖人工标签。`proceed` 或 `reframe` 仍须人工 `pre-research-review --decision proceed`，阻断项不能人工越过。格式与示例见 [v3.0 操作说明](docs/v3_0_workflow.md)。
   - 停止反馈区分记录完整性（`record_valid`）与深研许可（`research_allowed`）：字段及基本校验合格、但有阻断性未知的 `stop` 也会写入停止反馈；字段错误不计为有效反馈。纳入反馈不改变深研闸门，旧决策单可用原路径重复执行 `pre-research-check` 补记，不重复累计阶段Token或制造新研究结论。
 - 正式起草：深研仍由人工与Codex协作完成。固定结构 Markdown 必须先取得预研人工放行，再经 `evidence-check` 放行，才可使用 `sqmy draft` 确定性导出送审 DOCX；它不会调用模型。改稿覆盖同名送审文件时，旧导出任务会标记为 `skipped`，缓存只有在文件 SHA-256 与任务记录一致时才复用，避免旧输入哈希误指向新版文件。
   - 2026-09-07证据传递修复：预研报告显示摘录与限制，获取失败不能当作已核证据；辅助事实缺证同样挡在写作前。审批只绑定候选最新决策版本。`retrieve`支持显式绑定关键未知的有限补查，全部轮次仍共用原调用和积分上限，详见[研究证据传递与有界补查](docs/research_workflow_revision.md)。
@@ -197,9 +203,17 @@ DeepSeek密钥可通过终端环境变量或本地 `.env` 提供；`.env` 已被
 
 预算的主要作用是防止单一行为扩题、过度调研或反复重试。调用前估算已超上限时，系统在模型前安全暂停；单次在途调用无法可靠中断，若实际用量超限，系统先保存当前行为的有效结果和超额原因，但不自动扩题或进入下一模型阶段。再次执行或扩大范围前，应先复盘并调整对应行为额度。真实订阅或 API 额度耗尽仍安全暂停。
 
-预算提高不是默认动作。使用 `budget-adjust` 记录原额度、新额度、原因和预期收益，任务完成后再用 `budget-review` 补记实际Token、实际收益以及保留、回退或继续评估的结论。这些命令只写审计记录，不会自动改写 `config/settings.toml`。旧的 `weekly`、`discovery` 和 `research_reserve` 调整记录保留为历史审计，但不再代表当前Token闸门。
+2026-09-20 用户明确批准：Token预算以研究实际需要和质量为准，必要时扩大，不为节约而压缩证据核验。调整前说明具体任务、原额度、新额度和预期收益，继续保留行为边界与调用账本；这不等于自动扩大付费搜索或取消人工研究门槛。使用 `budget-adjust` 记录原额度、新额度、原因和预期收益，任务完成后再用 `budget-review` 补记实际Token、实际收益以及保留、回退或继续评估的结论。这些命令只写审计记录，不会自动改写 `config/settings.toml`。旧的 `weekly`、`discovery` 和 `research_reserve` 调整记录保留为历史审计，但不再代表当前Token闸门。
 
 来源配置位于 `config/sources.toml`。搜索RSS只承担发现功能，记录中保存的是还原后的原始页面URL；候选阶段不批量下载网页全文。
+
+RSS 请求必须返回有效的 `rss/channel` 结构才会写入缓存；HTML 首页、错误页、空响应或损坏 XML 均记为失败。尚未过期的旧异常缓存保留并报错，不自动重抓；有效空 RSS 才表示查询成功但没有结果。反证查询的解析错误向上层传递为失败，不得解释为未发现政策覆盖。2026-09-20 本机验证发现 Bing 新闻入口仍重定向至首页，尚未恢复四层有效覆盖；普通搜索 RSS 的日期和新闻适用性未通过核验，未作为替代入口。详见 [RSS 修复记录](docs/rss_repair_20260920.md)。
+
+经批准的官方目录试验新增海淀医保公开案例、北京市市场监管动态、北京市根治欠薪通知公告三个直连来源，每个目录最多 15 条，只提取标题、原始链接和目录显示日期，不自动读取文章或附件正文。目录日期不等于事件发生时间；转载仍须回源核准。海淀医保目录只识别已核验的空 `strLink` 静态链接分支，不执行脚本；页面结构改变或跳转不明时按解析限制处理。原有四层来源及 RSS 仍保留，新增来源不代表四层覆盖已恢复。试验结果见 [官方目录评估](docs/official_directory_trial_20260920.md)。
+
+2026-09-20 发现体系重构一期再接入北京市人大报告、审计公告、政民互动公开答复及最高法权威发布，共9个直连目录。公开答复记录目录日期依据，不把来信陈述当作政府核实事实。`discovery.rss_endpoint_circuit_breaker=true` 时先探测一个Bing新闻RSS查询；明确返回HTML则将同轮其他查询标为 `skipped_endpoint_unavailable`，不删除来源，不把超时或有效空RSS当作共同故障。新一轮重新检查入口。
+
+`data/runs/RUN_ID/discovery_coverage.json` 按URL去重分列渠道、发布域名、材料类型、地域及信源等级；`discovery_observability.json` 同时保存规则合格和实际模型输入的覆盖维度。这些标签不验证原始信息链，不改变评分。查询角色规划可通过Tavily可选 `discovery_roles` 启用，但当前短查询样本未证明收益，配置仍保留原查询和advanced深度。
 
 投诉、论坛和社交平台不能依靠新闻RSS稳定覆盖。需要补充时，由 Codex 使用当前网页检索能力为本次扫描找到最多12条公开线索，按 `docs/clue_input.example.jsonl` 格式保存，再运行 `sqmy scan --clues PATH`。程序只保存标题、公开URL、发布日期和不超过700字的摘要，拒绝含Token、Cookie或会话参数的URL，并将规范化输入快照保存到本次运行目录以便恢复。
 
@@ -209,7 +223,7 @@ DeepSeek密钥可通过终端环境变量或本地 `.env` 提供；`.env` 已被
 
 发现层可观测参数位于 `[observability]`，影子核验参数位于 `[shadow_verification]`。每次完成扫描后会自动更新 `outputs/review/discovery_observability_rolling.json`，也可用 `sqmy discovery-report` 零模型重算；该报告只统计真实 `live` 运行，同时达到配置的最少运行数和至少14天观察跨度后才标记为可比较，同一天重跑不能冒充2—3周验证。来源健康和制度覆盖影子结论都只用于人工复盘，不自动修改来源、规则、预算或阻断状态。
 
-每个来源通过 `expansion_tier` 标记层级：1为海淀、北京主题源，2为北京新增权威源，3为全国权威与调查源，4为三级痛点线索。全国性议题不强制拥有北京落点，但须说明有权执行主体、地方试点可能或向上反映路径。
+每个来源通过 `expansion_tier` 标记层级：1为海淀、北京主题源，2为北京新增权威源，3为全国权威与调查源，4为投诉、论坛和社交平台待核线索（现有实现也承载全部Tavily结果，不能据此判断信源等级）。全国性议题不强制拥有北京落点，但须说明有权执行主体、地方试点可能或向上反映路径。
 
 证据规则位于 `config/settings.toml` 的 `[evidence]`。多家媒体转述同一发布会、报告或数据源时只计为一个原始信息链；一个正式一级原始来源可以单独支撑其直接公布的事实。企业自报默认只证明“已公开宣称某机制”，不证明实际效果。
 
@@ -228,3 +242,9 @@ uv run --python 3.12 --with python-docx --with pytest python -m pytest -q
 ```
 
 详细设计见 `docs/architecture.md`，模板证据见 `docs/template_artifact.md`。
+
+### 摘要筛选与目录日期修正（2026-09-20）
+
+经用户批准，规则主题、分数、准入、优先级、地域提示、查询补缺与紧急触发只使用标题和显式分隔后的材料陈述，待核假设仍保留供研究判断。未分隔旧摘要按原文兼容，仍需回源；并不表示程序能识别所有未标注推断。新扫描会在内存中重核含显式假设的旧待筛材料，不改写原队列或已冻结运行。
+
+北京市公开答复来源的日期依据改为 `listing_displayed_date`；来信时间与答复时间可能不同，回源记录分别保存，未读正文时不补造。此次不修改主题词、相似标题阈值、模型池大小和预算。

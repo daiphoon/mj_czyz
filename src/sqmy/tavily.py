@@ -59,6 +59,11 @@ def validate_config(cfg):
         raise ValueError("Tavily场景须有唯一id、具体query和signals")
     if len({s["id"] for s in scenarios}) != len(scenarios):
         raise ValueError("Tavily场景id不得重复")
+    roles = cfg.get('discovery_roles', [])
+    if (not isinstance(roles, list) or any(role not in {'local', 'national', 'scene', 'exploration'} for role in roles)
+            or len(roles) != len(set(roles)) or len(roles) > cfg['max_searches_per_action']
+            or (roles and ({s.get('role') for s in scenarios} != set(roles)))):
+        raise ValueError('发现查询角色须唯一、覆盖全部场景且不超过行为请求上限')
 
 
 class TavilyClient:

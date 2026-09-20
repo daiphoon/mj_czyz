@@ -1,0 +1,22 @@
+{
+  "candidate_sha256": "复制candidates --json的候选版本",
+  "reviewer": "填写实际回源判断者",
+  "reviewed_at": "填写含时区的审查时间",
+  "status": "needs_evidence",
+  "recommendation": "lead_only",
+  "facts": "填写具体事实和材料边界",
+  "current_mechanism": "填写现行机制与适用范围",
+  "historical_increment": "填写相对历史材料的增量",
+  "public_value": "填写公共价值",
+  "authority_path": "填写权限路径",
+  "decisive_unknown": "填写决定性未知",
+  "verification_entry": "填写材料入口",
+  "investment_reason": "填写投入理由与实际核验成本",
+  "source_refs": [
+    {
+      "url": "https://example.test/replace",
+      "locator": "填写必要段落定位",
+      "excerpt": "填写实际回源摘录"
+    }
+  ]
+}

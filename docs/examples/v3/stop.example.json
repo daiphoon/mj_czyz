@@ -1,0 +1,37 @@
+{
+  "run_id": "RUN_ID",
+  "candidate_id": "CANDIDATE_ID",
+  "topic_id": "TOPIC_ID",
+  "working_title": "关于完善北京市未成年人网络消费退款举证与对称核验机制的建议",
+  "decision": "stop",
+  "decision_reason": "tool_failure",
+  "confidence": "medium",
+  "confidence_reason": "现行规范和司法个案可验证，但问题规模及平台差异仍待深研",
+  "sources": [],
+  "verified_facts": [],
+  "evidence_based_inferences": [],
+  "unverified_hypotheses": [],
+  "analyst_judgments": [],
+  "counterevidence": [],
+  "critical_unknowns": [
+    {
+      "question": "不同平台现行退款材料要求是否存在实质差异",
+      "blocking": false,
+      "resolution_plan": "深研阶段抽样核对公开规则和典型裁判文书"
+    }
+  ],
+  "discard_conditions": [
+    "无法获得两个独立来源链证明对称核验缺口具有制度性"
+  ],
+  "research_questions": [],
+  "budget": {
+    "token_limit": 30000,
+    "reason": "示例占位；请填写本题阶段预算理由",
+    "expected_benefit": "尽早证伪泛化假设，避免把深研Token用于已有政策覆盖内容"
+  },
+  "research_contract": "research_v3",
+  "stop_summary": "决定性页面无法取得，真实性尚未完成核验",
+  "reopen_condition": "取得对应的可读公开材料后重新评估",
+  "effort_note": "一次本地缓存查找，没有模型或搜索请求",
+  "example_only": true
+}

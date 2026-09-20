@@ -46,8 +46,8 @@ class BudgetGuard:
 def recent_usage(db: Database, days: int = 7, *, task_id: str | None = None) -> dict:
     cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
     db.initialize()
-    task_filter = " AND task_id=?" if task_id is not None else ""
-    params = (cutoff, task_id) if task_id is not None else (cutoff,)
+    task_filter = " AND (task_id=? OR instr(task_id,?)=1)" if task_id is not None else ""
+    params = (cutoff, task_id, task_id + ':') if task_id is not None else (cutoff,)
     with db.connect() as conn:
         model_row = conn.execute(
             f"""SELECT COALESCE(SUM(input_tokens+output_tokens),0),
@@ -125,6 +125,7 @@ def record_stage_usage(
     db.initialize()
     stamp = now()
     with db.connect() as conn:
+        conn.execute('BEGIN IMMEDIATE')
         if conn.execute("SELECT 1 FROM runs WHERE id=?", (run_id,)).fetchone() is None:
             raise ValueError(f"未找到运行：{run_id}")
         exact_call = conn.execute(
@@ -133,6 +134,15 @@ def record_stage_usage(
         ).fetchone()
         if exact_call is not None:
             return 0
+        # 新版深研中的独立语义调用属于同一题、同一阶段。耐久边界只补足
+        # 阶段上限余量；已记交互估算不向下清零，失败/未知模型用量也照计。
+        scoped_calls = conn.execute(
+            "SELECT COALESCE(SUM(input_tokens+output_tokens),0) FROM model_calls WHERE run_id=? AND task_id=?",
+            (run_id, f"{stage}:{topic_id}"),
+        ).fetchone()[0]
+        if scoped_calls:
+            note += f" 阶段声明额度 {token_used}；其中 {scoped_calls} 已在模型账本分列，交互估算仅补余量。"
+            token_used = max(0, token_used - int(scoped_calls))
         existing = conn.execute(
             """SELECT id,token_used FROM stage_usage
                WHERE run_id=? AND topic_id=? AND stage=? AND execution_mode=?""",

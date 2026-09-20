@@ -16,7 +16,8 @@ from urllib.request import Request, urlopen
 import xml.etree.ElementTree as ET
 
 from .models import EventItem
-from .materials import material_notes, mark_reposts
+from .materials import material_notes, mark_reposts, split_discovery_summary
+from .discovery_coverage import provenance
 
 
 class _ListingItem(HTMLParser):
@@ -52,6 +53,20 @@ def listing_to_rss(html: str, source: dict) -> str:
     channel = ET.Element("channel")
     seen = set()
     for block in re.findall(r"<li\b[^>]*>.*?</li>", html, flags=re.S | re.I):
+        if source.get("listing_format") == "court_date":
+            # 最高法目录日期明确位于 i.date；不取标题年份或URL日期。
+            block = re.sub(r'<i\s+class=["\']date["\']\s*>([^<]+)</i>',
+                           r'<span>\1</span>', block, flags=re.I)
+        if source.get("listing_format") == "haidian_medical":
+            # 只识别已核验的空 strLink 静态分支，不执行 JS 或猜测动态跳转。
+            def literal_link(match):
+                script = re.fullmatch(
+                    r'''\s*var\s+strLink\s*=\s*'';\s*if\(!strLink\)\{document.write\('(<a href="[^"]+" target="_blank">[^<]+</a>)'\)\}\s*'''
+                    r'''else\{document.write\('<a href="'\+strLink\+'" target="_blank">[^<]+</a>'\)\}\s*''',
+                    match.group(1),
+                )
+                return script.group(1) if script else ""
+            block = re.sub(r"<script\b[^>]*>(.*?)</script>", literal_link, block, flags=re.S | re.I)
         parser = _ListingItem()
         parser.feed(block)
         date_match = re.search(r"\b(\d{4})[-/](\d{2})[-/](\d{2})\b", " ".join(parser.dates))
@@ -81,6 +96,17 @@ def _text(node: ET.Element, name: str) -> str:
 
 def _clean_html(value: str) -> str:
     return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", value)).strip()
+
+
+def _parse_rss(value: str) -> ET.Element:
+    """区分合法空订阅与返回首页、错误页或损坏 XML。"""
+    try:
+        root = ET.fromstring(value)
+    except ET.ParseError as exc:
+        raise ValueError("RSS 响应不是有效 XML；需检查入口或重定向") from exc
+    if root.tag != "channel" and (root.tag != "rss" or root.find("channel") is None):
+        raise ValueError("RSS 响应缺少 rss/channel 结构；可能返回了 HTML 首页")
+    return root
 
 
 def canonical_url(value: str) -> str:
@@ -126,7 +152,7 @@ def infer_event_region(title: str, summary: str, url: str, source_region: str) -
         return "海淀", "trusted_domain:bjhd.gov.cn"
     if domain.endswith("beijing.gov.cn") or domain.endswith("bjcourt.gov.cn") or domain.endswith("bjjc.gov.cn"):
         return "北京", f"trusted_domain:{domain}"
-    text = title + " " + summary
+    text = title + " " + split_discovery_summary(summary)['reported_excerpt']
     text = re.sub(r"(?:新华网|中新网|人民网)?北京\d{1,2}月\d{1,2}日电\s*", "", text)
     if "海淀" in text:
         return "海淀", "text:haidian"
@@ -144,6 +170,7 @@ class SourceCollector:
         with (root / "config/sources.toml").open("rb") as fh:
             self.sources = tomllib.load(fh)["sources"]
         self.collection_stats: list[dict] = []
+        self._rss_endpoint_error: str | None = None
 
     def collect(
         self,
@@ -155,12 +182,30 @@ class SourceCollector:
         if fixture:
             payloads = json.loads(fixture.read_text(encoding="utf-8"))
         else:
+            self._rss_endpoint_error = None
             payloads: list[dict | None] = [None] * len(self.sources)
             workers = max(1, int(self.cfg.get("max_parallel_fetches", 6)))
+            remaining = list(enumerate(self.sources))
+            if self.cfg.get("rss_endpoint_circuit_breaker", False):
+                # 同一入口先取得一条有效响应；首页错误不应重复发送40次。
+                first = next(((i, s) for i, s in remaining if s.get('type') == 'rss_search'), None)
+                if first:
+                    index, source = first
+                    try:
+                        payloads[index] = {'source': source, 'xml': self._fetch(source)}
+                    except Exception as exc:
+                        payloads[index] = {'source': source, 'error': f'{type(exc).__name__}: {exc}'}
+                    remaining = [(i, s) for i, s in remaining if i != index]
+                if self._rss_endpoint_error:
+                    for index, source in remaining:
+                        if source.get('type') == 'rss_search':
+                            payloads[index] = {'source': source, 'error': self._rss_endpoint_error,
+                                               'request_status': 'skipped_endpoint_unavailable'}
+                    remaining = [(i, s) for i, s in remaining if s.get('type') != 'rss_search']
             with ThreadPoolExecutor(max_workers=min(workers, len(self.sources) or 1)) as executor:
                 futures = {
                     executor.submit(self._fetch, source): (index, source)
-                    for index, source in enumerate(self.sources)
+                    for index, source in remaining
                 }
                 for future in as_completed(futures):
                     index, source = futures[future]
@@ -187,6 +232,9 @@ class SourceCollector:
         for item in events:
             if not item.material:
                 item.material = material_notes(item.title, item.summary, item.published_at, source_level=item.source_level)
+            item.material.setdefault('discovery_provenance', provenance(
+                item.url, channel='curated_import', source_id=item.source_id,
+                date_basis='curator_supplied_date'))
         mark_reposts(events)
         count_keys = (
             "fetched_count", "within_window_count", "collected_count",
@@ -336,19 +384,37 @@ class SourceCollector:
         return self._fetch_query(source["query"], "feeds")
 
     def _fetch_query(self, query: str, namespace: str) -> str:
+        if self._rss_endpoint_error:
+            raise ValueError(self._rss_endpoint_error)
         url = "https://www.bing.com/news/search?q=" + quote_plus(query) + "&format=rss&setlang=zh-cn"
-        return self._fetch_url(url, namespace)
+        text = self._fetch_url(url, namespace)
+        self._reject_search_html(text)
+        return text
+
+    def _reject_search_html(self, text: str) -> None:
+        if re.match(r'\s*(?:<!doctype\s+html|<html\b)', text, flags=re.I):
+            message = 'Bing新闻RSS入口返回HTML，当前采集器停止重复请求；未核验反证，不能当作空结果'
+            if self.cfg.get('rss_endpoint_circuit_breaker', False):
+                self._rss_endpoint_error = message
+            raise ValueError(message)
 
     def _fetch_url(self, url: str, namespace: str) -> str:
         cache_key = hashlib.sha256(url.encode()).hexdigest()
         cache = self.root / "data/cache" / namespace / f"{cache_key}.xml"
         cache_ttl_seconds = int(self.cfg["cache_ttl_hours"]) * 3600
         if cache.exists() and datetime.now().timestamp() - cache.stat().st_mtime < cache_ttl_seconds:
-            return cache.read_text(encoding="utf-8")
+            text = cache.read_text(encoding="utf-8")
+            if namespace in {"feeds", "counterevidence"}:
+                self._reject_search_html(text)
+                _parse_rss(text)
+            return text
         request = Request(url, headers={"User-Agent": self.cfg["user_agent"], "Accept": "application/rss+xml, application/xml, text/html"})
         with urlopen(request, timeout=self.cfg["request_timeout_seconds"], context=ssl.create_default_context()) as response:
             raw = response.read(2_000_000)
         text = raw.decode("utf-8", errors="replace")
+        if namespace in {"feeds", "counterevidence"}:
+            self._reject_search_html(text)
+            _parse_rss(text)
         cache.parent.mkdir(parents=True, exist_ok=True)
         temp = cache.with_suffix(".tmp")
         temp.write_text(text, encoding="utf-8")
@@ -368,7 +434,11 @@ class SourceCollector:
             "level": 2, "region": "全国", "type": "rss_search", "query": query,
         }
         payload = {"source": source, "xml": self._fetch_query(query, "counterevidence")}
-        return self._items_from_payloads([payload], lookback_days=lookback_days)[:limit]
+        stats: list[dict] = []
+        items = self._items_from_payloads([payload], lookback_days=lookback_days, _stats=stats)
+        if stats[0]["parse_error"]:
+            raise ValueError(f"反证 RSS 解析失败：{stats[0]['parse_error']}")
+        return items[:limit]
 
     def _items_from_payloads(
         self,
@@ -395,14 +465,17 @@ class SourceCollector:
                 "outside_window_count": 0,
                 "fetch_error": payload.get("error"),
                 "parse_error": None,
+                "request_status": payload.get('request_status', 'attempted'),
             }
             if not payload.get("xml"):
+                if not stat["fetch_error"]:
+                    stat["parse_error"] = "ValueError: RSS 响应为空"
                 if _stats is not None:
                     _stats.append(stat)
                 continue
             try:
                 content = listing_to_rss(payload["xml"], source) if source.get("type") == "html_index" else payload["xml"]
-                root = ET.fromstring(content)
+                root = _parse_rss(content)
             except (ET.ParseError, ValueError) as exc:
                 stat["parse_error"] = f"{type(exc).__name__}: {exc}"
                 if _stats is not None:
@@ -432,6 +505,13 @@ class SourceCollector:
                     collected_at=datetime.now(timezone.utc).isoformat(),
                     material=material_notes(title, summary, published.isoformat() if published else "", source_level=infer_source_level(url, int(source["level"]))),
                 ))
+                items[-1].material['discovery_provenance'] = provenance(
+                    url, channel='direct_index' if source.get('type') == 'html_index' else 'bing_news_rss',
+                    source_id=source['id'], material_kind=source.get('material_kind', 'unclassified'),
+                    date_basis=source.get('date_basis', 'publisher_date' if source.get('type') == 'html_index' else 'search_result_date'),
+                    query_id=source['id'] if source.get('type') == 'rss_search' else None)
+                if source.get('date_basis') == 'listing_displayed_date':
+                    items[-1].material['date_note'] = '目录显示日期；来信、答复、发布和事件日期尚须分别回源核验，不自动等同。'
                 stat["collected_count"] += 1
             if _stats is not None:
                 _stats.append(stat)

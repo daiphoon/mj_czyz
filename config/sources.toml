@@ -1,5 +1,6 @@
 [[sources]]
 id = "stats_direct_index"
+material_kind = "statistical_release"
 name = "国家统计局数据发布直连目录"
 level = 1
 region = "全国"
@@ -11,12 +12,102 @@ expansion_tier = 3
 
 [[sources]]
 id = "ndrc_direct_index"
+material_kind = "policy_notice"
 name = "国家发展改革委通知直连目录"
 level = 1
 region = "全国"
 type = "html_index"
 url = "https://www.ndrc.gov.cn/xxgk/zcfb/tz/"
 item_url_prefix = "https://www.ndrc.gov.cn/xxgk/zcfb/tz/"
+max_items = 15
+expansion_tier = 3
+
+# 2026-09-20 官方目录小范围试验；旧 RSS 保留用于覆盖与失败观察。
+[[sources]]
+id = "haidian_medical_direct_index"
+material_kind = "enforcement_case"
+name = "海淀医保公开案例直连目录"
+level = 1
+region = "海淀"
+type = "html_index"
+listing_format = "haidian_medical"
+url = "https://zyk.bjhd.gov.cn/ztzl/ylbz/ggcx/"
+item_url_prefix = "https://zyk.bjhd.gov.cn/ztzl/ylbz/ggcx/"
+max_items = 15
+expansion_tier = 1
+
+[[sources]]
+id = "beijing_market_direct_index"
+material_kind = "unclassified"
+name = "北京市市场监管动态直连目录"
+level = 1
+region = "北京"
+type = "html_index"
+url = "https://scjgj.beijing.gov.cn/zwxx/scjgdt/"
+item_url_prefix = "https://scjgj.beijing.gov.cn/zwxx/scjgdt/"
+max_items = 15
+expansion_tier = 2
+
+[[sources]]
+id = "beijing_wage_direct_index"
+material_kind = "unclassified"
+name = "北京市根治欠薪通知公告直连目录"
+level = 1
+region = "北京"
+type = "html_index"
+url = "https://rsj.beijing.gov.cn/bm/ztzl/gzqx/zc/"
+item_url_prefix = "https://rsj.beijing.gov.cn/"
+max_items = 15
+expansion_tier = 2
+
+# 2026-09-20 发现体系重构：监督、办理答复与司法规则直连。
+[[sources]]
+id = "beijing_legislative_reports"
+name = "北京市人大立法及监督报告"
+level = 1
+region = "北京"
+type = "html_index"
+url = "https://www.bjrd.gov.cn/zyfb/bg/"
+item_url_prefix = "https://www.bjrd.gov.cn/zyfb/"
+material_kind = "legislative_oversight_report"
+max_items = 15
+expansion_tier = 2
+
+[[sources]]
+id = "beijing_audit_reports"
+name = "北京市审计问题与整改报告"
+level = 1
+region = "北京"
+type = "html_index"
+url = "https://sjj.beijing.gov.cn/zwxx/sjgg/"
+item_url_prefix = "https://sjj.beijing.gov.cn/zwxx/sjgg/"
+material_kind = "audit_report"
+max_items = 15
+expansion_tier = 2
+
+[[sources]]
+id = "beijing_public_replies"
+name = "北京市政民互动公开答复"
+level = 1
+region = "北京"
+type = "html_index"
+url = "https://www.beijing.gov.cn/hudong/"
+item_url_prefix = "https://www.beijing.gov.cn/hudong/hdjl/"
+material_kind = "public_reply"
+date_basis = "listing_displayed_date"
+max_items = 15
+expansion_tier = 1
+
+[[sources]]
+id = "court_public_rules"
+name = "最高法司法规则及司法数据"
+level = 1
+region = "全国"
+type = "html_index"
+listing_format = "court_date"
+url = "https://www.court.gov.cn/fabu.html"
+item_url_prefix = "https://www.court.gov.cn/"
+material_kind = "judicial_release"
 max_items = 15
 expansion_tier = 3
 

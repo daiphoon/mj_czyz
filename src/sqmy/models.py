@@ -52,6 +52,7 @@ class Candidate:
     novelty_decision: str = "proceed"
     reframe_suggestion: str = ""
     score_reasons: dict[str, Any] = field(default_factory=dict)
+    eligibility: dict[str, Any] | None = None
 
 
 @dataclass

@@ -72,10 +72,32 @@ def worker(code_root, frozen, database):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--artifact-dir", type=Path, required=True)
+    parser.add_argument("--artifact-dir", type=Path)
+    parser.add_argument("--freeze-spec", type=Path, help="冻结指定材料；spec中的路径相对spec所在目录")
+    parser.add_argument("--bundle-dir", type=Path, help="新的冻结包目录，必须不存在")
+    parser.add_argument("--check-bundle", type=Path, help="只核验冻结包，不读取当前研究资料")
+    parser.add_argument("--evaluate-bundle", type=Path, help="按冻结配置和日期检查预研；不完整案例不执行")
     parser.add_argument("--code-root", type=Path, default=Path(__file__).resolve().parents[1])
     parser.add_argument("--worker", action="store_true")
     args = parser.parse_args()
+    if args.freeze_spec or args.check_bundle or args.evaluate_bundle:
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+        from sqmy.replay import freeze_bundle, load_bundle, evaluate_bundle
+        if sum(bool(v) for v in (args.freeze_spec, args.check_bundle, args.evaluate_bundle)) > 1:
+            parser.error("冻结和检查必须分开执行")
+        if args.freeze_spec:
+            if not args.bundle_dir:
+                parser.error("--freeze-spec 需要 --bundle-dir")
+            result = freeze_bundle(json.loads(args.freeze_spec.read_text(encoding="utf-8")),
+                                   args.freeze_spec.resolve().parent, args.bundle_dir)
+        elif args.check_bundle:
+            result = load_bundle(args.check_bundle)
+        else:
+            result = evaluate_bundle(args.evaluate_bundle)
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return
+    if not args.artifact_dir:
+        parser.error("历史闸门回放需要 --artifact-dir")
     directory = args.artifact_dir.resolve()
     frozen = directory / "frozen_samples.json"
     database = directory / "baseline/workflow.db"
