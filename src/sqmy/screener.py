@@ -168,15 +168,24 @@ def local_date(published_at: str) -> str:
 
 
 def deduplicate(items: list[EventItem], threshold: float) -> list[EventItem]:
-    kept, seen_urls = [], set()
-    for item in sorted(items, key=lambda x: (x.published_at, -x.source_level), reverse=True):
-        domain_path = canonical_url(item.url)
-        if domain_path in seen_urls:
-            continue
+    # 先选同URL代表，避免空摘要目录记录抢先占位；不拼接原文或提升信源等级。
+    # 仅判断是否有材料陈述，不让假设长度、规则分影响同源取舍。
+    by_url: dict[str, EventItem] = {}
+    def has_reported_summary(item: EventItem) -> bool:
+        excerpt = split_discovery_summary(item.summary)['reported_excerpt'].strip()
+        return bool(re.sub(r'^材料陈述\s*[:：]\s*', '', excerpt).strip())
+
+    ordered = sorted(items, key=lambda x: (x.published_at, -x.source_level), reverse=True)
+    for item in ordered:
+        url = canonical_url(item.url)
+        previous = by_url.get(url)
+        if previous is None or (has_reported_summary(item) and not has_reported_summary(previous)):
+            by_url[url] = item
+    kept = []
+    for item in sorted(by_url.values(), key=lambda x: (x.published_at, -x.source_level), reverse=True):
         title = normalize_title(item.title)
         if any(SequenceMatcher(None, title, normalize_title(old.title)).ratio() >= threshold for old in kept):
             continue
-        seen_urls.add(domain_path)
         kept.append(item)
     return kept
 
