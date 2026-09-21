@@ -1366,8 +1366,15 @@ class LiveDiscovery:
             # 新行为重新核验含显式假设的旧待筛记录；不改写原队列或已冻结运行。
             from .materials import split_discovery_summary
             if split_discovery_summary(event.summary)['upstream_hypotheses']:
-                event.region, event.region_evidence = infer_event_region(
-                    event.title, event.summary, event.url, event.source_region)
+                # 导入时单独提供的地域依据不是摘要中的假设；不能因再筛而丢失。
+                has_curated_region = (
+                    event.region in {'北京', '海淀'}
+                    and event.region_evidence.startswith('clue_import:')
+                    and bool(event.region_evidence.removeprefix('clue_import:').strip())
+                )
+                if not has_curated_region:
+                    event.region, event.region_evidence = infer_event_region(
+                        event.title, event.summary, event.url, event.source_region)
                 qualified, _ = rule_screen_with_decisions([event], self.s.section('discovery'))
                 if not qualified:
                     continue
