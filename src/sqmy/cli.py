@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from . import __version__
 
-from .config import Settings, load_dotenv
+from .config import Settings, load_dotenv, validate_selected_model
 from .delivery import check_draft, register_review
 from .budget import (
     budget_adjustments,
@@ -53,10 +53,19 @@ def parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="sqmy", description="社情民意信息研究与生成工作流")
     p.add_argument('--version', action='version', version=f'sqmy {__version__}')
     p.add_argument("--config", default="config/settings.toml")
+    p.add_argument("--model", type=validate_selected_model,
+                   help="本次明确选择的完整模型标识；放在子命令前，不读取UI或固定配置默认值")
     sub = p.add_subparsers(dest="command", required=True)
     sub.add_parser("init", help="初始化数据库和正式模板")
     scan = sub.add_parser("scan", help="在任意日期运行真实来源候选扫描")
     _add_scan_arguments(scan)
+    prepare = sub.add_parser("scan-prepare", help="准备冻结初筛材料，由当前Codex对话判断；不调用模型")
+    _add_scan_arguments(prepare)
+    importer = sub.add_parser("scan-import", help="严格导入绑定版本的对话结果；不调用模型或联网")
+    importer.add_argument("run_id")
+    import_mode = importer.add_mutually_exclusive_group(required=True)
+    import_mode.add_argument("--result", type=Path)
+    import_mode.add_argument("--resume", action="store_true", help="只续完已接受的结果，不重新判断或采集")
     monday = sub.add_parser("monday", help="兼容旧命令；等同于 scan")
     _add_scan_arguments(monday)
     replay = sub.add_parser("scan-replay", help="使用已保存的模型结果离线回放候选流程")
@@ -136,13 +145,13 @@ def parser() -> argparse.ArgumentParser:
     skip.add_argument("run_id"); skip.add_argument("--reason", required=True)
     preflight_parser = sub.add_parser("preflight", help="零模型调用分阶段预检")
     preflight_parser.add_argument(
-        "--stage", choices=("scan", "refresh", "monday", "thursday", "pre_research", "research", "writing"), default="scan"
+        "--stage", choices=("scan", "scan-prepare", "scan-import", "refresh", "monday", "thursday", "pre_research", "research", "writing"), default="scan"
     )
     preflight_parser.add_argument("--run-id", help="用于核验已人工限定的预研、深研或写作步骤")
     cleanup = sub.add_parser("cleanup", help="预览或执行安全清理")
     cleanup.add_argument("--apply", action="store_true", help="自动备份SQLite后执行清理")
-    provider = sub.add_parser("provider-check", help="验证模型提供商与自动备用切换")
-    provider.add_argument("--simulate-codex-quota", action="store_true", help="模拟Codex额度耗尽并真实调用DeepSeek备用")
+    provider = sub.add_parser("provider-check", help="验证本次显式选择的Codex订阅通道；会真实调用")
+    provider.add_argument("--simulate-codex-quota", action="store_true", help="旧参数兼容；DeepSeek已停用，返回停用错误且不调用服务")
     evidence_import = sub.add_parser("evidence-import", help="导入结构化证据包")
     evidence_import.add_argument("path", type=Path)
     evidence_check = sub.add_parser("evidence-check", help="检查主张的独立验证和成稿闸门")
@@ -186,15 +195,48 @@ def parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
-    load_dotenv()
-    args = parser().parse_args(argv)
+    command_parser = parser()
+    args = command_parser.parse_args(argv)
     s = Settings.load(args.config)
+    if args.model is not None:
+        s = s.with_model(args.model)
+    needs_model = (
+        args.command in {"scan", "monday"} and s.section("model")["provider"] != "mock"
+        or args.command == "provider-check" and not args.simulate_codex_quota
+        or args.command == "semantic-review" and args.run
+    )
+    if needs_model:
+        # 缺参数须在读取凭据、初始化数据库、采集来源之前停止。
+        try:
+            s.require_model()
+        except ValueError as exc:
+            command_parser.error(str(exc))
+    if args.command != "scan-import":
+        load_dotenv()
     wf = Workflow(s)
+    if needs_model:
+        print(f"本次明确传入模型：{s.selected_model}")
     if args.command == "init":
         Database(s.database_path).initialize()
         cfg = s.section("document")
-        create_template(Path(cfg["reference_path"]), s.root / cfg["template_path"], cfg, s.section("project")["signature"])
+        reference = s.reference_document
+        if reference is None or not reference.is_file():
+            raise ValueError("请设置SQMY_REFERENCE_PATH指向本机原始参考文档")
+        create_template(reference, s.root / cfg["template_path"], cfg, s.section("project")["signature"])
         print(f"已初始化：{s.root}")
+    elif args.command == "scan-prepare":
+        run_id, _ = LiveDiscovery(s).run(
+            args.fixture, clue_file=args.clue_file, force=args.force,
+            screen_now=args.screen_now, start_tier=args.start_tier,
+            resume_run_id=args.resume_run_id, conversation_only=True,
+        )
+        print(json.dumps({"run_id": run_id, "execution_mode": "current_conversation",
+                          "model": "unknown", "packet": str(s.root / "data/runs" / run_id / "conversation_screening.json"),
+                          "next": "由当前主对话读取冻结包、完成判断并通过scan-import导入；无需用户复制JSON"}, ensure_ascii=False, indent=2))
+    elif args.command == "scan-import":
+        from .conversation_screening import ConversationScreening
+        run_id, candidates = ConversationScreening(LiveDiscovery(s)).import_result(args.run_id, args.result)
+        print(f"{run_id}：已导入 {len(candidates)} 个候选；真实服务调用0次；仍须人工选题")
     elif args.command in {"scan", "monday"}:
         run_id, candidates = LiveDiscovery(s).run(
             args.fixture,
@@ -213,7 +255,9 @@ def main(argv: list[str] | None = None) -> int:
             checkpoint = json.loads(
                 wf.status(run_id, include_all=True)[0]["checkpoint_json"] or "{}"
             )
-            if checkpoint.get("budget_overrun"):
+            if checkpoint.get("screening_cache_hit"):
+                print("本次复用已完成初筛，新增模型调用0次；保留缓存的原模型记录。")
+            if checkpoint.get("budget_overrun", {}).get("enforced", s.section("budget").get("enforce_token_limits", False)):
                 print("当前有界步骤已完成，但已超出配置预算；启动下一个新模型任务前请提额或等待额度释放。")
         if not candidates and run_status not in {"paused_budget", "paused_quota"}:
             pool = wf.candidate_pool()
@@ -285,6 +329,8 @@ def main(argv: list[str] | None = None) -> int:
         budget_cfg = s.section("budget")
         usage.update({
             "token_window_policy": "report_only",
+            "token_limit_policy": "enforced" if budget_cfg.get("enforce_token_limits", False) else "observe_only",
+            "token_references_enforced": budget_cfg.get("enforce_token_limits", False),
             "action_token_limits": {
                 "screening": budget_cfg["screening_tokens"],
                 "pre_research": budget_cfg["pre_research_tokens"],

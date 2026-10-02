@@ -15,7 +15,8 @@ from test_claim_evidence_v2 import detailed_package
 @pytest.fixture
 def v3_context(draft_context):
     # 已批准研究、尚未导入新版证据的边界；不删除或降低已经记账的用量。
-    return draft_context
+    settings, wf, run, source = draft_context
+    return settings.with_model("offline-test-model"), wf, run, source
 
 
 def material_package(context):
@@ -54,7 +55,10 @@ def enable(context, monkeypatch, data=None):
         conn.execute("UPDATE run_context SET mode='live' WHERE run_id=?", (run,))
     package = data or material_package(context)
     router = FakeRouter(response(prepare_input(settings, package)))
-    monkeypatch.setattr('sqmy.semantic_review.build_router', lambda *a, **k: router)
+    def selected_router(*args, **kwargs):
+        assert kwargs['codex_model'] == settings.selected_model
+        return router
+    monkeypatch.setattr('sqmy.semantic_review.build_router', selected_router)
     return router, save_package(context, package)
 
 
@@ -100,6 +104,7 @@ def test_scope_change_invalidates_cache_but_author_confidence_does_not(v3_contex
 
 def test_same_stage_cap_includes_measured_and_interactive_reservations(v3_context, monkeypatch):
     settings, wf, run, _ = v3_context
+    settings.raw["budget"]["enforce_token_limits"] = True
     router, path = enable(v3_context, monkeypatch)
     semantic_review(settings, run, 'delivery-topic', package_path=path, execute=True)
     record_stage_usage(wf.db, run_id=run, topic_id='delivery-topic', stage='deep_research', token_used=40000,

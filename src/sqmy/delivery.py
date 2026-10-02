@@ -4,6 +4,8 @@ import hashlib
 import json
 from pathlib import Path
 import re
+import zipfile
+from xml.etree import ElementTree
 
 from .db import Database, now
 from .document import parse_submission_markdown
@@ -34,6 +36,36 @@ def evidence_fingerprint(db, topic_id):
     return hashlib.sha256(json.dumps(value, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
 
 
+def contains_body_link(text):
+    """正式正文不放URL、邮件或Markdown链接；内部证据包不调用此检查。"""
+    # 使用域名形态而非后缀白名单；中文标点同样构成边界，版本号不匹配。
+    domain = r"(?:[A-Za-z0-9-]+\.)+[A-Za-z]{2,63}(?![A-Za-z0-9_-])"
+    return bool(re.search(r"(?:[A-Za-z][A-Za-z0-9+.-]*://|www\.|mailto:)|" + domain + r"|!?\[[^\]\n]+\]\s*(?:\([^\n]*\)|\[[^\]\n]*\])|^\s*\[[^\]\n]+\]:\s*\S+", text, re.I | re.M))
+
+
+def require_link_free_docx(path):
+    """检查导出包的显式超链接、字段链接及可见URL，不访问外部目标。"""
+    with zipfile.ZipFile(path) as package:
+        for name in package.namelist():
+            if not name.startswith('word/') or not name.endswith(('.xml', '.rels')):
+                continue
+            root = ElementTree.fromstring(package.read(name))
+            for node in root.iter():
+                tag = node.tag.rsplit('}', 1)[-1]
+                if tag == 'hyperlink' or (tag == 'Relationship' and node.get('Type', '').endswith('/hyperlink')):
+                    raise ValueError('正式DOCX含超链接，不得导出或审核')
+                if tag in {'instrText', 'fldSimple'}:
+                    instruction = (node.text or '') if tag == 'instrText' else node.get('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}instr', '')
+                    if re.search(r'\bHYPERLINK\b', instruction, re.I):
+                        raise ValueError('正式DOCX含超链接字段，不得导出或审核')
+            instructions = ''.join(node.text or '' for node in root.iter() if node.tag.rsplit('}', 1)[-1] == 'instrText')
+            if re.search(r'\bHYPERLINK\b', instructions, re.I):
+                raise ValueError('正式DOCX含超链接字段，不得导出或审核')
+            visible = ''.join(node.text or '' for node in root.iter() if node.tag.rsplit('}', 1)[-1] == 't')
+            if contains_body_link(visible):
+                raise ValueError('正式DOCX含URL或链接文本，不得导出或审核')
+
+
 def check_draft(settings, topic_id, source: Path, *, major=False):
     db = Database(settings.database_path)
     db.initialize()
@@ -59,6 +91,8 @@ def check_draft(settings, topic_id, source: Path, *, major=False):
     low, high = (cfg["major_min_chars"], cfg["major_max_chars"]) if major else (cfg["min_chars"], cfg["max_chars"])
     if not low <= count <= high:
         errors.append(f"正文有效字数{count}，要求{low}—{high}（不计标题、署名、空白和标点）")
+    if contains_body_link(text):
+        errors.append("正式正文含URL或Markdown链接，来源链接应放内部证据底稿")
     markers = {}
     for heading in headings[1:]:
         found = re.findall(r"(?:^|\n)\s*（([一二三四五六七八九十]+)）", "\n".join(sections[heading]))
@@ -68,6 +102,9 @@ def check_draft(settings, topic_id, source: Path, *, major=False):
     if markers[headings[1]] != markers[headings[2]]:
         errors.append("问题与建议编号不对应")
     warnings = [f"需结合上下文审查是否空泛：{p}" for p in cfg["vague_phrases"] if p in body]
+    target_low, target_high = cfg.get("target_min_chars", low), cfg.get("target_max_chars", high)
+    if not major and not target_low <= count <= target_high:
+        warnings.append(f"通常正文目标为{target_low}—{target_high}字；当前{count}字，硬上限仍为{high}字，扩展须说明必要性")
     if re.search(r"摘要[：:]|关键词[：:]|参考文献|\[\^|^\s*\|", text, re.M):
         errors.append("正文含禁止的摘要、关键词、参考文献、脚注或表格")
     gate = assess_topic(settings, topic_id)
@@ -184,6 +221,7 @@ def require_review(settings, run_id, topic_id, source):
 
 
 def verify_export(settings, topic, path):
+    require_link_free_docx(path)
     db = Database(settings.database_path)
     with db.connect() as conn:
         rows = conn.execute("SELECT result_json FROM tasks WHERE run_id=? AND kind='draft_export' AND status='completed' ORDER BY updated_at DESC", (topic["run_id"],)).fetchall()
@@ -206,6 +244,7 @@ def verify_export(settings, topic, path):
 
 def verify_approved_integrity(settings, topic):
     """已通过的旧稿不追溯改状态；新流程稿件外发前须与审核版本完全一致。"""
+    require_link_free_docx(Path(topic["final_path"]))
     db = Database(settings.database_path)
     with db.connect() as conn:
         rows = conn.execute("SELECT result_json FROM tasks WHERE run_id=? AND kind='draft_export' AND status='completed'", (topic["run_id"],)).fetchall()

@@ -167,6 +167,19 @@ def local_date(published_at: str) -> str:
     return published.astimezone(BEIJING_TIME).date().isoformat()
 
 
+def _distinct_official_document(left: EventItem, right: EventItem) -> bool:
+    kinds = {"audit_report", "statistical_release", "enforcement_case", "legislative_oversight_report"}
+    if left.source_level != 1 or right.source_level != 1:
+        return False
+    if any(x.material.get("discovery_provenance", {}).get("material_kind") not in kinds for x in (left, right)):
+        return False
+    # 差异必须有具体文号、期次或统计期，不能只因URL不同保留同稿转载。
+    def identity(item):
+        return set(re.findall(r"(?:[（(〔\[]?20\d{2}[）)〕\]]?年?第?\d+号|第[\d一二三四五六七八九十]+[号期]|20\d{2}年(?:\d{1,2}月|第[一二三四1-4]季度)?)", item.title))
+    a, b = identity(left), identity(right)
+    return bool(a and b and a != b)
+
+
 def deduplicate(items: list[EventItem], threshold: float) -> list[EventItem]:
     # 先选同URL代表，避免空摘要目录记录抢先占位；不拼接原文或提升信源等级。
     # 仅判断是否有材料陈述，不让假设长度、规则分影响同源取舍。
@@ -184,7 +197,8 @@ def deduplicate(items: list[EventItem], threshold: float) -> list[EventItem]:
     kept = []
     for item in sorted(by_url.values(), key=lambda x: (x.published_at, -x.source_level), reverse=True):
         title = normalize_title(item.title)
-        if any(SequenceMatcher(None, title, normalize_title(old.title)).ratio() >= threshold for old in kept):
+        if any(not _distinct_official_document(item, old) and
+               SequenceMatcher(None, title, normalize_title(old.title)).ratio() >= threshold for old in kept):
             continue
         kept.append(item)
     return kept

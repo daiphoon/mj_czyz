@@ -232,11 +232,11 @@ def validate_pre_research_payload(settings: Settings, payload: dict[str, Any]) -
     if not isinstance(budget, dict):
         errors.append("budget 必须是对象")
     else:
-        token_limit = budget.get("token_limit")
+        token_limit = budget.get("token_estimate", budget.get("token_limit"))
         configured_limit = int(settings.section("budget")["pre_research_tokens"])
-        if not isinstance(token_limit, int) or token_limit <= 0:
+        if type(token_limit) is not int or token_limit <= 0:
             errors.append("budget.token_limit 必须是正整数")
-        elif token_limit > configured_limit:
+        elif settings.section("budget").get("enforce_token_limits", False) and token_limit > configured_limit:
             errors.append(
                 f"预研预算 {token_limit} 超过配置上限 {configured_limit}，必须先调整配置并记录理由"
             )
@@ -276,6 +276,8 @@ def validate_pre_research_payload(settings: Settings, payload: dict[str, Any]) -
                     errors.append(f"初步可行性缺少 {field}")
 
     # 记录可用于停止原因反馈，不代表证据充分或允许进入深研。
+    from .research_stops import reopen_errors
+    errors.extend(reopen_errors(payload))
     record_valid = not errors
     diagnostics = pre_research_trace(payload) if record_valid else {
         "reason_codes": ["RECORD_INVALID"], "evidence_checks": [], "open_questions": [],
@@ -463,7 +465,7 @@ def _render_report(payload: dict[str, Any], gate: dict[str, Any]) -> str:
         "",
         "## 阶段预算",
         "",
-        f"- Token上限：{budget.get('token_limit', '')}",
+        f"- 声明Token估算/兼容额度：{budget.get('token_estimate', budget.get('token_limit', ''))}",
         f"- 提高或使用理由：{budget.get('reason', '')}",
         f"- 预期收益：{budget.get('expected_benefit', '')}",
         "",
@@ -632,11 +634,12 @@ def check_pre_research(
         run_id=run_id,
         topic_id=str(payload.get("topic_id") or f"{run_id}:{candidate_id}"),
         stage="pre_research",
-        token_used=int(payload.get("budget", {}).get("token_limit", 0)),
+        token_used=int(payload.get("budget", {}).get("token_estimate", payload.get("budget", {}).get("token_limit", 0))),
         input_hash=input_hash,
         provider="codex_subscription",
-        model=settings.section("model")["codex_model"],
-        note="有限预研决策单落库时按其声明上限保守记账；不是Plus官方Token统计。",
+        model=settings.interactive_model,
+        accounting_method=("declared_stage_cap" if settings.section("budget").get("enforce_token_limits", False) else "declared_stage_estimate"),
+        note="有限预研按决策单声明估算记账；观察期不作上限，不是官方Token；模型未知时如实登记。",
     )
     return record
 
@@ -673,6 +676,9 @@ def review_pre_research(
         raise ValueError("预研存在阻断项，不能人工放行深研；请先修订决策单")
 
     reviewed_at = now()
+    if decision == 'stop':
+        from .research_stops import preserve_manual_stop
+        preserve_manual_stop(db, dict(review), reviewed_at, note.strip())
     with db.connect() as conn:
         conn.execute(
             """UPDATE research_reviews SET human_decision=?,human_note=?,reviewed_at=?

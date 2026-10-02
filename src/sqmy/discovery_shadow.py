@@ -74,6 +74,10 @@ class ShadowVerifier:
         live_search: bool,
     ) -> list[ShadowReview]:
         self._searches_used = 0
+        self._search_router = None
+        if live_search and self.s.raw.get("search", {}).get("enabled", False):
+            from .search_router import build_search_router
+            self._search_router = build_search_router(self.s, self.db, run_id, "candidate_shadow", collector=self.collector)
         reviews: list[tuple[ShadowReview, str]] = []
         for event in events[: int(self.cfg["max_events"])]:
             input_hash = self._input_hash(event)
@@ -290,13 +294,17 @@ class ShadowVerifier:
             return [], "shadow_search_budget_exhausted"
         self._searches_used += 1
         try:
+            if getattr(self, "_search_router", None):
+                from .retrieval_pipeline import search_events
+                return search_events(self._search_router, query, limit=int(self.cfg["max_hits_per_query"]),
+                                     domains=self.cfg["official_domains"]), None
             return self.collector.search_query(
                 query,
                 limit=int(self.cfg["max_hits_per_query"]),
                 lookback_days=int(self.cfg["search_lookback_days"]),
             ), None
-        except Exception as exc:
-            return [], f"{type(exc).__name__}: {exc}"
+        except Exception:
+            return [], "search_unavailable"
 
     @staticmethod
     def _metadata(events: list[EventItem], purpose: str) -> list[dict]:

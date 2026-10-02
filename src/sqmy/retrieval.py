@@ -52,6 +52,11 @@ def collect_discovery(collector, settings, db, run_id, *, fixture=None, clue_fil
         return events
     directory = settings.root / "data/runs" / run_id
     path = directory / "collection_checkpoint.json"
+    if settings.raw.get("search", {}).get("enabled", False) and (
+        not path.exists() or json.loads(path.read_text()).get("contract") == "retrieval_pipeline_v1"
+    ):
+        from .retrieval_pipeline import collect_routed
+        return collect_routed(collector, settings, db, run_id, clue_file=clue_file)
     if path.exists():
         state = json.loads(path.read_text(encoding="utf-8"))
         if state.get("finished"):
@@ -175,26 +180,38 @@ def _execute_retrieval(settings, db, run_id, plan, *, retry_failed=False):
         raise ValueError("问题单超过单行为检索范围")
     if any(not isinstance(q, dict) or q.get("purpose") not in {"discovery", "policy"} or not isinstance(q.get("query"), str) or not q["query"].strip() for q in queries):
         raise ValueError("每个检索词须明确discovery或policy用途")
-    if any(not isinstance(page, dict) or not page.get("url") or not page.get("terms") or page.get("reason") not in {"http_failed", "http_incomplete"} for page in pages):
+    routed = settings.raw.get("search", {}).get("enabled", False)
+    if any(not isinstance(page, dict) or not page.get("url") or not page.get("terms") or
+           (not routed and page.get("reason") not in {"http_failed", "http_incomplete"}) for page in pages):
         raise ValueError("页面须有URL、目标词、普通HTTP失败或内容不完整的原因")
     action = stage + (":" + candidate_id if candidate_id else "")
     # 检查点按补查轮次分开，调用账本仍使用原action；不增加搜索、提取或积分额度。
     repair_round = _validate_repair(settings, db, run_id, plan, action)
     checkpoint_action = action + (f":repair:{repair_round}" if repair_round else "")
-    client = TavilyClient(settings, db, run_id, action)
     serialized = json.dumps(plan, ensure_ascii=False, sort_keys=True)
-    if client._text(serialized, len(serialized)) != serialized:
+    if routed and re.search(r"tvly-[A-Za-z0-9_-]{12,}|Bearer\s+\S+", serialized, re.I):
         raise ValueError("问题单不得包含凭证")
     for query in queries:
-        if set(query) != {"purpose", "query"} or len(query["query"]) > 500:
+        allowed = {"purpose", "query", "intent", "domains", "exclude_domains"} if routed else {"purpose", "query"}
+        if set(query) - allowed or len(query["query"]) > 500:
             raise ValueError("检索词须在500字内；只接受purpose和query")
+        if routed:
+            from .search_types import RetrievalIntent, SearchRequest
+            SearchRequest(query["query"], intent=RetrievalIntent(query.get("intent", "POLICY_SEARCH" if query["purpose"] == "policy" else "HOTSPOT_DISCOVERY")),
+                          domains=tuple(query.get("domains", [])), exclude_domains=tuple(query.get("exclude_domains", [])))
     for page in pages:
-        if set(page) != {"url", "terms", "reason"}:
+        if set(page) - {"url", "terms", "reason"} or (not routed and set(page) != {"url", "terms", "reason"}):
             raise ValueError("提取页只接受url、terms、reason")
         _public_http_url(page["url"])
         if not isinstance(page["terms"], list) or not 1 <= len(page["terms"]) <= 8 or any(not isinstance(term, str) or not term.strip() or len(term) > 100 for term in page["terms"]):
             raise ValueError("每页需要1—8个100字以内的目标词")
     path = settings.root / "data/runs" / run_id / ("retrieval-" + checkpoint_action.replace(":", "-") + ".json")
+    if routed and (not path.exists() or json.loads(path.read_text()).get("contract") == "retrieval_pipeline_v1"):
+        from .retrieval_pipeline import execute_plan
+        return execute_plan(settings, db, run_id, plan, action, checkpoint_action, retry_failed=retry_failed)
+    client = TavilyClient(settings, db, run_id, action)
+    if client._text(serialized, len(serialized)) != serialized:
+        raise ValueError("问题单不得包含凭证")
     digest = hashlib.sha256(json.dumps(plan, sort_keys=True).encode()).hexdigest()
     if path.exists():
         state = json.loads(path.read_text(encoding="utf-8"))

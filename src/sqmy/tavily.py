@@ -79,7 +79,8 @@ class TavilyClient:
 
     @property
     def available(self):
-        return self.cfg.get("enabled", False) and bool(os.environ.get("TAVILY_API_KEY"))
+        return (self.cfg.get("enabled", False) and self.s.raw.get("search", {}).get("allow_paid", False)
+                and bool(os.environ.get("TAVILY_API_KEY")))
 
     def _text(self, value, limit):
         text = str(value or "")
@@ -125,6 +126,8 @@ class TavilyClient:
         return self._invoke("extract", payload, reserve, terms=terms, retry=retry)
 
     def _post(self, endpoint, payload):
+        if not self.s.raw.get("search", {}).get("allow_paid", False):
+            raise TavilyError("paid_mode_disabled", "needs_review")
         request = Request("https://api.tavily.com/" + endpoint, json.dumps(payload).encode(),
                           headers={"Authorization": "Bearer " + os.environ["TAVILY_API_KEY"], "Content-Type": "application/json"})
         try:

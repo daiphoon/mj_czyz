@@ -20,7 +20,7 @@ def settings(tmp_path):
     (tmp_path / "config").mkdir()
     for name in ("settings.toml", "sources.toml", "policy_mechanisms.toml"):
         shutil.copy(ROOT / "config" / name, tmp_path / "config" / name)
-    return Settings.load(tmp_path / "config/settings.toml")
+    return Settings.load(tmp_path / "config/settings.toml").with_model("offline-test-model")
 
 
 @pytest.mark.parametrize("marker", ["可核验缺口是：", "待核假设：", "原因推测：", "缺口假设（待核）："])
@@ -53,7 +53,7 @@ def test_normal_cli_loads_fact_first_input_without_extra_calls(settings, monkeyp
     fixture_path.write_text(json.dumps(fixture, ensure_ascii=False))
     router = FakeRouter({"selections": []})
     monkeypatch.setattr("sqmy.discovery.build_router", lambda *a, **k: router)
-    assert cli.main(["--config", str(settings.root / "config/settings.toml"), command,
+    assert cli.main(["--model", "offline-test-model", "--config", str(settings.root / "config/settings.toml"), command,
                      "--fixture", str(fixture_path)]) == 0
     assert router.calls == 1
     payload = json.loads(router.prompt.rsplit("\n", 1)[1])
@@ -86,7 +86,7 @@ def test_bounded_model_view_does_not_mutate_event_or_repeat_call(settings, monke
     monkeypatch.setattr("sqmy.discovery.build_router", lambda *a, **k: router)
     discovery._model_rank(run_id, [event])
     item = json.loads(router.prompt.rsplit("\n", 1)[1])[0]
-    assert item["reported_excerpt"] + item["upstream_hypotheses"] == original.summary[:350]
+    assert item["reported_excerpt"] + item["upstream_hypotheses"] == original.summary[:700]
     assert event == original
     settings.raw["budget"]["screening_tokens"] = 0
     assert discovery._model_rank(run_id, [event])[1] is True

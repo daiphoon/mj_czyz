@@ -11,7 +11,7 @@ from pathlib import Path
 import re
 import ssl
 import tomllib
-from urllib.parse import parse_qs, parse_qsl, urlencode, quote_plus, urlparse, urlunparse, urljoin
+from urllib.parse import parse_qs, parse_qsl, urlencode, urlparse, urlunparse, urljoin
 from urllib.request import Request, urlopen
 import xml.etree.ElementTree as ET
 
@@ -386,7 +386,8 @@ class SourceCollector:
     def _fetch_query(self, query: str, namespace: str) -> str:
         if self._rss_endpoint_error:
             raise ValueError(self._rss_endpoint_error)
-        url = "https://www.bing.com/news/search?q=" + quote_plus(query) + "&format=rss&setlang=zh-cn"
+        from .search_providers import BingNewsRssProvider
+        url = BingNewsRssProvider.endpoint(query)
         text = self._fetch_url(url, namespace)
         self._reject_search_html(text)
         return text

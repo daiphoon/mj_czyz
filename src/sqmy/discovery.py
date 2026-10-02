@@ -70,10 +70,14 @@ class LiveDiscovery:
         self.s = settings
         self.wf = Workflow(settings)
         self._budget_overrun: dict | None = None
+        self._research_stop_decisions = {}
+        self._research_reopened = {}
 
     def run(
         self, *args, **kwargs,
     ) -> tuple[str, list]:
+        if not kwargs.get("conversation_only", False) and self.s.section("model")["provider"] in {"codex_cli", "auto"}:
+            self.s.require_model()
         # 本地单用户扫描串行执行，避免两个进程同时消费同一队列。
         lock_path = self.s.root / "data/runs/.discovery.lock"
         lock_path.parent.mkdir(parents=True, exist_ok=True)
@@ -102,6 +106,7 @@ class LiveDiscovery:
         screen_now: bool = False,
         start_tier: int = 1,
         resume_run_id: str | None = None,
+        conversation_only: bool = False,
     ) -> tuple[str, list]:
         self._budget_overrun = None
         mode = "test_fixture" if fixture else "live"
@@ -122,9 +127,12 @@ class LiveDiscovery:
                 TaskStatus.PAUSED_QUOTA,
                 TaskStatus.FAILED,
                 TaskStatus.RUNNING,
+                *([TaskStatus.NEEDS_REVIEW] if conversation_only else []),
             }:
                 raise ValueError("该运行当前状态不允许恢复发现阶段")
             checkpoint = json.loads(row["checkpoint_json"] or "{}")
+            if bool(checkpoint.get("conversation_only", False)) != conversation_only:
+                raise ValueError("恢复方式与冻结运行不同，不能自动切换初筛执行路径")
             run_id = resume_run_id
             mode = row["mode"]
             force = bool(row["forced"])
@@ -155,10 +163,13 @@ class LiveDiscovery:
             phase=Phase.DISCOVERY,
             status=TaskStatus.RUNNING,
             data={
+                "selected_model": None if conversation_only else self.s.selected_model,
+                "conversation_only": conversation_only,
                 "start_tier": start_tier,
                 "screen_now": screen_now,
                 "clue_file": str(clue_file) if clue_file else None,
-                "resume_next": f"sqmy scan --resume {run_id}",
+                "resume_next": (f"sqmy scan-prepare --resume {run_id}" if conversation_only
+                                else f"sqmy --model MODEL_ID scan --resume {run_id}"),
                 "next": "collect_sources",
             },
         )
@@ -215,6 +226,12 @@ class LiveDiscovery:
                 run_id, prepared["fresh_results"]
             )
             pending_records, oldest_pending_at = self._pending_event_records()
+            permitted, stopped = self._partition_research_stops([e for e, _ in pending_records], run_id)
+            permitted_ids = {e.id for e in permitted}
+            pending_records = [(e, stamp) for e, stamp in pending_records if e.id in permitted_ids]
+            history_exclusions += [x for x in stopped if x['event'].id not in {y['event'].id for y in history_exclusions}]
+            repeated_excluded = len(history_exclusions)
+            oldest_pending_at = min((stamp.isoformat() for _, stamp in pending_records), default=None)
             cfg = self.s.section("discovery")
             premodel_pool = self._select_pending_pool(
                 pending_records,
@@ -276,6 +293,8 @@ class LiveDiscovery:
                 "screen_now": screen_now,
                 "clue_file": str(self.s.root / "data/runs" / run_id / "discovery_clues.jsonl") if clue_file else None,
                 "expansion_tier": expansion_tier,
+                "conversation_only": conversation_only,
+                "selected_model": None if conversation_only else self.s.selected_model,
                 "collected": len(collected),
                 "premodel": len(premodel_pool),
                 "repeated_excluded": repeated_excluded,
@@ -285,11 +304,12 @@ class LiveDiscovery:
                 "shadow_report": shadow_report,
                 "shadow_enforced": False,
                 "discovery_observability": str(observability_path),
-                "resume_next": f"sqmy scan --resume {run_id}",
+                "resume_next": f"sqmy --model MODEL_ID scan --resume {run_id}",
                 "next": "model_screening" if model_pool else "finalize_discovery",
             },
         )
         state = dict(
+            conversation_only=conversation_only,
             mode=mode, force=force, fixture=str(fixture) if fixture else None,
             clue_file=str(clue_file) if clue_file else None,
             start_tier=start_tier, max_tier=max_tier, expansion_tier=expansion_tier,
@@ -314,13 +334,28 @@ class LiveDiscovery:
         rule_results, rule_exclusions, history_exclusions, pool_cap_exclusions,
         collection_stats, shadow_reviews, shadow_report, deferred_count,
         repeated_excluded, current_new_count, reopened_count, pending_before_count,
-        batch_reason, tier_stats, pool_quality,
+        batch_reason, tier_stats, pool_quality, conversation_only=False,
+        screened_override=None, conversation_receipt=None, before_persist=None,
     ):
+        if mode == 'live':
+            model_pool, stopped = self._partition_research_stops(model_pool, run_id)
+            history_exclusions += [x for x in stopped if x['event'].id not in {y['event'].id for y in history_exclusions}]
+            repeated_excluded = len(history_exclusions)
+            if stopped and len(model_pool) < int(self.s.section('discovery')['screened_min']):
+                model_pool = []
+                batch_reason = 'research_stop_pool_below_minimum'
+        if conversation_only and screened_override is None:
+            from .conversation_screening import ConversationScreening
+            ConversationScreening(self).prepare(run_id, model_pool)
+            return run_id, []
         shadow_verifier = ShadowVerifier(self.s) if shadow_report else None
         try:
-            screened, cache_hit, tokens_saved = self._model_rank(
-                run_id, model_pool, use_cache=not force
-            )
+            if screened_override is None:
+                screened, cache_hit, tokens_saved = self._model_rank(
+                    run_id, model_pool, use_cache=not force
+                )
+            else:
+                screened, cache_hit, tokens_saved = screened_override, False, 0
         except (BudgetExceeded, QuotaExceeded, RateLimited):
             # _model_rank has already written a resumable discovery checkpoint.
             # Do not continue into ranking or overwrite that paused state.
@@ -335,11 +370,11 @@ class LiveDiscovery:
             audits = [NoveltyAudit(**item) for item in saved_audits["audits"]]
         else:
             auditor = NoveltyAuditor(self.s)
-            audits = auditor.audit(run_id, screened, live_search=fixture is None)
+            audits = auditor.audit(run_id, screened, live_search=fixture is None and not conversation_only)
             self._atomic_json(audit_checkpoint, {"input_hash": audit_input, "audits": [asdict(item) for item in audits]})
         candidates = self._rank_candidates(screened, audits)
         self._apply_history(candidates)
-        self._persist_candidates(run_id, candidates)
+        self._persist_candidates(run_id, candidates, before_persist=before_persist)
         if mode == "live" and model_pool:
             self._mark_queue_screened(run_id, model_pool)
             deferred_count = self._pending_queue_count()
@@ -384,6 +419,7 @@ class LiveDiscovery:
             pending_before_count=pending_before_count,
             shadow_reviews=shadow_reviews,
             pool_quality=pool_quality,
+            conversation_receipt=conversation_receipt,
         )
         metrics_path = write_rolling_evaluation(self.s)
         discovery_metrics_path = write_discovery_evaluation(self.s)
@@ -395,15 +431,23 @@ class LiveDiscovery:
         if candidates:
             next_action = f"sqmy select {run_id} C1"
         elif batch_reason == "insufficient_pool_quality":
-            next_action = "补充高质量公开线索后运行 sqmy scan --clues PATH --screen-now"
+            next_action = "补充高质量公开线索后运行 sqmy --model MODEL_ID scan --clues PATH --screen-now"
         elif deferred_count:
-            next_action = "sqmy scan"
+            next_action = "sqmy --model MODEL_ID scan"
         elif exhausted_without_candidates:
             next_action = "none"
         else:
-            next_action = f"sqmy scan --start-tier {expansion_tier + 1}"
+            next_action = f"sqmy --model MODEL_ID scan --start-tier {expansion_tier + 1}"
+        if conversation_receipt is not None and not candidates and next_action != "none":
+            if batch_reason == "insufficient_pool_quality":
+                next_action = "补充高质量公开线索后运行 sqmy scan-prepare --clues PATH --screen-now"
+            elif deferred_count:
+                next_action = "sqmy scan-prepare"
+            else:
+                next_action = f"sqmy scan-prepare --start-tier {expansion_tier + 1}"
 
         checkpoint = {
+            "selected_model": self.s.selected_model,
             "collected": len(collected),
             "start_tier": start_tier,
             "screen_now": screen_now,
@@ -434,21 +478,28 @@ class LiveDiscovery:
             "shadow_enforced": False,
             "next": next_action,
         }
+        if conversation_receipt is not None:
+            checkpoint.update(conversation_only=True, conversation_screening=conversation_receipt,
+                              selected_model=None, model="unknown", execution_mode="current_conversation",
+                              novelty_live_search=False)
         if exhausted_without_candidates:
             checkpoint["skip_reason"] = "已完成全部可用扩展层扫描，未发现通过事实、权限边界和制度新意门槛的候选。"
         status = TaskStatus.NEEDS_REVIEW if candidates else TaskStatus.SKIPPED
         if self._budget_overrun:
             checkpoint["budget_overrun"] = self._budget_overrun
-            checkpoint["budget_action_required"] = (
-                "当前有界行为已完成并保存；重新执行或扩大该行为前，"
-                "应先复盘并调整对应的单行为额度。"
-            )
+            if self._budget_overrun.get("enforced", self.s.section("budget").get("enforce_token_limits", False)):
+                checkpoint["budget_action_required"] = (
+                    "当前有界行为已完成并保存；重新执行或扩大该行为前，"
+                    "应先复盘并调整对应的单行为额度。"
+                )
         self.wf.db.checkpoint(
             run_id,
             phase=Phase.SELECTION,
             status=status,
             data=checkpoint,
-            error="；".join(self._budget_overrun["reasons"]) if self._budget_overrun else None,
+            error=("；".join(self._budget_overrun["reasons"])
+                   if self._budget_overrun and self._budget_overrun.get("enforced", self.s.section("budget").get("enforce_token_limits", False))
+                   else None),
         )
         return run_id, candidates
 
@@ -572,6 +623,28 @@ class LiveDiscovery:
                 WHERE t.approval_status='approved' AND (rc.mode='live' OR t.run_id IS NULL)
                 ORDER BY t.created_at DESC""").fetchall()
 
+    def _partition_research_stops(self, events, run_id):
+        from .research_stops import ResearchStopGate
+        if getattr(self, '_research_stop_run_id', None) != run_id:
+            self._research_stop_run_id = run_id
+            self._research_stop_decisions = {}
+            self._research_reopened = {}
+        allowed, excluded, decisions = ResearchStopGate(self.wf.db).partition(events)
+        for event in events:
+            self._research_reopened.pop(event.id, None)
+        for decision in decisions:
+            self._research_stop_decisions[decision['event_id']] = decision
+            if decision['status'] == 'reopened':
+                self._research_reopened[decision['event_id']] = decision['event_content_sha256']
+        path = self.s.root / 'data/runs' / run_id / 'research_stop_gate.json'
+        path.parent.mkdir(parents=True, exist_ok=True)
+        self._atomic_json(path, {
+            'contract': 'research_stop_gate_v1', 'run_id': run_id,
+            'decisions': list(self._research_stop_decisions.values()),
+            'note': '复用已登记研究结论；重开须新版本预研、必要原文及人工确认，程序不裁决证据质量。',
+        })
+        return allowed, excluded
+
     def _exclude_unchanged(self, events: list, run_id: str, mode: str) -> tuple[list, int]:
         fresh, excluded = self._partition_unchanged(events, run_id, mode)
         return fresh, len(excluded)
@@ -591,12 +664,14 @@ class LiveDiscovery:
         rule_results, rule_exclusions = rule_screen_with_decisions(
             tier_items, uncapped_cfg
         )
+        available, stopped = self._partition_research_stops(rule_results, run_id) if mode == 'live' else (rule_results, [])
         if force:
-            fresh_results, history_exclusions = rule_results, []
+            fresh_results, history_exclusions = available, []
         else:
             fresh_results, history_exclusions = self._partition_unchanged(
-                rule_results, run_id, mode
+                available, run_id, mode
             )
+        history_exclusions += stopped
 
         initial_max = int(cfg["initial_max"])
         clue_reserve = int(cfg.get("premodel_clue_reserve", 0))
@@ -695,6 +770,10 @@ class LiveDiscovery:
         fresh = []
         excluded: list[dict] = []
         for event in events:
+            from .research_stops import event_signature
+            if self._research_reopened.get(event.id) == event_signature(event):
+                fresh.append(event)
+                continue
             content_hash = self._event_content_hash(event)
             same_url_rows = previous_by_url.get(event.url, [])
             normalized_title = re.sub(r"\s+", " ", event.title).strip()
@@ -762,22 +841,20 @@ class LiveDiscovery:
                 pass
         return False, "deferred_small_batch"
 
-    def _model_rank(self, run_id: str, events: list, *, use_cache: bool = True) -> tuple[list, bool, int]:
+    def _prepare_screening(self, run_id, events, *, conversation=False):
         from .materials import compact_reposts, split_discovery_summary
         from .candidate_eligibility import CONTRACT, SCHEMA as ELIGIBILITY_SCHEMA, attach_shadow
         model_cfg = self.s.section("model")
         limit = self.s.section("discovery")["screened_max"]
         pool = events[:limit]
-        if not pool:
-            return [], False, 0
-        if model_cfg["provider"] == "mock":
-            return events, False, 0
         pool, merged = compact_reposts(pool)
         pool = sorted(pool, key=lambda x: (problem_priority(x, self.s.section('discovery')), x.rule_score), reverse=True)
         material_path = self.s.root / 'data/runs' / run_id / 'screening_materials.json'
         material_path.parent.mkdir(parents=True, exist_ok=True)
         # 旧运行恢复沿用原提示契约，避免已完成调用因升级而失去缓存。
         frozen_material = json.loads(material_path.read_text(encoding='utf-8')) if material_path.exists() else None
+        if frozen_material and set(frozen_material.get('model_event_ids', [])) != {e.id for e in pool}:
+            raise ValueError('研究状态或事件池已变化，不能用包含停止题的冻结提示恢复模型调用；须重新有界准备')
         mode = self.s.raw.get('candidate_eligibility', {}).get('mode', 'off')
         if mode not in {'off', 'shadow'}:
             raise ValueError('candidate_eligibility 仅支持 off/shadow；正式排序切换尚未验收')
@@ -796,7 +873,7 @@ class LiveDiscovery:
                 "source_region_hint": x.source_region,
                 "region_evidence": x.region_evidence,
                 "expansion_tier": x.expansion_tier,
-                "summary": x.summary[:350],
+                "summary": x.summary[:350 if self.s.section('budget').get('enforce_token_limits', False) else 700],
                 "rule_score": x.rule_score,
                 "same_origin_ids": merged.get(x.id, []),
                 "material": {key: value for key, value in x.material.items() if value and key in {
@@ -809,6 +886,11 @@ class LiveDiscovery:
         history = [] if input_contract == CONTRACT and frozen_material and 'prompt' in frozen_material else self._approved_history()
         for item in compact:
             item['history_review_hints'] = mechanism_hints(item['title'] + item['summary'], history, self.s.section('history_review'))
+            event = next(e for e in pool if e.id == item['id'])
+            if event.material.get('research_history'):
+                item['research_history'] = event.material['research_history']
+                if frozen_material and item['research_history'] != next((x.get('research_history') for x in frozen_material.get('model_input', []) if x['id'] == item['id']), None):
+                    raise ValueError('研究重开依据已变化，不能沿用旧冻结提示或缓存；须重新有界准备')
         if input_contract in {'fact_first_v1', CONTRACT}:
             for item in compact:
                 item.update(split_discovery_summary(item.pop('summary')))
@@ -836,7 +918,7 @@ class LiveDiscovery:
             "history_review_hints来自已审核稿的群体和机制重叠匹配，不是自动排除指令；"
             "须比较是否有新事实、新群体或不同建议机制，只有重复而无新增价值才不入选，保留时在recommendation说明差异。"
             "只返回有价值备选，供制度新意审查后再取最终5个；不必填满selections。"
-            f"每题全部解释字段合计控制在{model_cfg['screening_item_chars']}字以内，每字段一句，避免重复背景和逐项长论证。"
+            "解释应足以评估依据、决定性未知和研究价值，不为节省Token压缩关键理由。"
             "只输出Schema要求的JSON，不输出工作过程。same_origin_ids只表示已合并的转述，不新增独立证据。"
             "每题必须把拟议制度缺口写成一句可被反证的gap_hypothesis，"
             "gap_type只能是policy_absence、implementation_gap、coordination_gap、effectiveness_gap、accountability_gap或unclear；"
@@ -847,6 +929,8 @@ class LiveDiscovery:
             f"正向评分上限：{json.dumps(self.s.section('scoring'), ensure_ascii=False)}；"
             f"扣分配置：{json.dumps(self.s.section('penalties'), ensure_ascii=False)}。"
         )
+        if int(model_cfg.get('screening_item_chars', 0)) > 0:
+            prompt += f"每题解释字数目标为{model_cfg['screening_item_chars']}字。"
         if input_contract in {'fact_first_v1', CONTRACT}:
             prompt += (
                 "输入解释：reported_excerpt只是发现材料陈述，不等于已验证事实，可能仍有单方说法或未标注的推断；"
@@ -867,7 +951,7 @@ class LiveDiscovery:
                 "eligible仅表示具体问题、公共价值、权限路径和可信核验入口值得有限投入；不是事实已核验。"
                 "needs_evidence表示关键研究前提尚待证；reject须有依据说明该版本命题不值得继续。"
                 "元数据缺失不是反证。reason写判断依据；decisive_unknown写决定性未知或已被解决的前提；"
-                "verification_entry写具体核验入口，确实无法判断写待核；这些字段计入原有每题字数上限。"
+                "verification_entry写具体核验入口，确实无法判断写待核；这些字段也须有材料依据。"
             )
         prompt += "\n" + json.dumps(compact, ensure_ascii=False)
         scoring_cfg = self.s.section("scoring")
@@ -913,7 +997,7 @@ class LiveDiscovery:
                 "type": "object", "additionalProperties": False, "properties": selection_properties,
                 "required": list(selection_properties),
             }}}, "required": ["selections"]}
-        if input_contract == CONTRACT:
+        if input_contract == CONTRACT or conversation:
             if frozen_material and 'prompt' in frozen_material:
                 material = frozen_material
                 prompt, schema, model_cfg = material['prompt'], material['schema'], material['model_config']
@@ -923,10 +1007,30 @@ class LiveDiscovery:
                     raise ValueError('冻结提示哈希不匹配')
             else:
                 material.update(prompt=prompt, schema=schema, model_config=model_cfg,
+                                selected_model=self.s.selected_model if not conversation else None,
                                 frozen_at=now(), prompt_sha256=hashlib.sha256(prompt.encode()).hexdigest())
         self._atomic_json(material_path, material)
         prompt_hash = hashlib.sha256(prompt.encode()).hexdigest()
         attach = (lambda items, data: attach_shadow(items, data, material, self._attach_analyses)) if input_contract == CONTRACT else self._attach_analyses
+        return pool, material, prompt, schema, attach
+
+    def _model_rank(self, run_id: str, events: list, *, use_cache: bool = True) -> tuple[list, bool, int]:
+        model_cfg = self.s.section("model")
+        limit = self.s.section("discovery")["screened_max"]
+        pool = events[:limit]
+        with self.wf.db.connect() as conn:
+            context = conn.execute('SELECT mode FROM run_context WHERE run_id=?', (run_id,)).fetchone()
+        if context and context['mode'] == 'live':
+            pool, _ = self._partition_research_stops(pool, run_id)
+        if not pool:
+            return [], False, 0
+        if model_cfg["provider"] == "mock":
+            return events, False, 0
+        selected_model = self.s.require_model()
+        pool, material, prompt, schema, attach = self._prepare_screening(run_id, pool)
+        frozen_material = material
+        model_cfg = material.get("model_config", model_cfg)
+        prompt_hash = hashlib.sha256(prompt.encode()).hexdigest()
         with self.wf.db.connect() as conn:
             cached_rows = conn.execute(
                 """SELECT result_json,token_used,run_id FROM tasks
@@ -951,9 +1055,11 @@ class LiveDiscovery:
                 self._write_screening_audit(run_id, data)
                 self._restore_budget_overrun(run_id)
                 return screened, True, int(cached["token_used"])
+        if frozen_material and frozen_material.get("selected_model") not in {None, selected_model}:
+            raise ValueError("本次模型与冻结初筛选择不同；不能用旧运行发起新调用，请明确处理该行为后再启动。")
         router = build_router(
             self.s.root, model_cfg,
-            codex_model=model_cfg.get("screening_model", model_cfg.get("codex_model", "")),
+            codex_model=selected_model,
         )
         if router is None:
             return events, False, 0
@@ -983,6 +1089,7 @@ class LiveDiscovery:
             call = conn.execute("SELECT * FROM model_calls WHERE run_id=? AND task_id='screening' AND over_budget=1 ORDER BY id DESC LIMIT 1", (run_id,)).fetchone()
         if call:
             self._budget_overrun = {
+                "enforced": self.s.section("budget").get("enforce_token_limits", False),
                 "stage": "screening", "estimated_tokens": call["estimated_tokens"],
                 "actual_tokens": call["input_tokens"] + call["output_tokens"],
                 "action_limit": call["stage_limit"], "call_id": call["id"],
@@ -993,8 +1100,13 @@ class LiveDiscovery:
         with self.wf.db.connect() as conn:
             row = conn.execute("SELECT checkpoint_json FROM runs WHERE id=?", (run_id,)).fetchone()
         data = json.loads(row["checkpoint_json"] or "{}") if row else {}
-        data["resume_next"] = f"sqmy scan --resume {run_id}"
+        data["selected_model"] = self.s.selected_model
+        data["resume_next"] = f"sqmy --model MODEL_ID scan --resume {run_id}"
         data["next"] = f"sqmy retry {run_id}" if status == TaskStatus.FAILED else f"sqmy resume {run_id}"
+        if data.get("conversation_only"):
+            data["selected_model"] = None
+            data["resume_next"] = f"sqmy scan-prepare --resume {run_id}"
+            data["next"] = data["resume_next"]
         self.wf.db.checkpoint(
             run_id,
             phase=Phase.DISCOVERY,
@@ -1562,8 +1674,11 @@ class LiveDiscovery:
                     json.dumps(event.material, ensure_ascii=False),
                 ))
 
-    def _persist_candidates(self, run_id: str, candidates: list) -> None:
+    def _persist_candidates(self, run_id: str, candidates: list, *, before_persist=None) -> None:
         with self.wf.db.connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            if before_persist:
+                before_persist()
             conn.execute("DELETE FROM candidates WHERE run_id=?", (run_id,))
             for candidate in candidates:
                 conn.execute("INSERT INTO candidates(id,run_id,title,data_json,score,created_at) VALUES(?,?,?,?,?,?)", (
@@ -1607,7 +1722,8 @@ class LiveDiscovery:
                 *, current_new_count: int = 0, reopened_count: int = 0,
                 pending_before_count: int = 0,
                 shadow_reviews: list | None = None,
-                pool_quality: dict | None = None) -> Path:
+                pool_quality: dict | None = None,
+                conversation_receipt: dict | None = None) -> Path:
         from .candidate_eligibility import candidate_hash, current_candidate_review
         path = self.s.root / "outputs/candidates" / f"{run_id}.md"
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -1630,6 +1746,15 @@ class LiveDiscovery:
             "填写研究入口；未填写不表示已通过复核，不改变自动排序或闸门。",
             "",
         ]
+        if conversation_receipt is not None:
+            lines += ["> 本次初筛由当前主对话判断，实际模型标识未知；程序导入未调用模型或联网。",
+                      "> 制度新意仅比对本地机制库；未执行新增网络反证检索，不能认定已核验覆盖。"
+                      "推荐前仍须对少数题回源、查反证并交代决定性未知。",
+                      f"> 对话用量：{conversation_receipt['estimated_tokens']} Token产物代理估算，"
+                      "不覆盖完整上下文或思考，可能低估；官方用量和账单未知。", ""]
+        if self._research_stop_decisions:
+            held = sum(d['status'] == 'research_stopped' for d in self._research_stop_decisions.values())
+            lines += [f"> 已停止研究的事件本轮保留监测 {held} 条；停止依据、重开条件和材料哈希见 data/runs/{run_id}/research_stop_gate.json。未计入模型池，不自动复用旧批准。", ""]
         if pool_quality and pool_quality.get("checked"):
             lines += [
                 "> 模型前质量闸门："

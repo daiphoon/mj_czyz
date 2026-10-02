@@ -4,11 +4,11 @@
 
 ## 1. 一次正常研究
 
-1. 照常 `preflight --stage scan`、`scan`。新运行在原模型调用内附带研究入口影子意见。候选综合分、名额、排序及 C 编号规则保持不变。
+1. 日常向Codex说“运行社情民意正常扫描，由当前对话初筛”。Codex自动预检、`scan-prepare`、当前主对话读取冻结材料并判断、写结果及 `scan-import`；无需用户复制JSON或模型ID。独立CLI继续兼容显式 `--model`。影子意见、评分、名额及C编号规则保持，未知模型与用量如实标记；Token观察不阻断，但来源、审批、次数及付费边界保留。
 2. Codex 对拟推荐的少数题回源，在已有 `scan_review.md` 说明事实、机制、历史增量、未知与投入。可用 `candidate-review RUN_ID C1 --record FILE` 登记结构化结果，用 `candidates RUN_ID --json` 取得材料哈希及最新记录。登记不自动选题。
 3. 用户选择后，按候选新鲜度决定是否先刷新。有限预研使用 `research_contract: research_v3`；旧运行可继续读取旧契约。新版候选不能提交删掉契约标识的旧格式。
 4. `pre-research-check` 检查决策单；`stop` 可以完成记录，但不能继续深研。`proceed/reframe` 仍须用户实际确认后登记 `pre-research-review --decision proceed`。
-5. 围绕同一问题开展深研，整理逐主张的 `evidence_v2` 证据包。语义复核若有单独试验授权，应在此时用准备好的证据包检查，并计入本题深研额度；默认不调用。
+5. 围绕同一问题开展深研，整理逐主张的 `evidence_v2` 证据包。语义复核若有单独试验授权，应在此时用准备好的证据包检查，并在本题深研账中分列观察；默认不调用。
 6. `evidence-import FILE`、`evidence-check TOPIC_ID`。登记 `research-brief RUN_ID TOPIC_ID --record FILE`，保存支持与竞争解释、方案比较及成稿/不成稿结论。
 7. 写作时读取 `research-brief RUN_ID TOPIC_ID` 返回的最新内容。依据其中的已支持主张及选定方案形成正文，不从发现摘要重新推断事实。研究简报的 JSON/Markdown 阅读副本在 `outputs/review/research_briefs/RUN_ID/`，编辑后须重新登记；任务记录是权威版本。
 8. `draft-check`、实际完成四项内容审查、`draft-review`、`draft`、逐页渲染。新审查记录还须绑定简报哈希，并保存正文分项与已选方案的对应。最后仍由用户审核，通过后才执行 `approve`；实际报送后另行登记。
@@ -58,6 +58,12 @@
 
 旧 `evidence_v1` 仍可读取，原指纹按旧字段计算；升级至 v2 后不能删除标识降级。导入仍是现有主张的幂等新增/更新，不通过从文件删行暗中删除历史主张。问题解释和方案使用独立 `research-brief`，不能作为证据包中被忽略的字段。
 
+### 决定性取证的投入顺序
+
+在现有 `key_unknowns`、研究问题和机制卡判别方法中，说明哪份材料能区分主要解释与竞争解释，具体材料入口、取得后支持/反证什么，以及入口失败时可接受的公开或合法脱敏替代。研究前提须成立且有可信路径；不要求预研先证明方案有效，不新增字段闸门。
+
+深研先验证这个决定性入口，再补一般政策和方案细节。取不到且无有界替代时，记录获取限制与停止/不成稿依据，不用更多同源转载补齐、不把未知改成已证事实。沿用原审批与有界任务范围，Token只观察；已有 `stop/no_draft` 只有新证据或明确纠错依据才可复核，本文不重开历史题。
+
 ## 5. 深研简报与写作
 
 `research_brief.example.json` 说明完整结构。简报须绑定当前运行、候选、题目、最新 `pre_research_review_id` 和 `evidence_sha256`。
@@ -79,7 +85,7 @@ sqmy semantic-review RUN_ID TOPIC_ID
 sqmy semantic-review RUN_ID TOPIC_ID --show
 ```
 
-只有在明确的小样本试验范围和原深研行为剩余额度下，启用配置并显式添加 `--run` 才会调用 provider；`--retry` 只重试同一失败行为，不清零账本。非 live 运行禁止真实调用。模型、DeepSeek 备用与思考设置仍来自现有模型配置，不为该工具擅自更换。
+只有在明确的小样本试验范围和原深研行为剩余额度下，启用配置并显式添加 `--run` 才会调用 provider；`--retry` 只重试同一失败行为，不清零账本。非 live 运行禁止真实调用。真实执行须使用 `sqmy --model MODEL_ID semantic-review RUN_ID TOPIC_ID --run`，本次明确模型不得从旧配置回退，不固定思考深度；DeepSeek已按用户决定停用，不因旧配置或额度错误重新启用备用。
 
 每次最多 3 条核心主张、16,000 字符必要输入，输出估算上限 2,048 Token；这些均来自配置，未增加深研总上限。材料超界时拒绝，不自动截掉条件或例外，也不自动拆批扩题。直接原文或必要上下文不齐时记 `review_unavailable`，不判断事实错误。
 

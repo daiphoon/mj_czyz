@@ -141,6 +141,7 @@ def validate_output(data, material):
 
 
 def semantic_review(settings, run_id, topic_id, *, package_path=None, execute=False, retry=False):
+    selected_model = settings.require_model() if execute else None
     db = Database(settings.database_path); db.initialize()
     package = json.loads(package_path.read_text(encoding='utf-8')) if package_path else package_from_db(db, topic_id)
     if package.get('topic_id') != topic_id:
@@ -161,8 +162,8 @@ def semantic_review(settings, run_id, topic_id, *, package_path=None, execute=Fa
     prompt = INSTRUCTION + '\n' + json.dumps(material, ensure_ascii=False, sort_keys=True)
     raw = deepcopy(settings.raw)
     raw['model']['screening_max_output_tokens'] = cfg['max_output_tokens']
-    scoped = Settings(settings.root, raw)
-    prompt_hash = _hash([prompt, schema, raw['model']])
+    scoped = Settings(settings.root, raw, selected_model)
+    prompt_hash = _hash([prompt, schema, raw['model'], selected_model])
     directory = settings.root / 'data/runs' / run_id
     directory.mkdir(parents=True, exist_ok=True)
     with (directory / '.semantic-review.lock').open('a') as lock:
@@ -178,7 +179,7 @@ def semantic_review(settings, run_id, topic_id, *, package_path=None, execute=Fa
             if previous.get('review_sha256'):
                 return previous
         result = {k: prepared[k] for k in ('material_sha256', 'limitations', 'status')}
-        result.update(topic_id=topic_id, run_id=run_id, input_hash=prompt_hash, mode='shadow',
+        result.update(topic_id=topic_id, run_id=run_id, input_hash=prompt_hash, mode='shadow', selected_model=selected_model,
                       pre_research_review_id=pre['id'], reviewed_at=now(), material=material,
                       note='独立结构化调用的模型意见，不是人工盲审或事实认证；不改变证据/批准状态')
         ledger = CallLedger(db, scoped, run_id, 'deep_research', prompt_hash, topic_id=topic_id,
@@ -189,7 +190,7 @@ def semantic_review(settings, run_id, topic_id, *, package_path=None, execute=Fa
                     mode = conn.execute('SELECT mode FROM run_context WHERE run_id=?', (run_id,)).fetchone()
                 if not mode or mode['mode'] != 'live':
                     raise ProviderError('非 live 运行禁止真实语义复核调用')
-                router = build_router(settings.root, raw['model'])
+                router = build_router(settings.root, raw['model'], codex_model=selected_model)
                 if router is None:
                     raise ProviderError('mock 模式不执行真实语义复核')
                 output, fallback = router.analyze(prompt, schema, attempt=ledger.invoke)

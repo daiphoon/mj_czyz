@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from .budget import record_stage_usage
+from .budget import interactive_usage_estimate, record_stage_usage
 from .config import Settings
 from .db import Database, now
 from .source_trace import read_issue
@@ -40,6 +40,43 @@ SOURCE_ROLES = {
     "official_policy", "official_data", "court_case", "media_investigation",
     "academic_research", "pain_signal", "comparative_case", "other",
 }
+
+
+class EvidenceStore:
+    """沿用原来源/主张关系；把获取记录整理为待人工核验的证据包字段。"""
+    @staticmethod
+    def source_from_fetch(record: dict, *, key: str, source_name: str, source_role="other", registry=None):
+        from .snapshots import _public_http_url
+        from .source_registry import SourceRegistry
+        url = _public_http_url(record.get("final_url") or record.get("url", ""))
+        if record.get("provider") not in {"direct_http", "tavily_keyless"} or "fetch_status" not in record:
+            raise ValueError("必须使用Fetch记录，搜索摘要不能冒充回源证据")
+        excerpt = record.get("excerpt", "")
+        if not isinstance(excerpt, str) or record.get("excerpt_sha256") != hashlib.sha256(excerpt.encode()).hexdigest():
+            raise ValueError("获取摘录哈希不一致")
+        if not _nonempty(key) or not _nonempty(source_name) or source_role not in SOURCE_ROLES:
+            raise ValueError("证据来源身份或角色无效")
+        attrs = registry.lookup(url) if isinstance(registry, SourceRegistry) else {}
+        return dict(key=key, source_name=source_name, page_title=record.get("title") or source_name,
+                    url=url, published_at=record.get("published_at"), fetched_at=record["retrieved_at"],
+                    excerpt=excerpt, content_hash=record.get("content_hash"), source_role=source_role,
+                    verification_status="unverified", fetch_status="source_unread", primary_source=False,
+                    retrieval_metadata={k: record.get(k) for k in ("provider", "date_basis", "content_hash_kind", "truncated", "status")},
+                    source_attributes=attrs)
+
+    @staticmethod
+    def link_detail(record: dict, *, claim_part: str, support_scope: str, limitation: str,
+                    locator: str, checked_at: str, reviewed_by: str, verified=False):
+        if not _nonempty(reviewed_by):
+            raise ValueError("须明确人工核验者")
+        EvidenceStore.source_from_fetch(record, key="validation", source_name="validation")
+        if verified and (record.get("status") != "fetched" or record.get("truncated") or not record.get("target_found")):
+            raise ValueError("失败、不完整或未找到目标的材料不可标为已核验片段")
+        return normalize_evidence_detail(dict(claim_part=claim_part, support_scope=support_scope, limitation=limitation,
+            locator=locator, checked_at=checked_at, reviewed_by=reviewed_by,
+            fetch_status="excerpt_verified" if verified else "source_unread",
+            excerpt_kind="verbatim" if record.get("excerpt") else "unavailable",
+            excerpt=record.get("excerpt", ""), excerpt_sha256=record["excerpt_sha256"]))
 
 
 def _nonempty(value: Any) -> bool:
@@ -270,11 +307,10 @@ def import_evidence_package(settings: Settings, path: Path) -> str:
             run_id=review["run_id"],
             topic_id=topic_id,
             stage="deep_research",
-            token_used=int(settings.section("budget")["deep_research_tokens"]),
+            **interactive_usage_estimate(settings, "deep_research", raw_bytes.decode("utf-8")),
             input_hash=hashlib.sha256(raw_bytes).hexdigest(),
             provider="codex_subscription",
-            model=settings.section("model")["codex_model"],
-            note="结构化证据包导入时按深研阶段上限保守记账；不是Plus官方Token统计。",
+            model=settings.interactive_model,
         )
     return topic_id
 

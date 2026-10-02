@@ -21,3 +21,26 @@ def no_real_tavily_in_tests(monkeypatch):
     def blocked(*args, **kwargs):
         raise AssertionError("Tavily网络请求必须由测试显式stub")
     monkeypatch.setattr("sqmy.tavily.TavilyClient._post", blocked)
+
+
+@pytest.fixture(autouse=True)
+def no_external_transport_in_tests(monkeypatch):
+    """新旧检索与模型HTTP均只能显式注入离线响应。"""
+    def blocked(*args, **kwargs):
+        raise AssertionError("普通测试禁止真实网络连接")
+    monkeypatch.setattr("socket.socket.connect", blocked)
+    monkeypatch.setattr("socket.socket.connect_ex", blocked)
+    monkeypatch.setattr("urllib.request.OpenerDirector.open", blocked)
+
+
+@pytest.fixture(autouse=True)
+def no_real_codex_process_in_tests(monkeypatch):
+    """Codex子进程须显式注入runner；禁止继承真实CLI执行器。"""
+    import subprocess
+    from sqmy.providers import CodexCliClient
+    original, real_runner = CodexCliClient.analyze, subprocess.run
+    def offline(self, *args, **kwargs):
+        if self.runner is real_runner:
+            raise AssertionError("普通测试禁止真实Codex调用，请注入离线runner")
+        return original(self, *args, **kwargs)
+    monkeypatch.setattr(CodexCliClient, 'analyze', offline)
