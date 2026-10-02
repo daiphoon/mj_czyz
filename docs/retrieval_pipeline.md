@@ -19,6 +19,14 @@
 
 原 `retrieval_calls` 向前增加provider、auth_mode、intent、query_id、latency_ms、retry_count、fallback_from、cache_hit；旧行保留legacy_unknown。真实请求前先占额。整个行动最多4次Search、2次Extract和6次合计尝试，fallback/重试与旧记录共用额度；旧配置若更低则沿用更低限制。默认不自动重试。缓存不重发网络请求，但跨行动复用记入行动范围。未知中断仍保留running预留，恢复重试须显式指定且受剩余额度限制。
 
+这8个字段均属于`retrieval_calls`：provider登记入口，auth_mode区分keyless/keyed/none，intent保留检索用途，query_id登记请求哈希短ID，latency_ms登记耗时，retry_count登记重试序号，fallback_from保留上个入口，cache_hit区分缓存复用。它们不是来源事实认证字段。
+
+`requests`是兼容保留的**预留条数**，新输出同时显示`reservations`。新请求在`result_json.transport`记录HTTP派发尝试、收到响应和失败阶段；不新增数据库列，不追填旧行。真实派发前先持久化标记；进程在标记后中断或派发后无响应时，送达状态仍未知，不能解释为供应商没收到或实际费用为零。旧入口/旧记录没有传输证据时明确计入`unknown_transport_records`。缓存复用不重记派发或供应商credits，仍占原行为范围；发送前失败预留也不退款。
+
+请求构造或观察包装在进入网络传输前抛出的本地错误标为`local_before_dispatch`，不据此打开供应商故障熔断。HTTP收到后解析、规范化失败分别保留阶段。供应商返回的有效`usage.credits`写入`reported_credits`；keyless的计价字段保持零，credits不被解释为账户新增账单。审计内容只含阶段和数值，不记录URL、请求正文、认证头或错误响应原文。
+
+Fetch单列`transport_metadata`和`destination_error`。DNS成功返回非公网地址时保持`refused/unsafe_destination/non_global_dns_address`，派发前计数为零；重定向目标同样校验。DNS或代理可能使用fake-IP时，必须先查明环境原因，不能把这些地址白名单化、禁用校验或改用其他抓取工具绕过拒绝，也不允许对该拒绝调用Extract。系统DNS、VPN或代理设置修改需具体说明范围和影响后另获批准。人工补读不能冒充程序通过，来源和主张仍由既有人工核验闸门控制。
+
 ## 冻结、恢复和取证
 
 Search与Extract使用同一熔断实现，健康状态按供应商、认证模式及端点分开保存。Extract首个URL触发429、401或配额错误后，第二URL仍尝试普通HTTP，但不绕过Extract冷却或禁用；熔断拒绝不占新请求额。API端点404/410标为endpoint_unavailable并冷却，不据单个410断言供应商退役；普通来源网页410只是该页获取失败。HTTP 410的语义是目标资源不可用，不能据此证明整个服务退役，参见 [RFC 9110 §15.5.11](https://www.rfc-editor.org/rfc/rfc9110.html#name-410-gone)。

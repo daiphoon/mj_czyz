@@ -8,21 +8,34 @@ import json
 import re
 import socket
 from urllib.parse import urljoin
+from urllib.error import HTTPError
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from .materials import select_excerpt
 from .search_types import RetrievalIntent, SearchError, SearchRequest
 from .snapshots import _public_http_url
 from .tavily import atomic_json
+from . import transport_audit
+
+
+class DestinationRefused(ValueError):
+    def __init__(self, reason):
+        self.reason = reason
+        super().__init__("来源目的地安全校验拒绝：" + reason)
 
 
 def validate_destination(url, resolver=socket.getaddrinfo):
     from urllib.parse import urlparse
-    _public_http_url(url)
+    try:
+        _public_http_url(url)
+    except ValueError:
+        raise DestinationRefused("unsafe_url") from None
     parsed = urlparse(url)
     addresses = resolver(parsed.hostname, parsed.port or (443 if parsed.scheme == "https" else 80), type=socket.SOCK_STREAM)
-    if not addresses or any(not ipaddress.ip_address(r[4][0]).is_global for r in addresses):
-        raise ValueError("来源域名解析到非公网地址")
+    if not addresses:
+        raise DestinationRefused("no_dns_addresses")
+    if any(not ipaddress.ip_address(r[4][0]).is_global for r in addresses):
+        raise DestinationRefused("non_global_dns_address")
     return url
 
 
@@ -31,8 +44,13 @@ class _PublicRedirect(HTTPRedirectHandler):
         self.resolver = resolver
         super().__init__()
     def redirect_request(self, req, fp, code, msg, headers, newurl):
+        transport_audit.response(code)
+        transport_audit.phase("redirect_destination_validation")
         validate_destination(urljoin(req.full_url, newurl), self.resolver)
-        return super().redirect_request(req, fp, code, msg, headers, newurl)
+        request = super().redirect_request(req, fp, code, msg, headers, newurl)
+        if request is not None:
+            transport_audit.before_dispatch()
+        return request
 
 
 class _Article(HTMLParser):
@@ -84,6 +102,8 @@ class FetchResult:
     error_code: str | None = None
     verification_status: str = "unverified"
     content_hash_kind: str = "response_bytes"
+    transport_metadata: dict | None = None
+    destination_error: str | None = None
 
     def record(self, terms, cfg):
         value = asdict(self)
@@ -111,36 +131,58 @@ class DirectFetcher:
     def fetch(self, url):
         stamp = datetime.now(timezone.utc).isoformat()
         _public_http_url(url)  # 无效或含凭据的输入在任何副作用前拒绝。
+        audit = transport_audit.TransportAudit(tracked=True)
         try:
-            validate_destination(url, self.resolver)
-            request = Request(url, headers={"User-Agent": "sqmy-research/0.3", "Accept": "text/html,application/xhtml+xml,text/plain,application/pdf"})
-            with self.opener.open(request, timeout=self.cfg.get("request_timeout_seconds", 20)) as response:
-                final = validate_destination(response.geturl(), self.resolver)
-                media = response.headers.get_content_type()
-                raw = response.read(self.cfg.get("max_response_bytes", 2_000_000) + 1)
-                status = response.status
-                charset = response.headers.get_content_charset() or "utf-8"
-            truncated = len(raw) > self.cfg.get("max_response_bytes", 2_000_000)
-            raw = raw[:self.cfg.get("max_response_bytes", 2_000_000)]
-            digest = hashlib.sha256(raw).hexdigest()
-            if media not in {"text/html", "application/xhtml+xml", "text/plain"}:
-                return FetchResult(url, final, "unsupported", stamp, media, content_hash=digest, http_status=status, truncated=truncated, error_code="requires_manual_extraction")
-            text = raw.decode(charset, errors="replace")
-            title, published = "", None
-            if media != "text/plain":
-                parser = _Article()
-                parser.feed(text)
-                title, published = "".join(parser.title).strip(), parser.published_at
-                text = "".join(parser.text)
-            text = re.sub(r"[ \t]+", " ", text)
-            text = re.sub(r"\n\s*\n+", "\n", text).strip()
-            incomplete = truncated or not text or "\ufffd" in text
-            return FetchResult(url, final, "incomplete" if incomplete else "fetched", stamp, media, title[:350], published,
-                               "page_metadata_unverified" if published else "unknown", text, digest, status, truncated=truncated)
-        except ValueError:
-            return FetchResult(url, url, "refused", stamp, error_code="unsafe_destination")
+            with transport_audit.observing(audit):
+                return self._fetch(url, stamp, audit)
+        except DestinationRefused as exc:
+            return FetchResult(url, url, "refused", stamp, error_code="unsafe_destination",
+                               transport_metadata=audit.snapshot(), destination_error=exc.reason)
+        except HTTPError as exc:
+            audit.response(exc.code)
+            audit.phase = audit.failure_stage = "http_status"
+            return FetchResult(url, url, "failed", stamp, http_status=exc.code,
+                               error_code="http_or_parse_failed", transport_metadata=audit.snapshot())
         except Exception:
-            return FetchResult(url, url, "failed", stamp, error_code="http_or_parse_failed")
+            return FetchResult(url, url, "failed", stamp, error_code="http_or_parse_failed",
+                               transport_metadata=audit.snapshot())
+
+    def _fetch(self, url, stamp, audit):
+        transport_audit.phase("destination_validation")
+        validate_destination(url, self.resolver)
+        transport_audit.phase("request_preparation")
+        request = Request(url, headers={"User-Agent": "sqmy-research/0.3", "Accept": "text/html,application/xhtml+xml,text/plain,application/pdf"})
+        open_request = self.opener.open
+        transport_audit.before_dispatch()
+        with open_request(request, timeout=self.cfg.get("request_timeout_seconds", 20)) as response:
+            transport_audit.response(response.status)
+            transport_audit.phase("final_destination_validation")
+            final = validate_destination(response.geturl(), self.resolver)
+            media = response.headers.get_content_type()
+            transport_audit.phase("response_read")
+            raw = response.read(self.cfg.get("max_response_bytes", 2_000_000) + 1)
+            status = response.status
+            charset = response.headers.get_content_charset() or "utf-8"
+        truncated = len(raw) > self.cfg.get("max_response_bytes", 2_000_000)
+        raw = raw[:self.cfg.get("max_response_bytes", 2_000_000)]
+        digest = hashlib.sha256(raw).hexdigest()
+        if media not in {"text/html", "application/xhtml+xml", "text/plain"}:
+            audit.phase = "content_type"
+            return FetchResult(url, final, "unsupported", stamp, media, content_hash=digest, http_status=status, truncated=truncated, error_code="requires_manual_extraction", transport_metadata=audit.snapshot())
+        transport_audit.phase("response_parse")
+        text = raw.decode(charset, errors="replace")
+        title, published = "", None
+        if media != "text/plain":
+            parser = _Article()
+            parser.feed(text)
+            title, published = "".join(parser.title).strip(), parser.published_at
+            text = "".join(parser.text)
+        text = re.sub(r"[ \t]+", " ", text)
+        text = re.sub(r"\n\s*\n+", "\n", text).strip()
+        incomplete = truncated or not text or "\ufffd" in text
+        audit.phase = "completed" if not incomplete else "response_parse"
+        return FetchResult(url, final, "incomplete" if incomplete else "fetched", stamp, media, title[:350], published,
+                           "page_metadata_unverified" if published else "unknown", text, digest, status, truncated=truncated, transport_metadata=audit.snapshot())
 
     def fetch_record(self, url, terms, *, force_refresh=False, retry_failed=False):
         _public_http_url(url)
@@ -166,34 +208,43 @@ class DirectFetcher:
                 record["extract_error"] = "previous_request_unresolved"
             else:
                 call_id = None
+                extract_audit = transport_audit.TransportAudit(tracked=getattr(self.extractor, "transport_audited", False))
                 try:
                     def extract():
                         nonlocal call_id
                         request = SearchRequest("known_url:" + digest, intent=RetrievalIntent.REGULATION_SEARCH, max_results=1)
                         call_id = self.ledger.reserve(self.extractor, request, extract_digest, endpoint="extract")
-                        return self.extractor.extract(url)
+                        extract_audit.checkpoint = lambda value: self.ledger.record_transport(call_id, value)
+                        try:
+                            with transport_audit.observing(extract_audit):
+                                return self.extractor.extract(url)
+                        except Exception as exc:
+                            if not isinstance(exc, SearchError) and extract_audit.dispatches == 0 and extract_audit.coverage == "tracked_http":
+                                raise SearchError("local_before_dispatch", "local") from None
+                            raise
                     text = self.extract_health.invoke_extract(self.extractor, extract)
                     cap = self.cfg.get("max_text_chars", 100_000)
                     truncated = len(text) > cap
                     text = text[:cap]
                     direct_record = record
+                    extract_audit.phase = "completed"
                     result = FetchResult(url, url, "incomplete" if truncated else "fetched", datetime.now(timezone.utc).isoformat(), direct_record["content_type"],
                                          clean_text=text, content_hash=hashlib.sha256(text.encode()).hexdigest(), provider=self.extractor.name,
-                                         truncated=truncated, content_hash_kind="extract_returned_text")
+                                         truncated=truncated, content_hash_kind="extract_returned_text", transport_metadata=extract_audit.snapshot())
                     record = result.record(terms, self.cfg)
                     record.update(extraction_method="tavily_keyless_extract", extracted_content_type="text/plain",
                                   direct_fetch_metadata={k: direct_record.get(k) for k in
-                                      ("status", "content_type", "final_url", "http_status", "error_code", "content_hash", "content_hash_kind", "truncated")})
-                    self.ledger.finish(call_id, record=record)
+                                      ("status", "content_type", "final_url", "http_status", "error_code", "content_hash", "content_hash_kind", "truncated", "transport_metadata")})
+                    self.ledger.finish(call_id, record=record, transport=extract_audit.snapshot())
                 except SearchError as exc:
                     if call_id is not None:
-                        self.ledger.finish(call_id, error=exc)
+                        self.ledger.finish(call_id, error=exc, transport=extract_audit.snapshot())
                     record["extract_error"] = exc.code
                 except KeyboardInterrupt:
                     raise
                 except Exception:
                     if call_id is not None:
-                        self.ledger.finish(call_id, error=SearchError("extract_failed", "transient"))
+                        self.ledger.finish(call_id, error=SearchError("extract_failed", "transient"), transport=extract_audit.snapshot())
                     record["extract_error"] = "extract_failed"
         if cache and record["status"] == "fetched":
             atomic_json(cache, {"saved_at": datetime.now(timezone.utc).timestamp(), "record": record})

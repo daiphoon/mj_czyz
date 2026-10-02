@@ -61,7 +61,7 @@ class EvidenceStore:
                     url=url, published_at=record.get("published_at"), fetched_at=record["retrieved_at"],
                     excerpt=excerpt, content_hash=record.get("content_hash"), source_role=source_role,
                     verification_status="unverified", fetch_status="source_unread", primary_source=False,
-                    retrieval_metadata={k: record.get(k) for k in ("provider", "date_basis", "content_hash_kind", "truncated", "status")},
+                    retrieval_metadata={k: record.get(k) for k in ("provider", "date_basis", "content_hash_kind", "truncated", "status", "transport_metadata", "destination_error")},
                     source_attributes=attrs)
 
     @staticmethod

@@ -9,10 +9,12 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from .search_types import RetrievalIntent, SearchError, SearchRequest, SearchResult
 from .snapshots import _public_http_url
+from . import transport_audit
 
 
 class _NoRedirect(HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
+        transport_audit.response(code)
         raise SearchError("redirect_refused", "invalid_response")
 
 
@@ -31,10 +33,16 @@ def _delay(headers):
 
 
 def send_json(request, *, timeout, max_bytes):
+    transport_audit.phase("request_preparation")
+    opener = build_opener(_NoRedirect())
+    open_request = opener.open
+    transport_audit.before_dispatch()
     try:
-        with build_opener(_NoRedirect()).open(request, timeout=timeout) as response:
+        with open_request(request, timeout=timeout) as response:
+            transport_audit.response(response.status)
             raw = response.read(max_bytes + 1)
     except HTTPError as exc:
+        transport_audit.response(exc.code)
         category = ("authentication" if exc.code in {401, 403} else "rate_limit" if exc.code == 429
                     else "quota" if exc.code in {432, 433} else "endpoint_unavailable" if exc.code in {404, 410}
                     else "transient" if exc.code >= 500 else "invalid_query")
@@ -43,12 +51,15 @@ def send_json(request, *, timeout, max_bytes):
         raise SearchError("transport_failed", "transient") from None
     if len(raw) > max_bytes:
         raise SearchError("response_too_large", "invalid_response")
+    transport_audit.phase("response_parse")
     try:
         data = json.loads(raw)
     except (ValueError, UnicodeError):
         raise SearchError("invalid_response_or_keyless_limit", "invalid_response") from None
     if not isinstance(data, dict):
         raise SearchError("invalid_response_or_keyless_limit", "invalid_response")
+    transport_audit.usage(data)
+    transport_audit.phase("provider_normalization")
     return data
 
 
@@ -64,6 +75,7 @@ def _url(value):
 class BraveSearchProvider:
     name, auth_mode, paid = "brave", "keyed", True
     search_types = frozenset({"web"})
+    transport_audited = True
 
     def __init__(self, cfg, *, allow_paid=False):
         self.cfg, self.allow_paid = cfg, allow_paid
@@ -104,6 +116,7 @@ class BraveSearchProvider:
 class TavilyKeylessProvider:
     name, auth_mode, paid, cost_usd = "tavily_keyless", "keyless", False, 0.0
     search_types = frozenset({"web", "news"})
+    transport_audited = True
 
     def __init__(self, cfg):
         self.cfg = cfg
@@ -165,6 +178,7 @@ class TavilyKeylessProvider:
 class BingNewsRssProvider:
     name, auth_mode, paid, cost_usd = "bing_news_rss", "none", False, 0.0
     search_types = frozenset({"news"})
+    transport_audited = True
     parameters = {"endpoint": "bing_news_rss", "date_basis": "search_result_date"}
 
     def __init__(self, collector):

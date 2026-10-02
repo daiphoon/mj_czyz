@@ -275,4 +275,29 @@ def retrieval_usage(db, run_id):
             SUM(reported_credits) AS reported_credits,SUM(accounted_credits) AS accounted_credits,
             SUM(cost_equivalent_usd) AS cost_equivalent_usd
             FROM retrieval_calls WHERE run_id=? GROUP BY action""", (run_id,)).fetchall()
-    return {"run_id": run_id, "actions": [dict(row) for row in rows], "note": "积分及等价费用与模型Token分列；非账户实际账单，未知用量保守占额"}
+        records = conn.execute("SELECT action,result_json,cached_from FROM retrieval_calls WHERE run_id=?", (run_id,)).fetchall()
+    actions = {row["action"]: dict(row) for row in rows}
+    for action in actions.values():
+        action.update(reservations=action["requests"], http_dispatch_attempts_known=0, responses_received_known=0,
+                      unknown_transport_records=0, dispatches_without_response=0, failure_stages={})
+    for row in records:
+        action = actions[row["action"]]
+        try:
+            audit = json.loads(row["result_json"] or "{}").get("transport")
+        except (ValueError, AttributeError):
+            audit = None
+        if not isinstance(audit, dict) or audit.get("coverage") not in {"tracked_http", "cache"}:
+            action["unknown_transport_records"] += 1
+            continue
+        if audit["coverage"] == "cache" and row["cached_from"] is None:
+            action["cache_hits"] += 1
+        sent, received = audit.get("dispatch_attempts"), audit.get("responses_received")
+        if type(sent) is not int or type(received) is not int or min(sent, received) < 0:
+            action["unknown_transport_records"] += 1
+            continue
+        action["http_dispatch_attempts_known"] += sent
+        action["responses_received_known"] += received
+        action["dispatches_without_response"] += max(0, sent - received)
+        if isinstance(stage := audit.get("failure_stage"), str) and stage:
+            action["failure_stages"][stage] = action["failure_stages"].get(stage, 0) + 1
+    return {"run_id": run_id, "actions": list(actions.values()), "note": "requests兼容字段表示预留条数；HTTP派发尝试与收到响应单列，旧记录无发送证据时保持未知。派发后无响应不等于未送达；积分及等价费用不是账户账单，失败预留仍占额。"}

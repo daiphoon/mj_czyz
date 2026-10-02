@@ -12,7 +12,9 @@ import re
 import ssl
 import tomllib
 from urllib.parse import parse_qs, parse_qsl, urlencode, urlparse, urlunparse, urljoin
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
+from . import transport_audit
 import xml.etree.ElementTree as ET
 
 from .models import EventItem
@@ -404,14 +406,24 @@ class SourceCollector:
         cache = self.root / "data/cache" / namespace / f"{cache_key}.xml"
         cache_ttl_seconds = int(self.cfg["cache_ttl_hours"]) * 3600
         if cache.exists() and datetime.now().timestamp() - cache.stat().st_mtime < cache_ttl_seconds:
+            transport_audit.phase("cache_reuse")
             text = cache.read_text(encoding="utf-8")
             if namespace in {"feeds", "counterevidence"}:
                 self._reject_search_html(text)
                 _parse_rss(text)
             return text
         request = Request(url, headers={"User-Agent": self.cfg["user_agent"], "Accept": "application/rss+xml, application/xml, text/html"})
-        with urlopen(request, timeout=self.cfg["request_timeout_seconds"], context=ssl.create_default_context()) as response:
-            raw = response.read(2_000_000)
+        context = ssl.create_default_context()
+        transport_audit.before_dispatch()
+        try:
+            with urlopen(request, timeout=self.cfg["request_timeout_seconds"], context=context) as response:
+                transport_audit.response(getattr(response, "status", None))
+                raw = response.read(2_000_000)
+        except HTTPError as exc:
+            transport_audit.response(exc.code)
+            transport_audit.phase("http_status")
+            raise
+        transport_audit.phase("response_parse")
         text = raw.decode("utf-8", errors="replace")
         if namespace in {"feeds", "counterevidence"}:
             self._reject_search_html(text)

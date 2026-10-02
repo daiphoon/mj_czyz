@@ -13,6 +13,7 @@ import time
 from .collector import canonical_url
 from .search_types import SearchError, SearchResponse, SearchResult, domain_matches
 from .tavily import atomic_json
+from .transport_audit import TransportAudit, observing
 
 
 def validate_config(settings):
@@ -70,7 +71,7 @@ class Circuit:
     def failure(self, error, stamp, threshold, cooldown):
         was_probe = self.probe_running
         self.probe_running = False
-        if error.category in {"invalid_query", "budget", "configuration"}:
+        if error.category in {"invalid_query", "budget", "configuration", "local"}:
             return
         if error.category in {"authentication", "retired", "quota"}:
             self.blocked = True
@@ -240,6 +241,7 @@ class SearchRouter:
                 except SearchError as exc:
                     return None, exc, attempt
             attempt["cache_hit"] = True
+            attempt["transport"] = TransportAudit(cache=True).snapshot()
             return [SearchResult(**r) for r in cached["results"]], None, attempt
         for number in range(self.cfg.get("max_retries", 0) + 1):
             with self._mutex:
@@ -247,16 +249,22 @@ class SearchRouter:
                 if not circuit.allow(self.clock()):
                     return None, SearchError("circuit_open", "circuit"), attempt
             call_id = None
+            audit = TransportAudit(tracked=getattr(provider, "transport_audited", False))
             try:
                 if self.ledger:
                     call_id = self.ledger.reserve(provider, request, digest, retry_count=number, fallback_from=fallback_from)
                 started = self.clock()
-                results = provider.search(request)
-                if not isinstance(results, list) or any(not isinstance(r, SearchResult) for r in results):
-                    raise SearchError("invalid_normalized_result", "invalid_response")
-                attempt.update(retry_count=number, latency_ms=max(0, int((self.clock() - started) * 1000)), result_count=len(results), status="completed")
                 if self.ledger:
-                    self.ledger.finish(call_id, results=results, latency_ms=attempt["latency_ms"])
+                    audit.checkpoint = lambda value: self.ledger.record_transport(call_id, value)
+                with observing(audit):
+                    results = provider.search(request)
+                    if not isinstance(results, list) or any(not isinstance(r, SearchResult) for r in results):
+                        raise SearchError("invalid_normalized_result", "invalid_response")
+                audit.phase = "completed"
+                attempt.update(retry_count=number, latency_ms=max(0, int((self.clock() - started) * 1000)), result_count=len(results), status="completed")
+                attempt["transport"] = audit.snapshot()
+                if self.ledger:
+                    self.ledger.finish(call_id, results=results, latency_ms=attempt["latency_ms"], transport=audit.snapshot())
                 with self._mutex:
                     circuit.success()
                     self._save_health(self._health_key(provider, request))
@@ -267,9 +275,11 @@ class SearchRouter:
                 # 账本中的running预留保留，恢复须显式决定是否重试。
                 raise
             except Exception as exc:
-                error = exc if isinstance(exc, SearchError) else SearchError("provider_failed", "transient")
+                error = exc if isinstance(exc, SearchError) else SearchError("local_before_dispatch", "local") if audit.coverage == "tracked_http" and audit.dispatches == 0 else SearchError("provider_failed", "transient")
+                audit.failure_stage = audit.failure_stage or audit.phase
+                attempt["transport"] = audit.snapshot()
                 if call_id is not None:
-                    self.ledger.finish(call_id, error=error)
+                    self.ledger.finish(call_id, error=error, transport=audit.snapshot())
                 with self._mutex:
                     circuit.failure(error, self.clock(), self.cfg.get("failure_threshold", 2), self.cfg.get("cooldown_seconds", 300))
                     self._save_health(self._health_key(provider, request))

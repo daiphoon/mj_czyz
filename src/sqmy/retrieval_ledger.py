@@ -4,6 +4,7 @@ import json
 from .db import now
 from .search_types import SearchError
 from .tavily import atomic_json
+from .transport_audit import TransportAudit
 
 
 class RetrievalLedger:
@@ -39,17 +40,26 @@ class RetrievalLedger:
                 VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (self.run_id, self.action, endpoint, digest, "completed" if cached is not None else "running", 0, 0,
                  cost, "cache" if cached is not None else "free_keyless" if provider.auth_mode == "keyless" else "free_http" if not provider.paid else "reserved_estimate",
-                 json.dumps(cached, ensure_ascii=False) if cached is not None else None, stamp, stamp,
+                 json.dumps(dict(cached, transport=TransportAudit(cache=True).snapshot()), ensure_ascii=False) if cached is not None else None, stamp, stamp,
                  provider.name, provider.auth_mode, request.intent.value, digest[:16], retry_count, fallback_from, int(cached is not None)))
             call_id = cursor.lastrowid
         self.export()
         return call_id
 
-    def finish(self, call_id, *, results=None, record=None, error=None, latency_ms=0):
+    def record_transport(self, call_id, transport):
+        """派发前只更新本次预留，不改状态、不退款、不触及旧行。"""
         with self.db.connect() as conn:
-            conn.execute("UPDATE retrieval_calls SET status=?,result_json=?,error_code=?,latency_ms=?,updated_at=? WHERE id=?",
-                         ("failed" if error else "completed", json.dumps({"results": [record] if record is not None else [asdict(r) for r in results]}, ensure_ascii=False) if results is not None or record is not None else None,
-                          error.code if error else None, latency_ms, now(), call_id))
+            conn.execute("UPDATE retrieval_calls SET result_json=?,updated_at=? WHERE id=? AND status='running'",
+                         (json.dumps({"results": [], "transport": transport}, ensure_ascii=False), now(), call_id))
+
+    def finish(self, call_id, *, results=None, record=None, error=None, latency_ms=0, transport=None):
+        value = {"results": [record] if record is not None else [asdict(r) for r in results] if results is not None else []}
+        if transport is not None:
+            value["transport"] = transport
+        with self.db.connect() as conn:
+            conn.execute("UPDATE retrieval_calls SET status=?,result_json=?,error_code=?,latency_ms=?,reported_credits=?,updated_at=? WHERE id=?",
+                         ("failed" if error else "completed", json.dumps(value, ensure_ascii=False),
+                          error.code if error else None, latency_ms, transport.get("reported_credits") if transport else None, now(), call_id))
         self.export()
 
     def export(self):
@@ -60,5 +70,6 @@ class RetrievalLedger:
             record = dict(row)
             result = json.loads(record.pop("result_json") or "{}")
             record["result_count"] = len(result.get("results", []))
+            record["transport"] = result.get("transport")  # 无记录的旧行保持未知，不推断发送次数。
             records.append(record)
         atomic_json(self.s.root / "data/runs" / self.run_id / "retrieval_calls.json", records)
