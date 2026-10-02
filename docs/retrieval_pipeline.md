@@ -25,6 +25,8 @@
 
 请求构造或观察包装在进入网络传输前抛出的本地错误标为`local_before_dispatch`，不据此打开供应商故障熔断。HTTP收到后解析、规范化失败分别保留阶段。供应商返回的有效`usage.credits`写入`reported_credits`；keyless的计价字段保持零，credits不被解释为账户新增账单。审计内容只含阶段和数值，不记录URL、请求正文、认证头或错误响应原文。
 
+Bing旧RSS适配层同样检查真实派发状态：缓存读取、Request/TLS准备或审计持久化在发送前失败时保留本地错误和零派发，不触发供应商熔断；已派发并收到HTML、坏RSS等不合格响应时仍按invalid_response冷却。离线回归使用实际SourceCollector→Bing适配器→Router路径，不能用统一stub绕过包装层验证。
+
 Fetch单列`transport_metadata`和`destination_error`。DNS成功返回非公网地址时保持`refused/unsafe_destination/non_global_dns_address`，派发前计数为零；重定向目标同样校验。DNS或代理可能使用fake-IP时，必须先查明环境原因，不能把这些地址白名单化、禁用校验或改用其他抓取工具绕过拒绝，也不允许对该拒绝调用Extract。系统DNS、VPN或代理设置修改需具体说明范围和影响后另获批准。人工补读不能冒充程序通过，来源和主张仍由既有人工核验闸门控制。
 
 ## 冻结、恢复和取证

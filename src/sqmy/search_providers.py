@@ -200,5 +200,8 @@ class BingNewsRssProvider:
         try:
             items = self.collector.search_query(query, limit=request.max_results, lookback_days=request.recency_days)
         except Exception:
+            audit = transport_audit.current_audit()
+            if audit is not None and audit.coverage == "tracked_http" and audit.dispatches == 0:
+                raise SearchError("local_before_dispatch", "local") from None
             raise SearchError("rss_endpoint_unavailable", "invalid_response") from None
         return [SearchResult(x.title, x.url, x.summary, x.published_at or None, self.name, date_basis="search_result_date") for x in items]

@@ -1,6 +1,7 @@
 from copy import deepcopy
 from email.message import Message
 import json
+import shutil
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -32,6 +33,7 @@ class JSONResponse:
 
 @pytest.fixture
 def context(tmp_path):
+    shutil.copytree(Path(__file__).parents[1]/'config',tmp_path/'config')
     settings = Settings(tmp_path, deepcopy(Settings.load(Path(__file__).parents[1] / 'config/settings.toml').raw))
     workflow = Workflow(settings)
     run = workflow.init_run('diagnostic')
@@ -277,3 +279,69 @@ def test_direct_http_error_records_received_response_without_claiming_service_re
     assert result.status=='failed' and result.http_status==410
     assert result.transport_metadata['dispatch_attempts']==result.transport_metadata['responses_received']==1
     assert result.transport_metadata['failure_stage']=='http_status'
+
+
+@pytest.mark.parametrize('failure',['cache_read','request','tls','checkpoint'])
+def test_production_bing_presend_failures_do_not_open_circuit(context,monkeypatch,failure):
+    import hashlib
+    from sqmy.collector import SourceCollector
+    from sqmy.search_providers import BingNewsRssProvider
+    settings,workflow,run,ledger=context
+    collector=SourceCollector(settings.root,settings.raw)
+    provider=BingNewsRssProvider(collector)
+    router=SearchRouter([provider],cfg=dict(settings.raw['search'],providers=['bing_news_rss']),ledger=ledger)
+    network=Mock()
+    monkeypatch.setattr('sqmy.collector.urlopen',network)
+    def local_failure(*args,**kwargs):
+        raise OSError('offline local failure; not a provider response')
+    query='有界测试'
+    if failure=='cache_read':
+        digest=hashlib.sha256(provider.endpoint(query).encode()).hexdigest()
+        cache=settings.root/'data/cache/counterevidence'/f'{digest}.xml'
+        cache.parent.mkdir(parents=True)
+        cache.write_text('<rss><channel><title>缓存</title></channel></rss>')
+        original_read=Path.read_text
+        def read(path,*args,**kwargs):
+            if path==cache:
+                local_failure()
+            return original_read(path,*args,**kwargs)
+        monkeypatch.setattr(Path,'read_text',read)
+    elif failure=='request':
+        monkeypatch.setattr('sqmy.collector.Request',local_failure)
+    elif failure=='tls':
+        monkeypatch.setattr('sqmy.collector.ssl.create_default_context',local_failure)
+    else:
+        monkeypatch.setattr(ledger,'record_transport',local_failure)
+    request=SearchRequest(query,search_type='news')
+    result=router.search(request)
+    assert result.errors[-1]['code']=='local_before_dispatch'
+    assert result.errors[-1]['category']=='local'
+    network.assert_not_called()
+    assert result.attempts[0]['transport']['dispatch_attempts']==0
+    assert router.health['bing_news_rss:none:news'].state(router.clock())=='CLOSED'
+    assert router.health['bing_news_rss:none:news'].failures==0
+    stored=rows(context)
+    assert len(stored)==1 and stored[0]['status']=='failed'
+    assert json.loads(stored[0]['result_json'])['transport']['dispatch_attempts']==0
+    assert retrieval_usage(workflow.db,run)['actions'][0]['reservations']==1
+
+
+def test_production_bing_bad_network_RSS_response_still_opens_circuit(context,monkeypatch):
+    from sqmy.collector import SourceCollector
+    from sqmy.search_providers import BingNewsRssProvider
+    settings,workflow,run,ledger=context
+    provider=BingNewsRssProvider(SourceCollector(settings.root,settings.raw))
+    router=SearchRouter([provider],cfg=dict(settings.raw['search'],providers=['bing_news_rss']),ledger=ledger)
+    response=JSONResponse({})
+    response.body=b'<html>provider returned HTML instead of RSS</html>'
+    network=Mock(return_value=response)
+    monkeypatch.setattr('sqmy.collector.urlopen',network)
+    result=router.search(SearchRequest('有界测试',search_type='news'))
+    assert result.errors[-1]['code']=='rss_endpoint_unavailable'
+    trace=result.attempts[0]['transport']
+    assert trace['dispatch_attempts']==trace['responses_received']==1
+    assert trace['failure_stage']=='response_parse'
+    assert router.health['bing_news_rss:none:news'].state(router.clock())=='OPEN'
+    again=router.search(SearchRequest('第二个问题',search_type='news'))
+    assert again.errors[-1]['code']=='circuit_open' and network.call_count==1
+    assert len(rows(context))==1
