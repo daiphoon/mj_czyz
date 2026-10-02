@@ -13,7 +13,7 @@ from .models import EventItem
 from .retrieval_ledger import RetrievalLedger
 from .search_providers import TavilyKeylessProvider
 from .search_router import build_search_router
-from .search_types import RetrievalIntent, SearchError, SearchRequest
+from .search_types import RetrievalIntent, SearchError, SearchRequest, search_type_for_intent
 from .source_registry import SourceRegistry
 from .tavily import atomic_json, retrieval_usage
 
@@ -159,7 +159,7 @@ def execute_plan(settings, db, run_id, plan, action, checkpoint_action, *, retry
                 continue
             intent = RetrievalIntent(query.get("intent", "POLICY_SEARCH" if query["purpose"] == "policy" else "HOTSPOT_DISCOVERY"))
             request = SearchRequest(query["query"], intent=intent, domains=tuple(query.get("domains", [])), exclude_domains=tuple(query.get("exclude_domains", [])),
-                                    search_type="news" if intent == RetrievalIntent.HOTSPOT_DISCOVERY else "web",
+                                    search_type=search_type_for_intent(intent),
                                     recency_days=settings.raw["discovery"]["lookback_days"] if intent == RetrievalIntent.HOTSPOT_DISCOVERY else None)
             result = router.search(request, retry_failed=retry_failed).to_dict()
             result["intent"] = intent.value

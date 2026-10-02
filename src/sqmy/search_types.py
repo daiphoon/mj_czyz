@@ -21,6 +21,11 @@ class RetrievalIntent(StrEnum):
     IMAGE_SEARCH = "IMAGE_SEARCH"
 
 
+def search_type_for_intent(intent):
+    intent = RetrievalIntent(intent)
+    return "image" if intent == RetrievalIntent.IMAGE_SEARCH else "news" if intent == RetrievalIntent.HOTSPOT_DISCOVERY else "web"
+
+
 def domain_matches(url, domains):
     host = (urlparse(url).hostname or "").lower().rstrip(".")
     return any(host == d or host.endswith("." + d) for d in domains)
@@ -53,6 +58,8 @@ class SearchRequest:
             object.__setattr__(self, key, values)
         if self.search_type not in {"web", "news", "image"}:
             raise ValueError("搜索类型无效")
+        if (self.intent == RetrievalIntent.IMAGE_SEARCH) != (self.search_type == "image"):
+            raise ValueError("IMAGE_SEARCH须使用image类型，不能降级为网页搜索")
         for value in (self.start_date, self.end_date):
             if value is not None:
                 date.fromisoformat(value)

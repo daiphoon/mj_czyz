@@ -196,7 +196,7 @@ def test_shared_action_limit_counts_fallback_and_migration_preserves_rows(tmp_pa
 
 
 @pytest.mark.parametrize('status,category', [(400, 'invalid_query'), (401, 'authentication'), (403, 'authentication'),
-    (429, 'rate_limit'), (432, 'quota'), (433, 'quota'), (500, 'transient')])
+    (429, 'rate_limit'), (432, 'quota'), (433, 'quota'), (500, 'transient'), (410, 'endpoint_unavailable')])
 def test_http_error_classification_and_retry_after_do_not_echo_response(monkeypatch, status, category):
     from email.message import Message
     from urllib.request import Request
@@ -228,3 +228,38 @@ def test_legacy_sql_migration_preserves_unknown_consumption(tmp_path):
         row = conn.execute('SELECT * FROM retrieval_calls').fetchone()
         assert row['status'] == 'running' and row['accounted_credits'] == 2 and row['cost_equivalent_usd'] == .016
         assert row['provider'] == 'legacy_unknown' and row['auth_mode'] == 'legacy_unknown'
+
+
+def test_image_contract_cannot_silently_use_web():
+    with pytest.raises(ValueError, match='不能降级'):
+        SearchRequest('图片', intent=RetrievalIntent.IMAGE_SEARCH)
+
+
+def test_endpoint_gone_opens_cooldown_without_claiming_retirement():
+    c = Circuit()
+    c.failure(SearchError('http_410', 'endpoint_unavailable'), 100, 2, 300)
+    assert c.state(101) == 'OPEN' and not c.blocked
+    assert c.state(401) == 'HALF_OPEN' and c.allow(401)
+    c.success()
+    assert c.state(401) == 'CLOSED'
+    c.failure(SearchError('explicit_verified_retirement', 'retired'), 402, 2, 300)
+    assert c.blocked and not c.allow(100000)
+
+
+def test_extract_retry_after_survives_restart_and_recovers_once(tmp_path):
+    clock = [100.0]
+    provider = Provider('extractor')
+    first = SearchRouter([provider], cache_dir=tmp_path, clock=lambda: clock[0])
+    operation = Mock(side_effect=SearchError('http_429', 'rate_limit', retry_after=60))
+    with pytest.raises(SearchError, match='http_429'):
+        first.invoke_extract(provider, operation)
+    second = SearchRouter([provider], cache_dir=tmp_path, clock=lambda: clock[0])
+    with pytest.raises(SearchError, match='circuit_open'):
+        second.invoke_extract(provider, operation)
+    assert operation.call_count == 1
+    clock[0] += 61
+    operation.side_effect = None
+    operation.return_value = '原文'
+    assert second.invoke_extract(provider, operation) == '原文'
+    assert operation.call_count == 2 and provider.calls == 0
+    assert second.health['extractor:none:extract'].state(clock[0]) == 'CLOSED'

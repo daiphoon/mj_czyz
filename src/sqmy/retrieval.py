@@ -196,8 +196,9 @@ def _execute_retrieval(settings, db, run_id, plan, *, retry_failed=False):
         if set(query) - allowed or len(query["query"]) > 500:
             raise ValueError("检索词须在500字内；只接受purpose和query")
         if routed:
-            from .search_types import RetrievalIntent, SearchRequest
-            SearchRequest(query["query"], intent=RetrievalIntent(query.get("intent", "POLICY_SEARCH" if query["purpose"] == "policy" else "HOTSPOT_DISCOVERY")),
+            from .search_types import RetrievalIntent, SearchRequest, search_type_for_intent
+            intent = RetrievalIntent(query.get("intent", "POLICY_SEARCH" if query["purpose"] == "policy" else "HOTSPOT_DISCOVERY"))
+            SearchRequest(query["query"], intent=intent, search_type=search_type_for_intent(intent),
                           domains=tuple(query.get("domains", [])), exclude_domains=tuple(query.get("exclude_domains", [])))
     for page in pages:
         if set(page) - {"url", "terms", "reason"} or (not routed and set(page) != {"url", "terms", "reason"}):

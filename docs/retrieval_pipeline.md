@@ -21,6 +21,10 @@
 
 ## 冻结、恢复和取证
 
+Search与Extract使用同一熔断实现，健康状态按供应商、认证模式及端点分开保存。Extract首个URL触发429、401或配额错误后，第二URL仍尝试普通HTTP，但不绕过Extract冷却或禁用；熔断拒绝不占新请求额。API端点404/410标为endpoint_unavailable并冷却，不据单个410断言供应商退役；普通来源网页410只是该页获取失败。HTTP 410的语义是目标资源不可用，不能据此证明整个服务退役，参见 [RFC 9110 §15.5.11](https://www.rfc-editor.org/rfc/rfc9110.html#name-410-gone)。
+
+生产问题单的IMAGE_SEARCH明确映射到image能力；一期适配器均不支持时保留unavailable与RESEARCH_INCOMPLETE，不发送网页查询。PDF等unsupported响应保留原内容类型和requires_manual_extraction，不调用Extract、不升级为已读片段。允许的HTTP失败/不完整页面补提取保留原响应类型、状态、哈希及截断情况，另标extracted_content_type和提取方式；不把供应商返回的text/plain伪装为原网页类型。
+
 新运行使用 `retrieval_pipeline_v1`，冻结问题单、Search/Fetch参数和Registry哈希。已完成步骤幂等复用；原问题单变更不能混入同一行为。旧无版本检查点仍走旧兼容逻辑，不会自动换新参数或启动付费入口。
 
 问题单继续指定 `stage/candidate_id/queries/pages/repair`。查询保留 `purpose`，可附 `intent/domains/exclude_domains`；政策、反证等不受发现新闻90天窗口机械限制。pages指定URL和1—8个目标词；新入口由程序自行判断普通HTTP是否失败，无需提前声称失败原因。选题、预研、停止记录、最新决策单和补查轮次保持原闸门。

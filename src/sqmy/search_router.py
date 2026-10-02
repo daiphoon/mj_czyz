@@ -1,5 +1,6 @@
 """按能力和授权路由；熔断只影响对应搜索入口，不影响已知URL获取。"""
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 import fcntl
 import hashlib
@@ -75,7 +76,7 @@ class Circuit:
             self.blocked = True
             return
         self.failures += 1
-        if was_probe or self.failures >= threshold or error.category in {"rate_limit", "quota", "invalid_response"}:
+        if was_probe or self.failures >= threshold or error.category in {"rate_limit", "quota", "invalid_response", "endpoint_unavailable"}:
             delay = error.retry_after if error.retry_after is not None else cooldown
             self.open_until = stamp + max(1, delay)
 
@@ -170,15 +171,22 @@ class SearchRouter:
         return response
 
     def _attempt(self, provider, request, retry_failed, force_refresh, fallback_from):
+        try:
+            with self._provider_guard(self._health_key(provider, request)):
+                return self._attempt_locked(provider, request, retry_failed, force_refresh, fallback_from)
+        except SearchError as error:
+            return None, error, dict(provider=provider.name, auth_mode=provider.auth_mode)
+
+    @contextmanager
+    def _provider_guard(self, key):
         if self.cache_dir:
             self.cache_dir.mkdir(parents=True, exist_ok=True)
-            key = self._health_key(provider, request)
             name = hashlib.sha256(key.encode()).hexdigest()[:16]
             with (self.cache_dir / (".provider-" + name + ".lock")).open("a") as lock:
                 try:
                     fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
                 except BlockingIOError:
-                    return None, SearchError("provider_busy", "circuit"), dict(provider=provider.name, auth_mode=provider.auth_mode)
+                    raise SearchError("provider_busy", "circuit") from None
                 # 同入口跨运行只允许一个探测；等待期间不占请求额。
                 try:
                     value = json.loads((self.cache_dir / "health.json").read_text()).get(key)
@@ -186,8 +194,34 @@ class SearchRouter:
                         self.health[key] = Circuit(int(value["failures"]), float(value["open_until"]), bool(value["blocked"]))
                 except (OSError, ValueError, KeyError, TypeError, AttributeError):
                     pass
-                return self._attempt_locked(provider, request, retry_failed, force_refresh, fallback_from)
-        return self._attempt_locked(provider, request, retry_failed, force_refresh, fallback_from)
+                yield
+        else:
+            yield
+
+    def invoke_extract(self, provider, operation):
+        """仅保护已知URL的Extract，不执行Search或切换供应商。"""
+        if not provider.available or provider.paid and not self.cfg.get("allow_paid", False):
+            raise SearchError("disabled_or_unapproved", "configuration")
+        key = provider.name + ":" + provider.auth_mode + ":extract"
+        with self._provider_guard(key):
+            with self._mutex:
+                circuit = self.health.setdefault(key, Circuit())
+                if not circuit.allow(self.clock()):
+                    raise SearchError("circuit_open", "circuit")
+            try:
+                result = operation()  # 账本占额必须在此回调中，熔断拒绝不占请求额。
+            except KeyboardInterrupt:
+                raise
+            except Exception as exc:
+                error = exc if isinstance(exc, SearchError) else SearchError("extract_failed", "transient")
+                with self._mutex:
+                    circuit.failure(error, self.clock(), self.cfg.get("failure_threshold", 2), self.cfg.get("cooldown_seconds", 300))
+                    self._save_health(key)
+                raise error from None
+            with self._mutex:
+                circuit.success()
+                self._save_health(key)
+            return result
 
     def _attempt_locked(self, provider, request, retry_failed, force_refresh, fallback_from):
         digest = request.key(provider.name, provider.auth_mode, provider.parameters)

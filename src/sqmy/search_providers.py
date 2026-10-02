@@ -36,7 +36,8 @@ def send_json(request, *, timeout, max_bytes):
             raw = response.read(max_bytes + 1)
     except HTTPError as exc:
         category = ("authentication" if exc.code in {401, 403} else "rate_limit" if exc.code == 429
-                    else "quota" if exc.code in {432, 433} else "transient" if exc.code >= 500 else "invalid_query")
+                    else "quota" if exc.code in {432, 433} else "endpoint_unavailable" if exc.code in {404, 410}
+                    else "transient" if exc.code >= 500 else "invalid_query")
         raise SearchError(f"http_{exc.code}", category, http_status=exc.code, retry_after=_delay(exc.headers)) from None
     except (TimeoutError, URLError, OSError):
         raise SearchError("transport_failed", "transient") from None

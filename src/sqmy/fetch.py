@@ -103,6 +103,10 @@ class DirectFetcher:
         self.cfg, self.resolver = cfg, resolver
         self.opener = opener or build_opener(_PublicRedirect(resolver))
         self.extractor, self.ledger, self.cache_dir = extractor, ledger, cache_dir
+        self.extract_health = None
+        if extractor and ledger:
+            from .search_router import SearchRouter
+            self.extract_health = SearchRouter([extractor], cfg=ledger.cfg, cache_dir=ledger.s.root / "data/cache/search")
 
     def fetch(self, url):
         stamp = datetime.now(timezone.utc).isoformat()
@@ -157,22 +161,29 @@ class DirectFetcher:
         if previous and previous["status"] == "completed":
             return dict(json.loads(previous["result_json"])["results"][0], cache_hit=True)
         record = self.fetch(url).record(terms, self.cfg)
-        if record["status"] in {"failed", "incomplete", "unsupported"} and self.extractor and self.cfg.get("allow_keyless_extract", False) and self.ledger:
+        if record["status"] in {"failed", "incomplete"} and self.extractor and self.cfg.get("allow_keyless_extract", False) and self.ledger:
             if previous and not retry_failed:
                 record["extract_error"] = "previous_request_unresolved"
             else:
                 call_id = None
                 try:
-                    request = SearchRequest("known_url:" + digest, intent=RetrievalIntent.REGULATION_SEARCH, max_results=1)
-                    call_id = self.ledger.reserve(self.extractor, request, extract_digest, endpoint="extract")
-                    text = self.extractor.extract(url)
+                    def extract():
+                        nonlocal call_id
+                        request = SearchRequest("known_url:" + digest, intent=RetrievalIntent.REGULATION_SEARCH, max_results=1)
+                        call_id = self.ledger.reserve(self.extractor, request, extract_digest, endpoint="extract")
+                        return self.extractor.extract(url)
+                    text = self.extract_health.invoke_extract(self.extractor, extract)
                     cap = self.cfg.get("max_text_chars", 100_000)
                     truncated = len(text) > cap
                     text = text[:cap]
-                    result = FetchResult(url, url, "incomplete" if truncated else "fetched", datetime.now(timezone.utc).isoformat(), "text/plain",
+                    direct_record = record
+                    result = FetchResult(url, url, "incomplete" if truncated else "fetched", datetime.now(timezone.utc).isoformat(), direct_record["content_type"],
                                          clean_text=text, content_hash=hashlib.sha256(text.encode()).hexdigest(), provider=self.extractor.name,
                                          truncated=truncated, content_hash_kind="extract_returned_text")
                     record = result.record(terms, self.cfg)
+                    record.update(extraction_method="tavily_keyless_extract", extracted_content_type="text/plain",
+                                  direct_fetch_metadata={k: direct_record.get(k) for k in
+                                      ("status", "content_type", "final_url", "http_status", "error_code", "content_hash", "content_hash_kind", "truncated")})
                     self.ledger.finish(call_id, record=record)
                 except SearchError as exc:
                     if call_id is not None:

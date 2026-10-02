@@ -219,3 +219,144 @@ def test_routed_repair_shares_lower_legacy_limit_and_preserves_manual_stop(tmp_p
     review_pre_research(settings, run, 'C1', decision='stop', note='人工确认停止')
     with pytest.raises(ValueError, match='停止'):
         execute_retrieval(settings, workflow.db, run, repair(base, review))
+
+
+def test_production_pdf_record_stays_manual_and_research_incomplete(context, monkeypatch):
+    from sqmy.search_providers import TavilyKeylessProvider
+    settings, workflow, run = context
+    assert settings.raw['search']['keyless_enabled'] and settings.raw['fetch']['allow_keyless_extract']
+    extract = Mock(return_value='退款适用条件：须提供有效凭证。')
+    monkeypatch.setattr(TavilyKeylessProvider, 'extract', extract)
+    opener = Mock()
+    opener.open.return_value = Page(b'%PDF-1.7', media='application/pdf')
+    def production_fetcher(cfg, **kwargs):
+        assert kwargs['extractor'].available and kwargs['ledger'] is not None
+        return DirectFetcher(cfg, opener=opener, resolver=public_dns, **kwargs)
+    monkeypatch.setattr('sqmy.retrieval_pipeline.DirectFetcher', production_fetcher)
+    result = execute_retrieval(settings, workflow.db, run, dict(stage='diagnostic',
+        pages=[{'url': 'https://example.test/policy', 'terms': ['退款']}]))
+    extract.assert_not_called()
+    assert result['status'] == 'needs_review' and result['research_status'] == 'RESEARCH_INCOMPLETE'
+    record = json.loads(Path(result['report']).read_text())['results'][0]['result']
+    assert record['status'] == 'unsupported' and record['content_type'] == 'application/pdf'
+    assert record['provider'] == 'direct_http' and record['error_code'] == 'requires_manual_extraction'
+    assert record['fetch_status'] == 'source_unread' and record['verification_status'] == 'unverified'
+    with pytest.raises(ValueError, match='失败、不完整'):
+        EvidenceStore.link_detail(record, claim_part='范围', support_scope='待核', limitation='人工提取尚未完成',
+            locator='待人工读取', checked_at=datetime.now(timezone.utc).isoformat(), reviewed_by='offline-reviewer', verified=True)
+    with workflow.db.connect() as conn:
+        assert conn.execute('SELECT COUNT(*) FROM retrieval_calls').fetchone()[0] == 0
+        assert conn.execute('SELECT COUNT(*) FROM model_calls').fetchone()[0] == 0
+
+
+def test_production_image_intent_cannot_fall_back_to_web_search(context, monkeypatch):
+    from sqmy.search_providers import TavilyKeylessProvider, BraveSearchProvider, BingNewsRssProvider
+    settings, workflow, run = context
+    providers = []
+    for cls in (TavilyKeylessProvider, BraveSearchProvider, BingNewsRssProvider):
+        call = Mock(return_value=[SearchResult('网页结果', 'https://www.gov.cn/policy')])
+        monkeypatch.setattr(cls, 'search', call)
+        providers.append(call)
+    result = execute_retrieval(settings, workflow.db, run, dict(stage='diagnostic',
+        queries=[{'purpose': 'policy', 'intent': 'IMAGE_SEARCH', 'query': '政策说明图片'}]))
+    for provider in providers:
+        provider.assert_not_called()
+    assert result['status'] == 'needs_review' and result['research_status'] == 'RESEARCH_INCOMPLETE'
+    state = json.loads(Path(result['report']).read_text())
+    query = state['results'][0]['result']
+    assert query['status'] == 'unavailable' and not query['results']
+    assert any(error['code'] == 'unsupported_capability' for error in query['errors'])
+    with workflow.db.connect() as conn:
+        assert conn.execute('SELECT COUNT(*) FROM retrieval_calls').fetchone()[0] == 0
+        assert conn.execute('SELECT COUNT(*) FROM model_calls').fetchone()[0] == 0
+
+
+@pytest.mark.parametrize('code,category', [('http_429', 'rate_limit'), ('http_401', 'authentication'), ('http_432', 'quota'), ('http_433', 'quota')])
+@pytest.mark.parametrize('second_direct_succeeds', [False, True])
+def test_production_extract_errors_cool_down_across_urls_but_direct_http_continues(context, monkeypatch, code, category, second_direct_succeeds):
+    from sqmy.search_providers import TavilyKeylessProvider
+    settings, workflow, run = context
+    extract = Mock(side_effect=SearchError(code, category, retry_after=60))
+    monkeypatch.setattr(TavilyKeylessProvider, 'extract', extract)
+    opener = Mock()
+    opener.open.side_effect = [TimeoutError(), Page('退款条件：仅限实名办理。'.encode(), url='https://example.test/two') if second_direct_succeeds else TimeoutError()]
+    monkeypatch.setattr('sqmy.retrieval_pipeline.DirectFetcher', lambda cfg, **kwargs: DirectFetcher(cfg, opener=opener, resolver=public_dns, **kwargs))
+    result = execute_retrieval(settings, workflow.db, run, dict(stage='diagnostic', pages=[
+        {'url': 'https://example.test/one', 'terms': ['退款']}, {'url': 'https://example.test/two', 'terms': ['退款']}]))
+    assert opener.open.call_count == 2 and extract.call_count == 1
+    assert result['research_status'] == 'RESEARCH_INCOMPLETE'
+    records = [row['result'] for row in json.loads(Path(result['report']).read_text())['results']]
+    assert records[0]['extract_error'] == code
+    if second_direct_succeeds:
+        assert records[1]['status'] == 'fetched' and records[1]['provider'] == 'direct_http'
+    else:
+        assert records[1]['status'] == 'failed' and records[1]['extract_error'] == 'circuit_open'
+    with workflow.db.connect() as conn:
+        row = conn.execute('SELECT COUNT(*),SUM(cost_equivalent_usd) FROM retrieval_calls').fetchone()
+        assert tuple(row) == (1, 0.0)
+    health = json.loads((settings.root / 'data/cache/search/health.json').read_text())['tavily_keyless:keyless:extract']
+    assert health['blocked'] is (category in {'authentication', 'quota'})
+    if category == 'rate_limit':
+        assert health['open_until'] > datetime.now(timezone.utc).timestamp()
+
+
+def test_incomplete_html_extract_preserves_original_type_and_method(context):
+    from sqmy.search_providers import TavilyKeylessProvider
+    from sqmy.retrieval_ledger import RetrievalLedger
+    settings, workflow, run = context
+    opener, extractor = Mock(), TavilyKeylessProvider({'enabled': True})
+    opener.open.return_value = Page('退款条件：须提供凭证。'.encode())
+    extractor.extract = Mock(return_value='退款条件：须提供有效凭证。')
+    cfg = dict(settings.raw['fetch'], max_response_bytes=12)
+    fetcher = DirectFetcher(cfg, opener=opener, resolver=public_dns, extractor=extractor,
+        ledger=RetrievalLedger(settings, workflow.db, run, 'diagnostic'), cache_dir=settings.root / 'data/cache/fetch')
+    record = fetcher.fetch_record('https://example.test/policy', ['退款'])
+    assert record['content_type'] == 'text/html' and record['extracted_content_type'] == 'text/plain'
+    assert record['extraction_method'] == 'tavily_keyless_extract'
+    assert record['direct_fetch_metadata']['status'] == 'incomplete' and record['direct_fetch_metadata']['truncated']
+    assert record['verification_status'] == 'unverified' and record['fetch_status'] == 'source_unread'
+
+
+def test_search_rate_limit_does_not_block_production_extract(context, monkeypatch):
+    from sqmy.search_providers import TavilyKeylessProvider
+    settings, workflow, run = context
+    search = Mock(side_effect=SearchError('http_429', 'rate_limit', retry_after=60))
+    extract = Mock(return_value='退款条件：须实名提供凭证。')
+    monkeypatch.setattr(TavilyKeylessProvider, 'search', search)
+    monkeypatch.setattr(TavilyKeylessProvider, 'extract', extract)
+    opener = Mock()
+    opener.open.side_effect = TimeoutError()
+    monkeypatch.setattr('sqmy.retrieval_pipeline.DirectFetcher', lambda cfg, **kwargs: DirectFetcher(cfg, opener=opener, resolver=public_dns, **kwargs))
+    result = execute_retrieval(settings, workflow.db, run, dict(stage='diagnostic',
+        queries=[{'purpose': 'policy', 'query': '退款现行条件'}], pages=[{'url': 'https://example.test/policy', 'terms': ['退款']}]))
+    assert search.call_count == 1 and extract.call_count == 1
+    assert result['research_status'] == 'RESEARCH_INCOMPLETE'
+    page = json.loads(Path(result['report']).read_text())['results'][1]['result']
+    assert page['status'] == 'fetched' and page['provider'] == 'tavily_keyless'
+
+
+def test_extract_rate_limit_does_not_block_production_search(context, monkeypatch):
+    from sqmy.retrieval_ledger import RetrievalLedger
+    from sqmy.search_providers import TavilyKeylessProvider
+    from sqmy.search_types import SearchRequest, RetrievalIntent
+    settings, workflow, run = context
+    extractor = TavilyKeylessProvider({'enabled': True})
+    extractor.extract = Mock(side_effect=SearchError('http_429', 'rate_limit', retry_after=60))
+    opener = Mock()
+    opener.open.side_effect = TimeoutError()
+    ledger = RetrievalLedger(settings, workflow.db, run, 'diagnostic')
+    fetcher = DirectFetcher(settings.raw['fetch'], opener=opener, resolver=public_dns, extractor=extractor, ledger=ledger)
+    fetcher.fetch_record('https://example.test/policy', ['退款'])
+    monkeypatch.setattr(TavilyKeylessProvider, 'search', Mock(return_value=[SearchResult('办法', 'https://www.gov.cn/policy')]))
+    from sqmy.search_router import build_search_router
+    router = build_search_router(settings, workflow.db, run, 'diagnostic')
+    response = router.search(SearchRequest('退款现行办法', intent=RetrievalIntent.POLICY_SEARCH))
+    assert response.status == 'completed' and len(response.results) == 1
+
+
+def test_ordinary_page_410_does_not_mean_search_provider_retired():
+    from urllib.error import HTTPError
+    fetcher, opener = page_fetcher(b'')
+    opener.open.side_effect = HTTPError('https://example.test/policy', 410, 'Gone', {}, None)
+    result = fetcher.fetch('https://example.test/policy')
+    assert result.status == 'failed' and result.error_code == 'http_or_parse_failed'
