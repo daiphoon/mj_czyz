@@ -1,5 +1,6 @@
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
+import json
 import os
 from pathlib import Path
 import shutil
@@ -12,9 +13,55 @@ from sqmy.maintenance import CleanupManager, preflight
 from sqmy.workflow import Workflow
 
 
+def test_preflight_blocks_disabled_provider_without_secret_lookup(tmp_path, monkeypatch):
+    project = Path(__file__).parents[1]
+    for name in ('config', 'templates'):
+        shutil.copytree(project / name, tmp_path / name)
+    for name in ('data', 'outputs', 'logs'):
+        (tmp_path / name).mkdir()
+    raw = deepcopy(Settings.load(project / 'config/settings.toml').raw)
+    raw['model']['provider'] = 'deepseek'
+    raw['document']['reference_path'] = str(project / raw['document']['template_path'])
+    settings = Settings(tmp_path, raw).with_model('offline-test-model')
+    original = os.environ.get
+    def no_deepseek_key(key, *args):
+        assert key != 'DEEPSEEK_API_KEY'
+        return original(key, *args)
+    monkeypatch.setattr(os.environ, 'get', no_deepseek_key)
+    result = preflight(settings, stage='scan')
+    check = next(x for x in result['checks'] if x['name'] == 'model_provider_enabled')
+    assert not check['ok'] and check['blocking']
+    assert not result['ready']
+    fallback = next(x for x in result['checks'] if x['name'] == 'deepseek_fallback')
+    assert fallback['detail'] == 'disabled_by_user'
+
+
+def test_cli_conversation_preflight_is_offline_with_portable_reference(tmp_path, monkeypatch, capsys):
+    from sqmy.cli import main
+    project = Path(__file__).parents[1]
+    for name in ('config', 'templates'):
+        shutil.copytree(project / name, tmp_path / name)
+    for name in ('outputs', 'logs'):
+        (tmp_path / name).mkdir()
+    config = tmp_path / 'config/settings.toml'
+    import re
+    config.write_text(re.sub(r'^reference_path = .*$', 'reference_path = ""', config.read_text(), flags=re.M))
+    monkeypatch.setenv('SQMY_REFERENCE_PATH', str(tmp_path / 'templates/submission_template.docx'))
+    monkeypatch.setattr('sqmy.cli.load_dotenv', lambda *a: None)
+    monkeypatch.setattr('sqmy.maintenance.shutil.which', lambda *a: '/offline/codex')
+    assert main(['--config', str(config), 'preflight', '--stage', 'scan-prepare']) == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result['ready']
+    assert next(x for x in result['checks'] if x['name'] == 'search_pipeline_config')['ok']
+    from sqmy.db import Database
+    with Database(tmp_path / 'data/history/workflow.db').connect() as conn:
+        assert conn.execute('SELECT COUNT(*) FROM model_calls').fetchone()[0] == 0
+        assert conn.execute('SELECT COUNT(*) FROM retrieval_calls').fetchone()[0] == 0
+
+
 def test_cleanup_preserves_unknown_directories_and_symlinks(tmp_path):
     base = Settings.load(Path(__file__).parents[1] / "config/settings.toml")
-    settings = Settings(tmp_path, deepcopy(base.raw))
+    settings = Settings(tmp_path, deepcopy(base.raw)).with_model('offline-test-model')
     workflow = Workflow(settings)
     mock = workflow.init_run("mock")
     for parent in ("data/runs", "outputs/review"):
@@ -39,7 +86,7 @@ def test_cleanup_keeps_live_and_latest_replay_and_backs_up_database():
     base = Settings.load(project / "config/settings.toml")
     with tempfile.TemporaryDirectory() as temp:
         root = Path(temp)
-        settings = Settings(root, deepcopy(base.raw))
+        settings = Settings(root, deepcopy(base.raw)).with_model('offline-test-model')
         workflow = Workflow(settings)
         live = workflow.init_run("live")
         old_replay = workflow.init_run("replay")
@@ -86,7 +133,7 @@ def test_cleanup_delays_intermediate_docx_qa_and_always_keeps_latest_version():
     base = Settings.load(project / "config/settings.toml")
     with tempfile.TemporaryDirectory() as temp:
         root = Path(temp)
-        settings = Settings(root, deepcopy(base.raw))
+        settings = Settings(root, deepcopy(base.raw)).with_model('offline-test-model')
         workflow = Workflow(settings)
         run_id = workflow.init_run("live")
         qa = root / "data/runs" / run_id / "docx_qa"
@@ -133,7 +180,7 @@ def test_recent_token_usage_is_report_only_in_scan_and_refresh_preflight():
         root = Path(temp)
         (root / "config").mkdir()
         (root / "templates").mkdir()
-        for name in ("settings.toml", "sources.toml", "policy_mechanisms.toml"):
+        for name in ("settings.toml", "sources.toml", "policy_mechanisms.toml", "source_registry.toml"):
             shutil.copy(project / "config" / name, root / "config" / name)
         shutil.copy(project / "templates/submission_template.docx", root / "templates/submission_template.docx")
         for name in ("data", "outputs", "logs"):
@@ -142,7 +189,7 @@ def test_recent_token_usage_is_report_only_in_scan_and_refresh_preflight():
         raw["document"]["reference_path"] = str(
             project / raw["document"]["template_path"]
         )
-        settings = Settings(root, raw)
+        settings = Settings(root, raw).with_model('offline-test-model')
         usage = {
             "window_days": 7,
             "token_used": 999_999,
@@ -171,7 +218,7 @@ def test_pre_research_preflight_uses_distinct_budget_and_bounded_run_context():
         root = Path(temp)
         (root / "config").mkdir()
         (root / "templates").mkdir()
-        for name in ("settings.toml", "sources.toml", "policy_mechanisms.toml"):
+        for name in ("settings.toml", "sources.toml", "policy_mechanisms.toml", "source_registry.toml"):
             shutil.copy(project / "config" / name, root / "config" / name)
         shutil.copy(
             project / "templates/submission_template.docx",
@@ -183,7 +230,7 @@ def test_pre_research_preflight_uses_distinct_budget_and_bounded_run_context():
         raw["document"]["reference_path"] = str(
             project / raw["document"]["template_path"]
         )
-        settings = Settings(root, raw)
+        settings = Settings(root, raw).with_model('offline-test-model')
         workflow = Workflow(settings)
         run_id = workflow.init_run("live")
         workflow.scan(run_id)
@@ -224,7 +271,7 @@ def test_monday_preflight_blocks_invalid_candidate_scoring_before_model_use():
             (root / name).mkdir()
         raw = deepcopy(base.raw)
         raw["scoring"]["timeliness"] = 19
-        settings = Settings(root, raw)
+        settings = Settings(root, raw).with_model('offline-test-model')
         with patch("sqmy.maintenance.shutil.which", return_value="/usr/local/bin/codex"):
             result = preflight(settings, stage="monday")
         scoring_check = next(
@@ -249,7 +296,7 @@ def test_monday_preflight_blocks_invalid_discovery_clue_reserve():
             (root / name).mkdir()
         raw = deepcopy(base.raw)
         raw["discovery"]["premodel_clue_reserve"] = raw["discovery"]["screened_max"] + 1
-        settings = Settings(root, raw)
+        settings = Settings(root, raw).with_model('offline-test-model')
 
         with patch("sqmy.maintenance.shutil.which", return_value="/usr/local/bin/codex"):
             result = preflight(settings, stage="monday")
@@ -280,7 +327,7 @@ def test_monday_preflight_blocks_invalid_shadow_enforcement_mode():
             (root / name).mkdir()
         raw = deepcopy(base.raw)
         raw["shadow_verification"]["mode"] = "enforced"
-        settings = Settings(root, raw)
+        settings = Settings(root, raw).with_model('offline-test-model')
         with patch("sqmy.maintenance.shutil.which", return_value="/usr/local/bin/codex"):
             result = preflight(settings, stage="monday")
 
@@ -310,7 +357,7 @@ def test_scan_preflight_blocks_invalid_source_health_window():
             (root / name).mkdir()
         raw = deepcopy(base.raw)
         raw["observability"]["source_health_zero_result_streak"] = 0
-        settings = Settings(root, raw)
+        settings = Settings(root, raw).with_model('offline-test-model')
 
         with patch("sqmy.maintenance.shutil.which", return_value="/usr/local/bin/codex"):
             result = preflight(settings, stage="scan")

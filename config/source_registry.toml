@@ -1,0 +1,16 @@
+# 属性只供发现和回源规划；primary_source不是事实核验通过标记。
+sources = [
+  { domain = "gov.cn", category = "government", authority_level = 1, location = "全国", topics = ["政策", "监管"], primary_source = true },
+  { domain = "beijing.gov.cn", category = "local_government", authority_level = 1, location = "北京", topics = ["政策", "公共服务"], primary_source = true },
+  { domain = "bjhd.gov.cn", category = "local_government", authority_level = 1, location = "海淀", topics = ["政策", "公共服务"], primary_source = true },
+  { domain = "court.gov.cn", category = "judicial", authority_level = 1, location = "全国", topics = ["裁判", "司法建议"], primary_source = true },
+  { domain = "jcy.gov.cn", category = "judicial", authority_level = 1, location = "全国", topics = ["检察建议"], primary_source = true },
+  { domain = "bjcourt.gov.cn", category = "judicial", authority_level = 1, location = "北京", topics = ["裁判", "司法建议"], primary_source = true },
+  { domain = "stats.gov.cn", category = "statistics", authority_level = 1, location = "全国", topics = ["统计"], primary_source = true },
+  { domain = "tjj.beijing.gov.cn", category = "statistics", authority_level = 1, location = "北京", topics = ["统计"], primary_source = true },
+  { domain = "std.samr.gov.cn", category = "standards", authority_level = 1, location = "全国", topics = ["标准"], primary_source = true },
+  { domain = "news.cn", category = "media", authority_level = 2, location = "全国", topics = ["调查", "民生"], primary_source = false },
+  { domain = "people.com.cn", category = "media", authority_level = 2, location = "全国", topics = ["调查", "民生"], primary_source = false },
+  { domain = "cnr.cn", category = "media", authority_level = 2, location = "全国", topics = ["调查", "民生"], primary_source = false },
+  { domain = "bjd.com.cn", category = "media", authority_level = 2, location = "北京", topics = ["调查", "民生"], primary_source = false },
+]

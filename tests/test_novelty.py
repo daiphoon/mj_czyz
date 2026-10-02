@@ -28,6 +28,7 @@ class NoveltyAuditTest(unittest.TestCase):
         shutil.copy(project / "config/policy_mechanisms.toml", self.root / "config/policy_mechanisms.toml")
         base = Settings.load(project / "config/settings.toml")
         self.settings = Settings(self.root, base.raw)
+        self.settings.raw['search']['enabled'] = False  # 此组保留Bing RSS旧契约回归。
         self.db = Database(self.settings.database_path)
         self.db.initialize()
         with self.db.connect() as conn:
@@ -77,6 +78,20 @@ class NoveltyAuditTest(unittest.TestCase):
             audit = auditor.audit("run-1", [event], live_search=False)[0]
             self.assertEqual(audit.coverage_status, "unclear")
             self.assertNotEqual(audit.decision, "block_original_gap")
+
+    def test_html_response_is_failed_search_not_empty_counterevidence(self):
+        event = self.event("待核验计费纠错机制", "coordination_gap")
+        event.title = "居民供水计费纠错"
+        event.summary = "多次抄表异议处理"
+        event.model_analysis["counter_queries"] = ["供水计费规则"]
+        auditor = NoveltyAuditor(self.settings)
+        with patch.object(auditor.collector, "_fetch_query", return_value='<html><body>首页</body></html>'):
+            audit = auditor.audit("run-1", [event], live_search=True)[0]
+        self.assertEqual(audit.search_status, "failed")
+        self.assertEqual(audit.coverage_status, "unclear")
+        self.assertNotEqual(audit.decision, "block_original_gap")
+        self.assertTrue(audit.counterevidence)
+        self.assertTrue(all("error" in item and "url" not in item for item in audit.counterevidence))
 
     def test_future_policy_does_not_prove_current_coverage(self):
         auditor = NoveltyAuditor(self.settings)

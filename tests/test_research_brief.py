@@ -50,14 +50,15 @@ def register(context, payload=None):
 
 def test_v3_requires_brief_and_reuses_same_version(v3_context):
     settings, wf, run, source = v3_context
+    payload = brief_payload(wf, run)
     assert not check_draft(settings, "delivery-topic", source)["ok"]
-    first = register(v3_context)
-    second = register(v3_context)
+    first = register(v3_context, payload)
+    second = register(v3_context, payload)
     assert first == second == latest_brief(wf.db, "delivery-topic")
     assert check_draft(settings, "delivery-topic", source)["ok"]
     with wf.db.connect() as conn:
         assert conn.execute("SELECT COUNT(*) FROM tasks WHERE kind='research_brief'").fetchone()[0] == 1
-        assert conn.execute("SELECT SUM(token_used) FROM stage_usage WHERE stage='deep_research'").fetchone()[0] == settings.section("budget")["deep_research_tokens"]
+        assert conn.execute("SELECT SUM(token_used) FROM stage_usage WHERE stage='deep_research'").fetchone()[0] == max(1, len(json.dumps(payload, ensure_ascii=False)) // 2)
         assert conn.execute("SELECT COUNT(*) FROM model_calls").fetchone()[0] == 0
 
 

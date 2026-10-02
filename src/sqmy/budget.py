@@ -11,19 +11,31 @@ class BudgetExceeded(RuntimeError):
     pass
 
 
+def interactive_usage_estimate(settings, stage, artifact):
+    """耐久产物是可复核代理，无法代表完整会话或隐藏思考Token。"""
+    if settings.section("budget").get("enforce_token_limits", False):
+        return {"token_used": int(settings.section("budget")[f"{stage}_tokens"]),
+                "accounting_method": "declared_stage_cap",
+                "note": "显式恢复额度策略时沿用阶段额度估算；不是官方Token或账单。"}
+    return {"token_used": max(1, len(artifact) // 2),
+            "accounting_method": "artifact_proxy_estimate",
+            "note": "按耐久产物长度估算，阶段内幂等取最大记录；不覆盖完整输入、上下文和思考，可能低估；不是官方Token或账单。"}
+
+
 @dataclass
 class BudgetGuard:
     action_limit: int
     used: int = 0
     max_calls: int | None = None
     calls_used: int = 0
+    enforce_tokens: bool = True
 
     def reserve(self, estimated_tokens: int) -> None:
         if self.max_calls is not None and self.calls_used >= self.max_calls:
             raise BudgetExceeded(
                 f"单一行为调用次数已达上限：已用 {self.calls_used}，上限 {self.max_calls}"
             )
-        if self.used + estimated_tokens > self.action_limit:
+        if self.enforce_tokens and self.used + estimated_tokens > self.action_limit:
             raise BudgetExceeded(
                 f"单一行为预算不足：本行为已用 {self.used}，预计新增 "
                 f"{estimated_tokens}，行为上限 {self.action_limit}"
@@ -39,7 +51,7 @@ class BudgetGuard:
             return []
         return [
             f"本行为调用前已用 {self.used}，本次实际 {actual_tokens}，"
-            f"累计 {total} 超过行为上限 {self.action_limit}"
+            f"累计 {total} 超过{'行为上限' if self.enforce_tokens else '观察参考值'} {self.action_limit}"
         ]
 
 
@@ -85,7 +97,7 @@ def recent_usage(db: Database, days: int = 7, *, task_id: str | None = None) -> 
         "interactive_records": int(stage_row[1]),
         "over_budget_calls": int(overruns),
         "accounting_note": (
-            "程序模型调用按返回用量计；无法确认用量的调用单列保守估算；交互式Codex按阶段声明上限保守估算，"
+            "程序模型调用按返回用量计；无法确认用量的调用单列保守估算；交互式Codex分列人工声明或产物代理估算（后者不覆盖完整对话，可能低估），"
             "不是ChatGPT Plus官方Token统计。该时间窗只用于观察和复盘，"
             "不作为Token硬闸门。"
         ),
@@ -107,7 +119,7 @@ def record_stage_usage(
     accounting_method: str = "declared_stage_cap",
 ) -> int:
     """幂等记录交互式阶段的保守用量，并返回本次新增到运行账本的Token。"""
-    if stage not in {"pre_research", "deep_research", "writing"}:
+    if stage not in {"screening", "pre_research", "deep_research", "writing"}:
         raise ValueError(f"不支持的交互式阶段：{stage}")
     if token_used < 0:
         raise ValueError("Token用量不得为负数")
@@ -140,7 +152,7 @@ def record_stage_usage(
             "SELECT COALESCE(SUM(input_tokens+output_tokens),0) FROM model_calls WHERE run_id=? AND task_id=?",
             (run_id, f"{stage}:{topic_id}"),
         ).fetchone()[0]
-        if scoped_calls:
+        if scoped_calls and accounting_method == "declared_stage_cap":
             note += f" 阶段声明额度 {token_used}；其中 {scoped_calls} 已在模型账本分列，交互估算仅补余量。"
             token_used = max(0, token_used - int(scoped_calls))
         existing = conn.execute(

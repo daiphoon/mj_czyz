@@ -62,12 +62,12 @@ class DiscoveryTest(unittest.TestCase):
         # 排序/队列单测也会经 LiveDiscovery 初始化数据库，必须隔离根目录。
         workspace = tempfile.TemporaryDirectory(prefix='sqmy-discovery-test-')
         self.addCleanup(workspace.cleanup)
-        self.settings = Settings(Path(workspace.name), deepcopy(type(self).settings.raw))
+        self.settings = Settings(Path(workspace.name), deepcopy(type(self).settings.raw)).with_model('offline-test-model')
         shutil.copytree(self.root / 'config', self.settings.root / 'config')
 
     def test_report_keeps_model_opinion_separate_from_pending_human_review(self):
         with tempfile.TemporaryDirectory() as temp:
-            settings = Settings(Path(temp), deepcopy(self.settings.raw))
+            settings = Settings(Path(temp), deepcopy(self.settings.raw)).with_model('offline-test-model')
             discovery = LiveDiscovery(settings)
             candidate = Candidate(
                 id="C1", title="测试办理争议", summary="模型摘要，尚未核验",
@@ -178,7 +178,7 @@ class DiscoveryTest(unittest.TestCase):
             shutil.copy(self.root / "config/policy_mechanisms.toml", test_root / "config/policy_mechanisms.toml")
             raw = deepcopy(self.settings.raw)
             raw["model"]["provider"] = "mock"
-            settings = Settings(test_root, raw)
+            settings = Settings(test_root, raw).with_model('offline-test-model')
             fixture = test_root / "fixture.json"
             fixture.write_text("[]", encoding="utf-8")
             clues = test_root / "clues.jsonl"
@@ -327,7 +327,7 @@ class DiscoveryTest(unittest.TestCase):
             (test_root / "config").mkdir()
             shutil.copy(self.root / "config/sources.toml", test_root / "config/sources.toml")
             shutil.copy(self.root / "config/policy_mechanisms.toml", test_root / "config/policy_mechanisms.toml")
-            settings = Settings(test_root, deepcopy(self.settings.raw))
+            settings = Settings(test_root, deepcopy(self.settings.raw)).with_model('offline-test-model')
             fixture = test_root / "fixture.json"
             fixture.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
             run_id, candidates = LiveDiscovery(settings).run(fixture)
@@ -361,7 +361,7 @@ class DiscoveryTest(unittest.TestCase):
             shutil.copy(self.root / "config/policy_mechanisms.toml", test_root / "config/policy_mechanisms.toml")
             raw = deepcopy(self.settings.raw)
             raw["model"]["provider"] = "codex_cli"
-            settings = Settings(test_root, raw)
+            settings = Settings(test_root, raw).with_model('offline-test-model')
             fixture = test_root / "fixture.json"
             fixture.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
             with patch("sqmy.discovery.build_router", return_value=FakeRouter({"selections": []})):
@@ -411,7 +411,7 @@ class DiscoveryTest(unittest.TestCase):
             shutil.copy(self.root / "config/policy_mechanisms.toml", test_root / "config/policy_mechanisms.toml")
             raw = deepcopy(self.settings.raw)
             raw["model"]["provider"] = "mock"
-            settings = Settings(test_root, raw)
+            settings = Settings(test_root, raw).with_model('offline-test-model')
             fixture = test_root / "fixture.json"
             fixture.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
             run_id, candidates = LiveDiscovery(settings).run(fixture)
@@ -439,7 +439,7 @@ class DiscoveryTest(unittest.TestCase):
             shutil.copy(self.root / "config/policy_mechanisms.toml", test_root / "config/policy_mechanisms.toml")
             raw = deepcopy(self.settings.raw)
             raw["model"]["provider"] = "mock"
-            settings = Settings(test_root, raw)
+            settings = Settings(test_root, raw).with_model('offline-test-model')
             discovery = LiveDiscovery(settings)
             fixture = test_root / "fixture.json"
             fixture.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
@@ -448,7 +448,7 @@ class DiscoveryTest(unittest.TestCase):
                 run_id,
                 phase="discovery",
                 status="paused_budget",
-                data={"start_tier": 1, "resume_next": f"sqmy scan --resume {run_id}"},
+                data={"start_tier": 1, "resume_next": f"sqmy --model MODEL_ID scan --resume {run_id}"},
             )
             discovery.wf.resume(run_id)
             resumed_id, candidates = discovery.run(fixture, resume_run_id=run_id)
@@ -477,7 +477,7 @@ class DiscoveryTest(unittest.TestCase):
             shutil.copy(self.root / "config/policy_mechanisms.toml", test_root / "config/policy_mechanisms.toml")
             raw = deepcopy(self.settings.raw)
             raw["model"]["provider"] = "mock"
-            settings = Settings(test_root, raw)
+            settings = Settings(test_root, raw).with_model('offline-test-model')
             fixture = test_root / "fixture.json"
             fixture.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
             run_id, candidates = LiveDiscovery(settings).run(fixture, start_tier=2)
@@ -494,7 +494,7 @@ class DiscoveryTest(unittest.TestCase):
             (test_root / "config").mkdir()
             shutil.copy(self.root / "config/sources.toml", test_root / "config/sources.toml")
             shutil.copy(self.root / "config/policy_mechanisms.toml", test_root / "config/policy_mechanisms.toml")
-            settings = Settings(test_root, deepcopy(self.settings.raw))
+            settings = Settings(test_root, deepcopy(self.settings.raw)).with_model('offline-test-model')
             discovery = LiveDiscovery(settings)
             prior = discovery.wf.init_run("live")
             event = EventItem(
@@ -525,7 +525,7 @@ class DiscoveryTest(unittest.TestCase):
             )
             raw = deepcopy(self.settings.raw)
             raw["discovery"]["title_similarity_threshold"] = 1.0
-            settings = Settings(test_root, raw)
+            settings = Settings(test_root, raw).with_model('offline-test-model')
             discovery = LiveDiscovery(settings)
             events = [
                 EventItem(
@@ -569,7 +569,7 @@ class DiscoveryTest(unittest.TestCase):
             shutil.copy(self.root / "config/policy_mechanisms.toml", test_root / "config/policy_mechanisms.toml")
             raw = deepcopy(self.settings.raw)
             raw["discovery"]["title_similarity_threshold"] = 1.0
-            settings = Settings(test_root, raw)
+            settings = Settings(test_root, raw).with_model('offline-test-model')
             discovery = LiveDiscovery(settings)
             events = [
                 EventItem(
@@ -614,7 +614,7 @@ class DiscoveryTest(unittest.TestCase):
             (test_root / "config").mkdir()
             shutil.copy(self.root / "config/sources.toml", test_root / "config/sources.toml")
             shutil.copy(self.root / "config/policy_mechanisms.toml", test_root / "config/policy_mechanisms.toml")
-            settings = Settings(test_root, deepcopy(self.settings.raw))
+            settings = Settings(test_root, deepcopy(self.settings.raw)).with_model('offline-test-model')
             discovery = LiveDiscovery(settings)
             prior = discovery.wf.init_run("live")
             event = EventItem(
@@ -643,7 +643,7 @@ class DiscoveryTest(unittest.TestCase):
                 self.root / "config/policy_mechanisms.toml",
                 test_root / "config/policy_mechanisms.toml",
             )
-            settings = Settings(test_root, deepcopy(self.settings.raw))
+            settings = Settings(test_root, deepcopy(self.settings.raw)).with_model('offline-test-model')
             discovery = LiveDiscovery(settings)
             run_id = discovery.wf.init_run("live")
             events = [
@@ -788,7 +788,7 @@ class DiscoveryTest(unittest.TestCase):
             shutil.copy(self.root / "config/policy_mechanisms.toml", test_root / "config/policy_mechanisms.toml")
             raw = deepcopy(self.settings.raw)
             raw["model"]["provider"] = "codex_cli"
-            settings = Settings(test_root, raw)
+            settings = Settings(test_root, raw).with_model('offline-test-model')
             discovery = LiveDiscovery(settings)
             event = EventItem(
                 id="cache", source_id="s", source_name="s", source_level=1,
@@ -800,6 +800,7 @@ class DiscoveryTest(unittest.TestCase):
             with patch("sqmy.discovery.build_router", return_value=router):
                 first_run = discovery.wf.init_run("test_fixture")
                 first, first_hit, _ = discovery._model_rank(first_run, [event])
+                settings.raw["budget"]["enforce_token_limits"] = True
                 settings.raw["budget"]["screening_tokens"] = 0
                 second_run = discovery.wf.init_run("test_fixture")
                 second, second_hit, saved = discovery._model_rank(second_run, [event])
@@ -816,7 +817,7 @@ class DiscoveryTest(unittest.TestCase):
             (test_root / "config").mkdir()
             shutil.copy(self.root / "config/sources.toml", test_root / "config/sources.toml")
             shutil.copy(self.root / "config/policy_mechanisms.toml", test_root / "config/policy_mechanisms.toml")
-            settings = Settings(test_root, deepcopy(self.settings.raw))
+            settings = Settings(test_root, deepcopy(self.settings.raw)).with_model('offline-test-model')
             discovery = LiveDiscovery(settings)
             source_run = discovery.wf.init_run("live")
             event = EventItem(
@@ -866,7 +867,7 @@ class DiscoveryTest(unittest.TestCase):
             shutil.copy(self.root / "config/policy_mechanisms.toml", test_root / "config/policy_mechanisms.toml")
             raw = deepcopy(self.settings.raw)
             raw["model"]["provider"] = "codex_cli"
-            settings = Settings(test_root, raw)
+            settings = Settings(test_root, raw).with_model('offline-test-model')
             discovery = LiveDiscovery(settings)
             run_id = discovery.wf.init_run("live")
             event = EventItem(
@@ -904,7 +905,7 @@ class DiscoveryTest(unittest.TestCase):
             shutil.copy(self.root / "config/policy_mechanisms.toml", test_root / "config/policy_mechanisms.toml")
             raw = deepcopy(self.settings.raw)
             raw["model"]["provider"] = "codex_cli"
-            settings = Settings(test_root, raw)
+            settings = Settings(test_root, raw).with_model('offline-test-model')
             discovery = LiveDiscovery(settings)
             run_id = discovery.wf.init_run("live")
             event = EventItem(
@@ -945,8 +946,9 @@ class DiscoveryTest(unittest.TestCase):
             shutil.copy(self.root / "config/policy_mechanisms.toml", test_root / "config/policy_mechanisms.toml")
             raw = deepcopy(self.settings.raw)
             raw["model"]["provider"] = "codex_cli"
+            raw["budget"]["enforce_token_limits"] = True
             raw["budget"]["screening_tokens"] = 1
-            settings = Settings(test_root, raw)
+            settings = Settings(test_root, raw).with_model('offline-test-model')
             discovery = LiveDiscovery(settings)
             run_id = discovery.wf.init_run("live")
             discovery.wf.db.checkpoint(
@@ -973,7 +975,7 @@ class DiscoveryTest(unittest.TestCase):
                     discovery._model_rank(run_id, [event])
             checkpoint = json.loads(discovery.wf.status(run_id, include_all=True)[0]["checkpoint_json"])
             self.assertEqual(checkpoint["start_tier"], 3)
-            self.assertEqual(checkpoint["resume_next"], f"sqmy scan --resume {run_id}")
+            self.assertEqual(checkpoint["resume_next"], f"sqmy --model MODEL_ID scan --resume {run_id}")
 
     def test_run_returns_cleanly_when_pre_model_budget_blocks_screening(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -983,8 +985,9 @@ class DiscoveryTest(unittest.TestCase):
             shutil.copy(self.root / "config/policy_mechanisms.toml", test_root / "config/policy_mechanisms.toml")
             raw = deepcopy(self.settings.raw)
             raw["model"]["provider"] = "codex_cli"
+            raw["budget"]["enforce_token_limits"] = True
             raw["budget"]["screening_tokens"] = 1
-            settings = Settings(test_root, raw)
+            settings = Settings(test_root, raw).with_model('offline-test-model')
             discovery = LiveDiscovery(settings)
 
             with patch("sqmy.discovery.build_router", return_value=FakeRouter({"selections": []})):
@@ -997,7 +1000,7 @@ class DiscoveryTest(unittest.TestCase):
             self.assertEqual(candidates, [])
             self.assertEqual(status["phase"], "discovery")
             self.assertEqual(status["status"], "paused_budget")
-            self.assertEqual(checkpoint["resume_next"], f"sqmy scan --resume {run_id}")
+            self.assertEqual(checkpoint["resume_next"], f"sqmy --model MODEL_ID scan --resume {run_id}")
             with discovery.wf.db.connect() as conn:
                 calls = conn.execute(
                     "SELECT COUNT(*) FROM model_calls WHERE run_id=?", (run_id,)
@@ -1012,8 +1015,9 @@ class DiscoveryTest(unittest.TestCase):
             shutil.copy(self.root / "config/policy_mechanisms.toml", test_root / "config/policy_mechanisms.toml")
             raw = deepcopy(self.settings.raw)
             raw["model"]["provider"] = "codex_cli"
+            raw["budget"]["enforce_token_limits"] = True
             raw["budget"]["screening_tokens"] = 55_000
-            settings = Settings(test_root, raw)
+            settings = Settings(test_root, raw).with_model('offline-test-model')
             discovery = LiveDiscovery(settings)
 
             router = FakeRouter(
@@ -1044,8 +1048,9 @@ class DiscoveryTest(unittest.TestCase):
             shutil.copy(self.root / "config/policy_mechanisms.toml", test_root / "config/policy_mechanisms.toml")
             raw = deepcopy(self.settings.raw)
             raw["model"]["provider"] = "codex_cli"
+            raw["budget"]["enforce_token_limits"] = True
             raw["budget"]["screening_tokens"] = 45_000
-            settings = Settings(test_root, raw)
+            settings = Settings(test_root, raw).with_model('offline-test-model')
             discovery = LiveDiscovery(settings)
             run_id = discovery.wf.init_run("live")
             event = EventItem(
@@ -1093,7 +1098,7 @@ class DiscoveryTest(unittest.TestCase):
             shutil.copy(self.root / "config/policy_mechanisms.toml", test_root / "config/policy_mechanisms.toml")
             raw = deepcopy(self.settings.raw)
             raw["model"]["provider"] = "codex_cli"
-            settings = Settings(test_root, raw)
+            settings = Settings(test_root, raw).with_model('offline-test-model')
             discovery = LiveDiscovery(settings)
             prior_run = discovery.wf.init_run("live")
             with discovery.wf.db.connect() as conn:
@@ -1131,7 +1136,7 @@ class DiscoveryTest(unittest.TestCase):
             raw = deepcopy(self.settings.raw)
             raw["model"]["provider"] = "codex_cli"
             raw["model"]["max_calls_per_action"] = 3
-            settings = Settings(test_root, raw)
+            settings = Settings(test_root, raw).with_model('offline-test-model')
             discovery = LiveDiscovery(settings)
             run_id = discovery.wf.init_run("live")
             with discovery.wf.db.connect() as conn:

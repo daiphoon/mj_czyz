@@ -3,7 +3,7 @@ import hashlib
 import json
 import os
 
-from .budget import record_stage_usage
+from .budget import interactive_usage_estimate, record_stage_usage
 from .db import Database, now
 from .evidence import assess_topic, evidence_contract
 from .problem_mechanism import nonempty, render_problem, validate_problem
@@ -159,9 +159,9 @@ def register_brief(settings, run_id, topic_id, path):
                      VALUES(?,?,'research_brief',?,'completed',?,?) ON CONFLICT(run_id,kind,input_hash) DO NOTHING""",
                      (f"{run_id}:research_brief:{key}", run_id, key, json.dumps(result, ensure_ascii=False), now()))
     record_stage_usage(db, run_id=run_id, topic_id=topic_id, stage="deep_research",
-                       token_used=int(settings.section("budget")["deep_research_tokens"]), input_hash=key,
-                       provider="codex_subscription", model=settings.section("model")["codex_model"],
-                       note="深研简报耐久边界按阶段上限幂等估算；与证据导入共用阶段，不是官方Token。")
+                       **interactive_usage_estimate(settings, "deep_research", json.dumps(payload, ensure_ascii=False)), input_hash=key,
+                       provider="codex_subscription", model=settings.interactive_model,
+                       )
     # 即使写文件时中断，重复登记同一内容也可重建；不改变 task 版本顺序。
     base.parent.mkdir(parents=True, exist_ok=True)
     lines = ["# 深研简报与写作输入", "", f"- 题目：{topic_id}", f"- 材料版本：{key}",

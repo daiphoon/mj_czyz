@@ -69,7 +69,8 @@ def preflight(
     stage: str = "scan",
     run_id: str | None = None,
 ) -> dict:
-    stage = {"monday": "scan", "thursday": "refresh"}.get(stage, stage)
+    conversation_stage = stage in {"scan-prepare", "scan-import"}
+    stage = {"monday": "scan", "thursday": "refresh", "scan-prepare": "scan", "scan-import": "scan"}.get(stage, stage)
     db = Database(settings.database_path)
     db.initialize()
     checks: list[dict] = []
@@ -101,9 +102,11 @@ def preflight(
         settings.root / "config/sources.toml",
         settings.root / "config/policy_mechanisms.toml",
         settings.root / settings.section("document")["template_path"],
-        Path(settings.section("document")["reference_path"]),
     ]
     missing = [str(path) for path in required if not path.exists()]
+    reference = settings.reference_document
+    if reference is None or not reference.is_file():
+        missing.append("原始参考文档未配置或不存在：请设置SQMY_REFERENCE_PATH")
     add("required_files", not missing, "all present" if not missing else ";".join(missing))
 
     parse_errors = []
@@ -120,7 +123,22 @@ def preflight(
             add("tavily_config", True, "单行为搜索/积分/等价费用限制有效；无模型调用")
         except ValueError as exc:
             add("tavily_config", False, str(exc))
-        add("tavily_key", bool(os.environ.get("TAVILY_API_KEY")), "已配置" if os.environ.get("TAVILY_API_KEY") else "未配置，跳过可选补充", blocking=False)
+        if settings.raw.get("search", {}).get("enabled", False):
+            from .search_router import validate_config as validate_search
+            from .source_registry import SourceRegistry
+            try:
+                validate_search(settings)
+                registry_path = settings.root / "config/source_registry.toml"
+                if not registry_path.is_file():
+                    raise ValueError("缺少来源Registry")
+                SourceRegistry(registry_path)
+                add("search_pipeline_config", True, "统一入口有效；本预检不发送检索请求、不验证实时可用性")
+            except (ValueError, OSError) as exc:
+                add("search_pipeline_config", False, str(exc))
+            add("search_fee_mode", True, "密钥计费入口须显式授权" if settings.raw['search'].get('allow_paid') else "免费模式；密钥存在不会自动启用计费", blocking=False)
+        else:
+            paid = settings.raw.get("search", {}).get("allow_paid", False)
+            add("tavily_key", paid and bool(os.environ.get("TAVILY_API_KEY")), "仅显式开启计费模式后可用", blocking=False)
 
     discovery = settings.section("discovery")
     discovery_limits_ok = (
@@ -333,12 +351,18 @@ def preflight(
     add("working_directories", not not_writable, "writable" if not not_writable else ";".join(not_writable))
 
     model_cfg = settings.section("model")
-    zero_model_stage = stage == "refresh"
+    zero_model_stage = stage == "refresh" or conversation_stage
+    add("model_provider_enabled", model_cfg['provider'] != 'deepseek',
+        "DeepSeek已停用" if model_cfg['provider'] == 'deepseek' else "enabled",
+        blocking=not zero_model_stage)
     needs_codex = not zero_model_stage and model_cfg["provider"] in {"auto", "codex_cli"}
+    add("selected_model", not needs_codex or bool(settings.selected_model),
+        settings.selected_model or "须在命令前显式传入 --model MODEL_ID；不能自动读取Codex界面选择",
+        blocking=needs_codex)
     codex_path = shutil.which("codex")
     codex_detail = "not required for zero-model stage" if zero_model_stage else (codex_path or "not found")
     add("codex_cli", not needs_codex or bool(codex_path), codex_detail)
-    add("deepseek_fallback", bool(os.environ.get("DEEPSEEK_API_KEY")), "configured" if os.environ.get("DEEPSEEK_API_KEY") else "not configured", blocking=False)
+    add("deepseek_fallback", False, "disabled_by_user", blocking=False)
 
     env_path = settings.root / ".env"
     if env_path.exists():
@@ -360,7 +384,8 @@ def preflight(
     if stage not in action_limits:
         raise ValueError(f"不支持的预检阶段：{stage}")
     action_limit = action_limits[stage]
-    action_limit_ok = zero_model_stage or (
+    enforce_tokens = budget_cfg.get("enforce_token_limits", False)
+    action_limit_ok = not enforce_tokens or zero_model_stage or (
         isinstance(action_limit, int)
         and not isinstance(action_limit, bool)
         and action_limit > 0
@@ -395,8 +420,11 @@ def preflight(
         "action_token_limit", action_limit_ok and (zero_model_stage or call_limit_ok),
         action_limit_detail,
         # 发现元数据与入队为零模型步骤；额度不足时仍允许扫描并在模型前安全暂停。
-        blocking=stage != "scan",
+        blocking=enforce_tokens and stage != "scan",
     )
+    add("action_call_limit", zero_model_stage or call_limit_ok,
+        f"max_calls={model_call_limit}; retries and timeouts remain active")
+    add("token_policy", True, "enforced" if enforce_tokens else "observe_only", blocking=False)
     add(
         "weekly_cost_headroom",
         zero_model_stage or usage["estimated_cost_cny"] < budget_cfg["weekly_cost_limit_cny"],

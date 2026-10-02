@@ -221,3 +221,110 @@ def test_four_closed_weeks_require_four_existing_verified_deliveries(draft_conte
     report = production_funnel(settings, reference=reference)
     assert not report["stable_minimum_output"]
     assert report["totals"]["calendar_draft_count"] == 0
+
+
+@pytest.mark.parametrize('suffix', [
+    'https://example.org/source', 'HTTP://example.org', 'www.example.org',
+    'example.org/source', 'person@example.org', 'file:///private/source',
+    '[来源](https://example.org)', '[来源](../source.md)', '[来源][ref]',
+    '[ref]: ../source.md', 'mailto:someone@example.org',
+    '来源example.org。', '来源example.org，', '来源example.org）',
+    '来源 example.xyz/source', '来源example.dev。', '来源example.technology；',
+])
+def test_formal_body_links_are_blocked(draft_context, suffix):
+    settings, wf, run, source = draft_context
+    source.write_text(valid_text() + '\n' + suffix, encoding='utf-8')
+    check = check_draft(settings, 'delivery-topic', source)
+    assert any('URL或Markdown链接' in error for error in check['errors'])
+
+
+def test_soft_target_warns_without_rejecting_hard_range_and_old_config(draft_context):
+    settings, wf, run, source = draft_context
+    check = check_draft(settings, 'delivery-topic', source)
+    count = check['body_chars']
+    assert check['ok']
+    settings.raw['writing_quality']['target_max_chars'] = count - 1
+    assert check_draft(settings, 'delivery-topic', source)['ok']
+    assert any('通常正文目标' in x for x in check_draft(settings, 'delivery-topic', source)['warnings'])
+    settings.raw['writing_quality'].pop('target_min_chars')
+    settings.raw['writing_quality'].pop('target_max_chars')
+    old = check_draft(settings, 'delivery-topic', source)
+    assert old['ok']
+    assert not any('通常正文目标' in x for x in old['warnings'])
+    source.write_text(valid_text() + '字' * 1900)
+    assert any('字数' in x for x in check_draft(settings, 'delivery-topic', source)['errors'])
+
+
+@pytest.mark.parametrize('kind', ['hyperlink', 'field', 'simple_field', 'visible_url', 'relationship',
+                                'domain_chinese_punctuation', 'domain_other_tld', 'split_domain'])
+def test_docx_hidden_or_visible_links_blocked_without_network(tmp_path, kind):
+    from sqmy.delivery import require_link_free_docx
+    import zipfile
+    ns='http://schemas.openxmlformats.org/wordprocessingml/2006/main'
+    elements = {
+        'hyperlink': '<w:hyperlink><w:r><w:t>来源</w:t></w:r></w:hyperlink>',
+        'field': '<w:r><w:instrText> HYPER</w:instrText></w:r><w:r><w:instrText>LINK "https://example.org" </w:instrText></w:r>',
+        'simple_field': '<w:fldSimple w:instr="HYPERLINK &quot;https://example.org&quot;"/>',
+        'visible_url': '<w:r><w:t>https://example.org</w:t></w:r>',
+        'relationship': '<w:r><w:t>正常文本</w:t></w:r>',
+        'domain_chinese_punctuation': '<w:r><w:t>来源example.org。</w:t></w:r>',
+        'domain_other_tld': '<w:r><w:t>example.xyz/source</w:t></w:r>',
+        'split_domain': '<w:r><w:t>来源example.</w:t></w:r><w:r><w:t>xyz。</w:t></w:r>',
+    }
+    path=tmp_path/'links.docx'
+    with zipfile.ZipFile(path, 'w') as z:
+        z.writestr('word/document.xml', f'<w:document xmlns:w="{ns}"><w:body><w:p>{elements[kind]}</w:p></w:body></w:document>')
+        if kind == 'relationship':
+            z.writestr('word/_rels/document.xml.rels', '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.org" TargetMode="External"/></Relationships>')
+    with pytest.raises(ValueError, match='链接'):
+        require_link_free_docx(path)
+
+
+def test_plain_docx_and_evidence_link_context_remain_allowed(draft_context):
+    from sqmy.delivery import require_link_free_docx
+    settings, wf, run, source = draft_context
+    record_valid_review(settings, run, 'delivery-topic', source)
+    output = wf.draft(run, 'delivery-topic', source)
+    require_link_free_docx(output)
+    # fixture证据来源自带URL；正式正文检查不删除或拒绝内部来源链接。
+    assert wf.approve('delivery-topic').exists()
+
+
+def test_versions_decimals_and_document_numbers_are_not_domains(draft_context):
+    from sqmy.delivery import require_link_free_docx
+    settings, wf, run, source = draft_context
+    source.write_text(valid_text() + '\n版本v3.0，费率3.5%，依据文号〔2026〕12号。', encoding='utf-8')
+    assert check_draft(settings, 'delivery-topic', source)['ok']
+    record_valid_review(settings, run, 'delivery-topic', source)
+    require_link_free_docx(wf.draft(run, 'delivery-topic', source))
+
+
+def test_linked_template_cannot_create_delivery_event(draft_context):
+    from docx import Document
+    settings, wf, run, source = draft_context
+    record_valid_review(settings, run, 'delivery-topic', source)
+    template = settings.root / settings.section('document')['template_path']
+    doc=Document(template);doc.add_paragraph('https://example.org');doc.save(template)
+    with pytest.raises(ValueError, match='URL或链接'):
+        wf.draft(run, 'delivery-topic', source)
+    with wf.db.connect() as conn:
+        assert conn.execute('SELECT COUNT(*) FROM delivery_events').fetchone()[0] == 0
+
+
+@pytest.mark.parametrize('size,major,ok,warn', [
+    (1200, False, True, False), (1500, False, True, False),
+    (1501, False, True, True), (1800, False, True, True),
+    (1801, False, False, True), (2000, True, True, False),
+    (2501, True, False, False),
+])
+def test_length_target_hard_limit_and_major_exception(draft_context, size, major, ok, warn):
+    settings, wf, run, source = draft_context
+    text = '# 正式测试稿\n中关村支部：李智\n一、现状\n现状\n二、问题和分析\n（一）问题\n（二）问题\n（三）问题\n三、政策建议\n（一）建议\n（二）建议\n（三）建议\n'
+    text = text.replace('\n（', '\n\n（')
+    source.write_text(text)
+    base = check_draft(settings, 'delivery-topic', source, major=major)['body_chars']
+    source.write_text(text + '字' * (size-base))
+    result = check_draft(settings, 'delivery-topic', source, major=major)
+    assert result['body_chars'] == size
+    assert result['ok'] is ok
+    assert any('通常正文目标' in x for x in result['warnings']) is warn

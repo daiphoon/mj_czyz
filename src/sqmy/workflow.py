@@ -8,11 +8,11 @@ import os
 from pathlib import Path
 import uuid
 
-from .budget import record_stage_usage
+from .budget import interactive_usage_estimate, record_stage_usage
 from .collector import SourceCollector
 from .cadence import refresh_due, require_source_freshness
 from .config import Settings
-from .delivery import require_review, verify_export, verify_approved_integrity
+from .delivery import require_review, require_link_free_docx, verify_export, verify_approved_integrity
 from .db import Database, now
 from .document import atomic_copy, export_submission, parse_submission_markdown
 from .evidence import assess_topic
@@ -132,6 +132,10 @@ class Workflow:
             ).fetchone()
             if run is None:
                 raise ValueError(f"未找到运行：{run_id}")
+            if json.loads(run["checkpoint_json"] or "{}").get("conversation_only"):
+                receipt = json.loads(run["checkpoint_json"] or "{}").get("conversation_screening", {})
+                if not receipt.get("result_sha256"):
+                    raise ValueError("对话初筛尚未完成导入，不能选择中间候选")
             if run["status"] == TaskStatus.SKIPPED:
                 raise ValueError("运行已关闭，不得选择题目")
             available = {
@@ -195,7 +199,7 @@ class Workflow:
     @staticmethod
     def _default_next(run_id: str, phase: str) -> str:
         return {
-            Phase.DISCOVERY: f"sqmy scan --resume {run_id}",
+            Phase.DISCOVERY: f"sqmy --model MODEL_ID scan --resume {run_id}",
             Phase.SELECTION: f"sqmy candidates {run_id}",
             Phase.INCREMENTAL_REVIEW: f"sqmy refresh {run_id}",
             Phase.RESEARCH: f"sqmy pre-research-check {run_id} CANDIDATE_ID --brief PATH",
@@ -459,11 +463,10 @@ class Workflow:
             run_id=run_id,
             topic_id=topic_id,
             stage="writing",
-            token_used=int(self.s.section("budget")["writing_tokens"]),
+            **interactive_usage_estimate(self.s, "writing", source.read_text(encoding="utf-8")),
             input_hash=input_hash,
             provider="codex_subscription",
-            model=self.s.section("model")["codex_model"],
-            note="正式稿进入确定性DOCX导出时按写作阶段上限保守记账；不是Plus官方Token统计。",
+            model=self.s.interactive_model,
         )
         with self.db.connect() as conn:
             cached = conn.execute(
@@ -480,10 +483,13 @@ class Workflow:
                 and cached_hash
                 and hashlib.sha256(cached_path.read_bytes()).hexdigest() == cached_hash
             ):
+                require_link_free_docx(cached_path)
                 return cached_path
         safe_title = "".join("_" if char in '/\\:*?\"<>|' else char for char in title).strip()
         output = self.s.root / "outputs/review" / run_id / f"{safe_title}_送审稿.docx"
+        require_link_free_docx(template)
         export_submission(template, output, title, sections)
+        require_link_free_docx(output)
         output_hash = hashlib.sha256(output.read_bytes()).hexdigest()
         topics = candidate.score_reasons.get("主题", [])
         category = "、".join(topics) if isinstance(topics, list) else str(topics)

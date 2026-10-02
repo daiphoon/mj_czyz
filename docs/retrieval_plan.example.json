@@ -4,6 +4,8 @@
   "queries": [
     {
       "purpose": "policy",
+      "intent": "COUNTER_EVIDENCE",
+      "domains": ["gov.cn", "court.gov.cn"],
       "query": "人工替换为已选议题的现行规则、适用范围及最强反证检索词"
     }
   ],

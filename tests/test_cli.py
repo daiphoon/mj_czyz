@@ -105,7 +105,7 @@ def test_monday_cli_runs_observable_shadow_workflow_offline(capsys):
         )
         raw = deepcopy(Settings.load(ROOT / "config/settings.toml").raw)
         raw["model"]["provider"] = "mock"
-        settings = Settings(root, raw)
+        settings = Settings(root, raw).with_model("offline-test-model")
         fixture = ROOT / "tests/fixtures/monday_observability.json"
 
         with patch("sqmy.cli.Settings.load", return_value=settings):
@@ -128,8 +128,9 @@ def test_cli_reports_a_safe_discovery_pause_without_claiming_candidates(capsys):
         shutil.copy(ROOT / "config/policy_mechanisms.toml", root / "config/policy_mechanisms.toml")
         raw = deepcopy(Settings.load(ROOT / "config/settings.toml").raw)
         raw["model"]["provider"] = "codex_cli"
+        raw["budget"]["enforce_token_limits"] = True
         raw["budget"]["screening_tokens"] = 1
-        settings = Settings(root, raw)
+        settings = Settings(root, raw).with_model("offline-test-model")
 
         with patch("sqmy.cli.Settings.load", return_value=settings), patch(
             "sqmy.providers.CodexCliClient.analyze", side_effect=AssertionError("must stop before dispatch")
@@ -146,7 +147,7 @@ def test_budget_cli_reports_action_limits_and_keeps_recent_tokens_observational(
     with tempfile.TemporaryDirectory() as temp:
         root = Path(temp)
         raw = deepcopy(Settings.load(ROOT / "config/settings.toml").raw)
-        settings = Settings(root, raw)
+        settings = Settings(root, raw).with_model("offline-test-model")
 
         with patch("sqmy.cli.Settings.load", return_value=settings):
             assert main(["--config", "unused.toml", "budget"]) == 0

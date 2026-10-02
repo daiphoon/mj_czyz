@@ -161,7 +161,7 @@ def test_valid_reframed_brief_is_idempotent_and_stops_at_human_gate():
         assert [(row["stage"], row["token_used"]) for row in usage] == [
             ("pre_research", 30_000)
         ]
-        assert usage[0]["accounting_method"] == "declared_stage_cap"
+        assert usage[0]["accounting_method"] == "declared_stage_estimate"
         status = workflow.status(run_id)[0]
         assert status["phase"] == "research"
         assert status["status"] == "needs_review"

@@ -7,7 +7,7 @@ import tempfile
 
 from .budget import BudgetExceeded, BudgetGuard, estimate_model_call_tokens
 from .db import now
-from .providers import ProviderError
+from .providers import ProviderError, safe_diagnostic
 
 
 class CallLedger:
@@ -27,7 +27,8 @@ class CallLedger:
         provider = client.provider
         if provider not in {"codex_cli", "deepseek"}:
             raise ProviderError("不支持记账的提供商")
-        model = client.model or "subscription-default"
+        from .config import validate_selected_model
+        model = validate_selected_model(client.model) if provider == "codex_cli" else client.model
         estimate_cfg = dict(cfg, provider=provider)
         estimated = estimate_model_call_tokens(
             prompt + json.dumps(schema, ensure_ascii=False), estimate_cfg, budget
@@ -50,7 +51,8 @@ class CallLedger:
             if self.topic_id:
                 interactive = conn.execute("SELECT COALESCE(SUM(token_used),0) FROM stage_usage WHERE run_id=? AND topic_id=? AND stage=?",
                                            (self.run_id, self.topic_id, self.stage)).fetchone()[0]
-            guard = BudgetGuard(limit, int(usage[0]) + int(interactive), cfg["max_calls_per_action"], int(usage[1]))
+            guard = BudgetGuard(limit, int(usage[0]) + int(interactive), cfg["max_calls_per_action"], int(usage[1]),
+                                enforce_tokens=budget.get("enforce_token_limits", False))
             guard.reserve(estimated)
             failures = conn.execute(
                 """SELECT COUNT(*) FROM model_calls WHERE run_id=? AND task_id=?
@@ -101,12 +103,25 @@ class CallLedger:
         status = "completed" if failure is None else "failed_invalid_result" if result else "failed:" + code
         if reasons:
             self.overrun = {
+                "enforced": budget.get("enforce_token_limits", False) or provider == "deepseek",
                 "stage": self.stage, "estimated_tokens": estimated, "actual_tokens": actual,
                 "action_limit": limit, "action_tokens_used_before_call": guard.used,
                 "action_calls_used_before_call": guard.calls_used,
                 "action_call_limit": cfg["max_calls_per_action"], "reasons": reasons,
-                "policy": "保存当前有界行为；不自动扩题或进入新阶段",
+                "policy": "额度策略阻断继续" if guard.enforce_tokens else "观察记录，不以Token阻断；不自动扩题或进入新阶段",
             }
+        diagnostic = safe_diagnostic(getattr(failure, "diagnostic", None)) if failure else None
+        if failure and result:
+            diagnostic = safe_diagnostic({"category": "invalid_result"})
+        # 保留既有确定性校验原因，仅接受代码内固定语句，不能落库任意异常原文。
+        validation_messages = {
+            "模型返回的候选结构无效", "模型未返回有效候选ID", "模型未返回任何有效候选ID",
+            "诊断结果不符合预期", "语义复核结果结构不完整", "语义复核关系必须为列表",
+            "语义复核支持关系或问题代码无效", "语义复核遗漏、重复或新增了来源关系",
+            "语义复核未覆盖全部核心主张组合", "组合结论须列明所评估的全部来源",
+        }
+        task_error = (str(failure) if result and isinstance(failure, ProviderError)
+                      and str(failure) in validation_messages else code)
         response_id = result.response_id if result else getattr(failure, "response_id", "")
         with self.db.connect() as conn:
             conn.execute("""UPDATE model_calls SET input_tokens=?,output_tokens=?,estimated_cost_cny=?,
@@ -114,6 +129,14 @@ class CallLedger:
                          (input_tokens, output_tokens, cost, status, method, response_id, code, int(bool(reasons)), call_id))
             conn.execute("UPDATE runs SET token_used=token_used+?,estimated_cost_cny=estimated_cost_cny+?,updated_at=? WHERE id=?",
                          (actual - estimated, cost - reserved_cost, now(), self.run_id))
+            if diagnostic:
+                # 复用tasks，不迁移数据库。与调用完成/失败及费用在同一事务落库。
+                conn.execute(
+                    """INSERT INTO tasks(id,run_id,kind,input_hash,status,result_json,token_used,attempts,error,updated_at)
+                       VALUES(?,?,'provider_failure',?,'completed',?,0,1,NULL,?)""",
+                    (f"{self.run_id}:provider_failure:{call_id}", self.run_id, str(call_id),
+                     json.dumps(dict(diagnostic, call_id=call_id), ensure_ascii=False), now()),
+                )
             if self.task_kind:
                 conn.execute(
                     """INSERT INTO tasks(id,run_id,kind,input_hash,status,result_json,token_used,attempts,error,updated_at)
@@ -124,7 +147,7 @@ class CallLedger:
                     (f"{self.run_id}:{self.action_id}:{self.prompt_hash[:12]}", self.run_id,
                      self.task_kind, self.prompt_hash, "failed" if failure else "completed",
                      json.dumps(result.data, ensure_ascii=False) if result else None, actual,
-                     str(failure) if result and isinstance(failure, ProviderError) else code, now()),
+                     task_error, now()),
                 )
         self.export_audit()
         if failure:
@@ -137,10 +160,17 @@ class CallLedger:
         """SQLite是权威账本；JSONL是可重建的单运行审计副本，不记录提示或错误原文。"""
         with self.db.connect() as conn:
             rows = conn.execute("SELECT * FROM model_calls WHERE run_id=? ORDER BY id", (self.run_id,)).fetchall()
+            diagnostics = {}
+            for task in conn.execute("SELECT result_json FROM tasks WHERE run_id=? AND kind='provider_failure'", (self.run_id,)):
+                value = json.loads(task["result_json"])
+                diagnostics[value["call_id"]] = safe_diagnostic(value)
         directory = self.s.root / "data/runs" / self.run_id
         directory.mkdir(parents=True, exist_ok=True)
         with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=directory, suffix=".tmp", delete=False) as stream:
             for row in rows:
-                stream.write(json.dumps(dict(row), ensure_ascii=False) + "\n")
+                value = dict(row)
+                if row["id"] in diagnostics:
+                    value["diagnostic"] = diagnostics[row["id"]]
+                stream.write(json.dumps(value, ensure_ascii=False) + "\n")
             path = stream.name
         os.replace(path, directory / "model_calls.jsonl")

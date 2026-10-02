@@ -8,22 +8,21 @@ candidate_pool_days = 30
 refresh_after_hours = 24
 
 [model]
-provider = "auto"
+provider = "codex_cli"
 primary_provider = "codex_cli"
-fallback_provider = "deepseek"
-fallback_on = ["quota_exceeded", "rate_limited"]
-screening_model = "gpt-5.6-terra"
-codex_model = "gpt-5.4"
+fallback_provider = ""
+fallback_on = []
+# 真实模型只接受每次启动的 --model 参数，不设模型或思考深度默认值。
+# 仅保留历史配置/账本兼容；DeepSeek请求入口已停用，不能由配置重新开启。
 deepseek_model = "deepseek-v4-pro"
 deepseek_thinking = true
 deepseek_reasoning_effort = "max"
-research_model = "mock-research"
-writing_model = "mock-writing"
 max_retries = 2
 max_calls_per_action = 3
 screening_max_output_tokens = 6000
 codex_timeout_seconds = 420
-screening_item_chars = 500
+# 0关闭节约Token的解释字数目标；正式稿字数和技术容量限制仍保留。
+screening_item_chars = 0
 diagnostic_max_output_tokens = 1024
 input_price_cny_per_million = 2.0
 output_price_cny_per_million = 12.0
@@ -124,6 +123,47 @@ scenario_queries = [
   { id = "public_service", query = "中国 老年人 异地就医 报销申请 材料反复提交 退回 处理结果 调查", signals = ["反复提交", "多头证明"] },
 ]
 
+# 免费入口与密钥计费入口明确分离；免费入口失败不能隐式启用付费检索。
+[search]
+enabled = true
+allow_paid = false
+keyless_enabled = true
+providers = ["tavily_keyless", "bing_news_rss", "brave"]
+max_calls_per_action = 6
+max_searches_per_action = 4
+max_extracts_per_action = 2
+max_retries = 0
+failure_threshold = 2
+cooldown_seconds = 300
+allow_parallel = false
+max_parallel = 2
+
+[search.cache_ttl_hours]
+HOTSPOT_DISCOVERY = 6
+POLICY_SEARCH = 168
+REGULATION_SEARCH = 168
+OFFICIAL_RESPONSE = 24
+CASE_SEARCH = 24
+COUNTER_EVIDENCE = 24
+LOCAL_PRACTICE = 72
+COMPARATIVE_CASE = 72
+IMAGE_SEARCH = 6
+
+[brave]
+enabled = false
+request_timeout_seconds = 20
+max_response_bytes = 2000000
+cost_usd_per_search = 0.005
+
+[fetch]
+request_timeout_seconds = 20
+max_response_bytes = 2000000
+max_text_chars = 100000
+allow_keyless_extract = true
+excerpt_chars = 5000
+context_chars = 350
+cache_ttl_hours = 24
+
 [history_review]
 min_shared_subject = 4
 min_shared_mechanism = 4
@@ -170,6 +210,9 @@ minimum_drafts_per_week = 1
 stretch_drafts_per_week = 2
 
 [writing_quality]
+# 通常目标仅提示；普通稿硬范围和重大事项例外保持不变。
+target_min_chars = 1200
+target_max_chars = 1500
 min_chars = 1200
 max_chars = 1800
 major_min_chars = 2000
@@ -179,6 +222,8 @@ max_items = 5
 vague_phrases = ["高度重视", "进一步加强", "加大力度"]
 
 [budget]
+# 观察期：不以任何阶段/累计Token额度阻断；原数值保留供显式恢复和比较。
+enforce_token_limits = false
 # Token硬闸门按单一有界行为计算；近7日用量只做观察和复盘。
 weekly_cost_limit_cny = 100.0
 screening_tokens = 55000
@@ -230,7 +275,7 @@ request_timeout_seconds = 20
 docx_qa_intermediate_retention_days = 7
 
 [document]
-reference_path = "/Users/lizhi/Documents/民建工作/社情民意/完善北京市新就业形态劳动者平台算法判罚与申诉纠错机制的建议.docx"
+reference_path = ""
 template_path = "templates/submission_template.docx"
 body_font = "DengXian"
 fallback_font = "SimSun"

@@ -23,6 +23,8 @@ def context(tmp_path, monkeypatch):
     (tmp_path / "config").mkdir()
     shutil.copy(root / "config/sources.toml", tmp_path / "config/sources.toml")
     settings = Settings(tmp_path, deepcopy(Settings.load(root / "config/settings.toml").raw))
+    # 保留密钥模式旧契约测试；发送始终被fixture或各测试stub。
+    settings.raw["search"].update(enabled=False, allow_paid=True)
     wf = Workflow(settings)
     run = wf.init_run("diagnostic")
     monkeypatch.setenv("TAVILY_API_KEY", "offline-dummy-key")
@@ -392,7 +394,7 @@ def test_scan_entry_uses_supplement_funnel_without_widening_model_pool(context, 
         result["results"][0]["title"] = "医院检查检验互认重复检查费用负担调查"
         return result
     monkeypatch.setattr(TavilyClient, "_post", send)
-    run, candidates = LiveDiscovery(settings).run()
+    run, candidates = LiveDiscovery(settings.with_model('offline-test-model')).run()
     assert candidates == []
     with wf.db.connect() as conn:
         assert conn.execute("SELECT COUNT(*) FROM model_calls WHERE run_id=?", (run,)).fetchone()[0] == 0

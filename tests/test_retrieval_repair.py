@@ -12,6 +12,8 @@ from test_evidence_safety import settings_at
 
 def setup(tmp_path, monkeypatch):
     settings = settings_at(tmp_path)
+    # 该组测试继续检查密钥模式旧账本；网络发送均由下方stub提供。
+    settings.raw['search'].update(enabled=False, allow_paid=True)
     wf, run = prepare_run(settings)
     monkeypatch.setenv("TAVILY_API_KEY", "offline-test-key")
     calls = []

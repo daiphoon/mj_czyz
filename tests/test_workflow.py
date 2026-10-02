@@ -360,14 +360,15 @@ class WorkflowTest(unittest.TestCase):
                 "UPDATE runs SET created_at=? WHERE id=?",
                 ((datetime.now(timezone.utc) - timedelta(hours=25)).isoformat(), run_id),
             )
-        # 人工放行后的证据包导入代表深研阶段完成，并以阶段上限保守记账。
+        # 人工放行后的证据包导入用产物代理观察，不以原阶段额度冒充用量。
         self._import_draftable_evidence(topic_id)
         with wf.db.connect() as conn:
             deep_usage = conn.execute(
-                "SELECT token_used FROM stage_usage WHERE run_id=? AND stage='deep_research'",
+                "SELECT token_used,accounting_method FROM stage_usage WHERE run_id=? AND stage='deep_research'",
                 (run_id,),
             ).fetchone()
-        self.assertEqual(deep_usage["token_used"], 40_000)
+        self.assertGreater(deep_usage["token_used"], 0)
+        self.assertEqual(deep_usage["accounting_method"], "artifact_proxy_estimate")
         with self.assertRaisesRegex(ValueError, "来源新鲜度"):
             wf.draft(run_id, topic_id, source, candidate_id="C1")
         refresh_result = {
@@ -436,10 +437,11 @@ class WorkflowTest(unittest.TestCase):
         self.assertEqual(max(row["attempts"] for row in restored_tasks), 2)
         with wf.db.connect() as conn:
             writing_usage = conn.execute(
-                "SELECT token_used FROM stage_usage WHERE run_id=? AND stage='writing'",
+            "SELECT token_used,accounting_method FROM stage_usage WHERE run_id=? AND stage='writing'",
                 (run_id,),
             ).fetchone()
-        self.assertEqual(writing_usage["token_used"], 15_000)
+        self.assertGreater(writing_usage["token_used"], 0)
+        self.assertEqual(writing_usage["accounting_method"], "artifact_proxy_estimate")
         with self.assertRaisesRegex(ValueError, "尚未人工通过"):
             wf.mark_submitted(topic_id, "2026-07-20", "海淀区")
         final_path = wf.approve(topic_id)

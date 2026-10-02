@@ -91,6 +91,10 @@ class NoveltyAuditor:
                 )
 
     def audit(self, run_id: str, events: list[EventItem], *, live_search: bool) -> list[NoveltyAudit]:
+        self._search_router = None
+        if live_search and self.s.raw.get("search", {}).get("enabled", False):
+            from .search_router import build_search_router
+            self._search_router = build_search_router(self.s, self.db, run_id, "novelty_shadow", collector=self.collector)
         audits = [self._audit_one(event, live_search=live_search) for event in events[: self.cfg["audit_pool_size"]]]
         with self.db.connect() as conn:
             for audit in audits:
@@ -139,14 +143,16 @@ class NoveltyAuditor:
         if live_search:
             for query in queries:
                 try:
-                    hits = self.collector.search_query(
-                        query,
-                        limit=self.cfg["max_hits_per_query"],
-                        lookback_days=self.cfg["counterevidence_lookback_days"],
-                    )
-                except Exception as exc:
+                    if getattr(self, "_search_router", None):
+                        from .retrieval_pipeline import search_events
+                        hits = search_events(self._search_router, query, limit=self.cfg["max_hits_per_query"],
+                                             domains=self.cfg["official_counterevidence_domains"])
+                    else:
+                        hits = self.collector.search_query(query, limit=self.cfg["max_hits_per_query"],
+                                                           lookback_days=self.cfg["counterevidence_lookback_days"])
+                except Exception:
                     search_failures += 1
-                    counterevidence.append({"query": query, "error": f"{type(exc).__name__}: {exc}"})
+                    counterevidence.append({"query": query, "error": "search_unavailable"})
                     continue
                 for hit in hits:
                     normalized_hit = normalize_title(hit.title)

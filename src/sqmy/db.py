@@ -263,6 +263,19 @@ class Database:
             if conn.execute("PRAGMA user_version").fetchone()[0] > 1:
                 raise ValueError("数据库版本高于当前程序支持范围，不得使用旧程序写入")
             conn.executescript(SCHEMA)
+            retrieval_columns = {row[1] for row in conn.execute("PRAGMA table_info(retrieval_calls)")}
+            for column, declaration in {
+                "provider": "TEXT NOT NULL DEFAULT 'legacy_unknown'",
+                "auth_mode": "TEXT NOT NULL DEFAULT 'legacy_unknown'",
+                "intent": "TEXT NOT NULL DEFAULT 'legacy_unknown'",
+                "query_id": "TEXT",
+                "latency_ms": "INTEGER",
+                "retry_count": "INTEGER NOT NULL DEFAULT 0",
+                "fallback_from": "TEXT",
+                "cache_hit": "INTEGER NOT NULL DEFAULT 0",
+            }.items():
+                if column not in retrieval_columns:
+                    conn.execute(f"ALTER TABLE retrieval_calls ADD COLUMN {column} {declaration}")
             link_columns = {row[1] for row in conn.execute("PRAGMA table_info(claim_sources)")}
             if "evidence_detail_json" not in link_columns:
                 conn.execute("ALTER TABLE claim_sources ADD COLUMN evidence_detail_json TEXT")

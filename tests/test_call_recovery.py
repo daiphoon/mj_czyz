@@ -1,7 +1,6 @@
 from copy import deepcopy
 from datetime import datetime, timezone
 import json
-import io
 import fcntl
 import multiprocessing
 import os
@@ -17,7 +16,7 @@ from sqmy.discovery import LiveDiscovery
 from sqmy.diagnostics import provider_check
 from sqmy.model_calls import CallLedger
 from sqmy.models import EventItem
-from sqmy.providers import DeepSeekClient, ModelResult, ProviderError, ProviderRouter, QuotaExceeded
+from sqmy.providers import ModelResult, ProviderDisabled, ProviderError, ProviderRouter, QuotaExceeded
 
 
 class Client:
@@ -39,8 +38,9 @@ class Client:
 def discovery(tmp_path):
     root = Path(__file__).parents[1]
     shutil.copytree(root / "config", tmp_path / "config")
-    settings = Settings(tmp_path, deepcopy(Settings.load(root / "config/settings.toml").raw))
+    settings = Settings(tmp_path, deepcopy(Settings.load(root / "config/settings.toml").raw)).with_model("offline-test-model")
     settings.raw["model"]["provider"] = "codex_cli"
+    settings.raw["budget"]["enforce_token_limits"] = True
     settings.raw["budget"]["screening_tokens"] = 300_000
     settings.raw["shadow_verification"]["enabled"] = False
     return LiveDiscovery(settings)
@@ -109,14 +109,11 @@ def test_downstream_crash_resumes_frozen_pool_without_recollecting(discovery, ev
     assert checkpoint["screening_cache_hit"] is True
 
 
-def test_response_parse_failure_preserves_reported_paid_usage(discovery, event, monkeypatch):
-    monkeypatch.setenv("DEEPSEEK_API_KEY", "test-placeholder")
-    client = DeepSeekClient("test", 100)
-    payload = {"id": "response-1", "choices": [{"message": {"content": "not JSON"}}],
-               "usage": {"prompt_tokens": 200, "completion_tokens": 40}}
+def test_legacy_paid_parse_failure_preserves_reported_usage(discovery, event):
+    # 历史付费账本仍兼容；仅用假对象模拟已报告用量，不恢复真实客户端。
+    client = Client('deepseek', error=ProviderError('解析失败', usage=(200, 40), response_id='response-1'))
     run = discovery.wf.init_run("test_fixture")
-    with patch("urllib.request.urlopen", return_value=io.BytesIO(json.dumps(payload).encode())), \
-         patch("sqmy.discovery.build_router", return_value=ProviderRouter(client, None, [])):
+    with patch("sqmy.discovery.build_router", return_value=ProviderRouter(client, None, [])):
         with pytest.raises(ProviderError):
             discovery._model_rank(run, [event])
     usage = recent_usage(discovery.wf.db)
@@ -129,7 +126,6 @@ def test_response_parse_failure_preserves_reported_paid_usage(discovery, event, 
         assert row["accounting_method"] == "provider_reported"
     audit = discovery.s.root / "data/runs" / run / "model_calls.jsonl"
     assert len(audit.read_text().splitlines()) == 1
-    assert "test-placeholder" not in audit.read_text()
 
 
 def test_unknown_usage_is_estimated_separately_and_survives_retry(discovery, event):
@@ -182,18 +178,30 @@ def test_paid_reservation_is_visible_to_another_run(discovery):
     assert other.calls == 0
 
 
-def test_diagnostic_uses_same_paid_guard_and_failure_ledger(discovery, monkeypatch):
+def test_disabled_diagnostic_never_starts_paid_calls_or_runs(discovery, monkeypatch):
     monkeypatch.setenv("DEEPSEEK_API_KEY", "test-placeholder")
-    discovery.s.raw["budget"]["weekly_cost_limit_cny"] = 0
-    with patch("urllib.request.urlopen", side_effect=AssertionError("must not call")):
-        with pytest.raises(BudgetExceeded):
+    with patch("urllib.request.urlopen", side_effect=AssertionError("must not call")) as dispatch:
+        with pytest.raises(ProviderDisabled):
             provider_check(discovery.s, simulate_codex_quota=True)
-    assert discovery.wf.status(include_all=True)[0]["status"] == "paused_budget"
-    discovery.s.raw["budget"]["weekly_cost_limit_cny"] = 100
-    discovery.s.raw["model"]["provider"] = "deepseek"
-    with patch("urllib.request.urlopen", side_effect=TimeoutError("network")):
-        with pytest.raises(ProviderError):
+        discovery.s.raw["model"]["provider"] = "deepseek"
+        with pytest.raises(ProviderDisabled):
             provider_check(discovery.s)
+    dispatch.assert_not_called()
+    assert discovery.wf.status(include_all=True) == []
+    assert recent_usage(discovery.wf.db)["model_calls"] == 0
+
+
+def test_auto_diagnostic_quota_pauses_without_paid_fallback(discovery, monkeypatch):
+    discovery.s.raw['model']['provider'] = 'auto'
+    discovery.s.raw['model']['fallback_on'] = ['quota_exceeded']
+    monkeypatch.setenv('DEEPSEEK_API_KEY', 'synthetic-not-a-real-key')
+    primary = Client(error=QuotaExceeded('quota'))
+    with patch('sqmy.providers.CodexCliClient', return_value=primary), \
+         patch('urllib.request.urlopen', side_effect=AssertionError('must not call')) as dispatch:
+        with pytest.raises(QuotaExceeded):
+            provider_check(discovery.s)
+    dispatch.assert_not_called()
+    assert discovery.wf.status(include_all=True)[0]['status'] == 'paused_quota'
     assert recent_usage(discovery.wf.db)["model_calls"] == 1
 
 
@@ -238,6 +246,7 @@ def test_resume_after_candidate_save_reuses_audits_and_keeps_overrun(discovery, 
             result.input_tokens = 100_000
             return result
 
+    discovery.s.raw["budget"]["enforce_token_limits"] = True
     discovery.s.raw["budget"]["screening_tokens"] = 55_000
     client = LargeResult()
     with patch("sqmy.discovery.SourceCollector.collect", return_value=[event]), \
@@ -249,6 +258,7 @@ def test_resume_after_candidate_save_reuses_audits_and_keeps_overrun(discovery, 
             discovery.run(force=True)
     run = discovery.wf.status()[0]["id"]
     assert len(discovery.wf.candidates(run)) == 1
+    discovery.s.raw["budget"]["enforce_token_limits"] = True
     discovery.s.raw["budget"]["screening_tokens"] = 0
     with patch("sqmy.discovery.SourceCollector.collect", side_effect=AssertionError("no recollect")), \
          patch("sqmy.discovery.NoveltyAuditor.audit", side_effect=AssertionError("no re-audit")), \
@@ -268,3 +278,38 @@ def test_scan_lock_rejects_parallel_consumer_without_new_run(discovery):
         with pytest.raises(ValueError, match="已有扫描"):
             discovery.run()
     assert discovery.wf.status(include_all=True) == []
+
+
+def test_failure_diagnostic_is_durable_and_exported_without_secrets(discovery, event):
+    run = discovery.wf.init_run('test_fixture')
+    error = ProviderError('PRIVATE_ERROR_RAW', diagnostic={
+        'category': 'invalid_argument', 'exit_code': 2,
+        'summary': 'PRIVATE_STDERR', 'command': 'PRIVATE_COMMAND'})
+    with patch('sqmy.discovery.build_router', return_value=ProviderRouter(Client(error=error), None, [])):
+        with pytest.raises(ProviderError):
+            discovery._model_rank(run, [event])
+    with discovery.wf.db.connect() as conn:
+        task = conn.execute("SELECT result_json FROM tasks WHERE kind='provider_failure'").fetchone()
+        call = conn.execute('SELECT * FROM model_calls').fetchone()
+    diagnostic = json.loads(task[0])
+    assert diagnostic['call_id'] == call['id']
+    assert diagnostic['exit_code'] == 2
+    assert call['accounting_method'] == 'conservative_estimate'
+    assert call['input_tokens'] > 0
+    ledger = CallLedger(discovery.wf.db, discovery.s, run, 'screening', 'unused')
+    ledger.export_audit()  # 从SQLite重建，不调用提供商、不重复计账。
+    path = discovery.s.root / 'data/runs' / run / 'model_calls.jsonl'
+    audit = path.read_text()
+    exported = json.loads(audit)
+    assert exported['diagnostic']['category'] == 'invalid_argument'
+    assert 'PRIVATE_' not in audit
+    with discovery.wf.db.connect() as conn:
+        assert conn.execute('SELECT COUNT(*) FROM model_calls').fetchone()[0] == 1
+
+
+def test_old_call_without_diagnostic_still_exports(discovery):
+    run = discovery.wf.init_run('test_fixture')
+    ledger = CallLedger(discovery.wf.db, discovery.s, run, 'screening', 'legacy')
+    ledger.invoke(Client(), 'p', {})
+    audit = json.loads((discovery.s.root / 'data/runs' / run / 'model_calls.jsonl').read_text())
+    assert 'diagnostic' not in audit
