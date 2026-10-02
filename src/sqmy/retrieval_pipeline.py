@@ -7,18 +7,19 @@ import json
 from .collector import canonical_url, infer_event_region, infer_source_level, parse_date
 from .db import now
 from .discovery_coverage import provenance, coverage_summary
-from .fetch import DirectFetcher
+from .fetch import FetchResult
 from .materials import material_notes, mark_reposts, split_discovery_summary
 from .models import EventItem
-from .retrieval_ledger import RetrievalLedger
-from .search_providers import TavilyKeylessProvider
 from .search_router import build_search_router
 from .search_types import RetrievalIntent, SearchError, SearchRequest, search_type_for_intent
 from .source_registry import SourceRegistry
 from .tavily import atomic_json, retrieval_usage
+from .transport_audit import TransportAudit
 
 
 CONTRACT = "retrieval_pipeline_v1"
+PLAN_CONTRACT = "retrieval_pipeline_v2"
+PAGE_FETCH_POLICY = "isolated_v1"
 
 
 def search_events(router, query, *, limit, domains):
@@ -129,12 +130,38 @@ def execute_plan(settings, db, run_id, plan, action, checkpoint_action, *, retry
     frozen = parameters(settings)
     if path.exists():
         state = json.loads(path.read_text())
-        if state["input_hash"] != digest or state["parameters"] != frozen:
+        contract = state.get("contract")
+        if contract not in {None, CONTRACT, PLAN_CONTRACT}:
+            raise ValueError("未知检索契约；不可降级到旧检索入口")
+        if contract is None:
+            from .retrieval import _parameters
+            expected = _parameters(settings.raw["tavily"])
+        else:
+            expected = dict(frozen, page_fetch_policy=PAGE_FETCH_POLICY) if contract == PLAN_CONTRACT else frozen
+        if state["input_hash"] != digest or state["parameters"] != expected:
             raise ValueError("本行为问题单已固定；不可改变输入或入口扩大调研")
-        if state["status"] == "completed" or not retry_failed and state["status"] == "needs_review":
+        if contract != PLAN_CONTRACT:
+            # 保留原检查点及用量；不能在旧行为里替换传输策略或恢复付费入口。
+            research_status = state.get("research_status", "RESEARCH_INCOMPLETE")
+            return dict(run_id=run_id, report=str(path), reused=True, historical=True,
+                        checkpoint_status=state["status"], research_status=research_status,
+                        status="completed" if state["status"] == "completed" and research_status == "MATERIALS_READY_AWAITING_VERIFICATION" else "needs_review",
+                        usage=state.get("usage", {}), resume_blocked="legacy_transport_policy",
+                        next="旧检索检查点仅复用；不重试或改写历史，不自动新建行为扩大额度。")
+        if state.get("page_fetch_policy") != PAGE_FETCH_POLICY:
+            raise ValueError("正文获取策略已固定；不能恢复自动传输")
+        records = {row["step"]: row["result"] for row in state["results"]}
+        if any(row["step"].startswith("page:") and (row["result"].get("error_code") != "unsupported_transport" or
+                   row["result"].get("body_read") is not False) for row in state["results"]):
+            raise ValueError("正文记录与隔离策略不一致")
+        retryable_queries = any(records.get("query:" + str(i), {}).get("status") != "completed"
+                                for i in range(len(plan.get("queries", []))))
+        missing_pages = any("page:" + str(i) not in records for i in range(len(plan.get("pages", []))))
+        if state["status"] == "completed" or state["status"] == "needs_review" and (not retry_failed or not retryable_queries and not missing_pages):
             return dict(run_id=run_id, report=str(path), status=state["status"], research_status=state["research_status"], reused=True)
     else:
-        state = dict(contract=CONTRACT, input_hash=digest, plan=plan, parameters=frozen, status="running", results=[])
+        state = dict(contract=PLAN_CONTRACT, page_fetch_policy=PAGE_FETCH_POLICY, input_hash=digest, plan=plan,
+                     parameters=dict(frozen, page_fetch_policy=PAGE_FETCH_POLICY), status="running", results=[])
 
     def checkpoint():
         state["updated_at"] = now()
@@ -148,8 +175,6 @@ def execute_plan(settings, db, run_id, plan, action, checkpoint_action, *, retry
                  state.get("error"), now()))
 
     router = build_search_router(settings, db, run_id, action)
-    extractor = TavilyKeylessProvider(dict(settings.raw["tavily"], enabled=settings.raw["search"].get("keyless_enabled", False)))
-    fetcher = DirectFetcher(settings.raw["fetch"], extractor=extractor, ledger=RetrievalLedger(settings, db, run_id, action), cache_dir=settings.root / "data/cache/fetch")
     checkpoint()
     try:
         for index, query in enumerate(plan.get("queries", [])):
@@ -167,15 +192,17 @@ def execute_plan(settings, db, run_id, plan, action, checkpoint_action, *, retry
                 state["results"].remove(old)
             state["results"].append({"step": step, "result": result})
             checkpoint()
-        # 与上面的搜索结果独立；所有搜索失败仍读取明确点名的URL。
+        # 正文传输尚未验收；查询失败、显式重试或已有缓存均不能重新开启它。
         for index, page in enumerate(plan.get("pages", [])):
             step = "page:" + str(index)
             old = next((x for x in state["results"] if x["step"] == step), None)
-            if old and (old["result"]["status"] == "fetched" or not retry_failed):
-                continue
-            result = fetcher.fetch_record(page["url"], page["terms"], retry_failed=retry_failed)
             if old:
-                state["results"].remove(old)
+                continue
+            audit = TransportAudit(tracked=True)
+            audit.phase = "transport_policy"
+            result = FetchResult(page["url"], "", "unsupported", now(), error_code="unsupported_transport",
+                                 content_hash_kind="not_acquired", transport_metadata=audit.snapshot()).record(page["terms"], settings.raw["fetch"])
+            result.update(body_read=False, page_fetch_policy=PAGE_FETCH_POLICY)
             state["results"].append({"step": step, "result": result})
             checkpoint()
         incomplete = [x["step"] for x in state["results"] if (
@@ -194,4 +221,4 @@ def execute_plan(settings, db, run_id, plan, action, checkpoint_action, *, retry
         state["usage"] = retrieval_usage(db, run_id)
         checkpoint()
     return dict(run_id=run_id, report=str(path), status=state["status"], research_status=state["research_status"], usage=state["usage"],
-                next="按未完成步骤补证和核验；不自动重开停止题、深研或写稿")
+                next="自动正文获取暂隔离；未读材料保持RESEARCH_INCOMPLETE，不转送其他抓取入口，不自动深研或写稿。")

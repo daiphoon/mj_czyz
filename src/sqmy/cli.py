@@ -173,12 +173,12 @@ def parser() -> argparse.ArgumentParser:
     novelty_report = sub.add_parser("novelty-report", help="生成制度新意闸门和自然周产出漏斗滚动评估")
     novelty_report.add_argument("--days", type=int, default=None, help="统计窗口，默认21天")
     sub.add_parser("discovery-report", help="生成来源健康和制度覆盖影子滚动评估")
-    retrieve = sub.add_parser("retrieve", help="按人工固定问题单进行有界Tavily补充，不调用写作模型")
+    retrieve = sub.add_parser("retrieve", help="按固定问题单有界搜索；自动正文获取暂隔离，不调用写作模型")
     retrieve.add_argument("--plan", type=Path, required=True, help="具体检索问题及页面JSON，不放凭证")
     target = retrieve.add_mutually_exclusive_group(required=True)
     target.add_argument("--run-id", help="绑定已有运行；恢复必须用原运行")
-    target.add_argument("--diagnostic", action="store_true", help="新建隔离诊断；会真实调用搜索API")
-    retrieve.add_argument("--retry-failed", action="store_true", help="明确重试失败或未知请求；可能重复付费，仍计入原行为上限")
+    target.add_argument("--diagnostic", action="store_true", help="新建隔离诊断；含queries时会真实搜索")
+    retrieve.add_argument("--retry-failed", action="store_true", help="显式重试可恢复的失败搜索，仍受原行为上限；旧检查点只复用")
     retrieval_report = sub.add_parser("retrieval-usage", help="查看单运行搜索积分、缓存和等价费用；零网络调用")
     retrieval_report.add_argument("run_id")
     novelty_review = sub.add_parser("novelty-review", help="为早期阻断结果补充后续复核标签")
@@ -425,10 +425,10 @@ def main(argv: list[str] | None = None) -> int:
         try:
             result = execute_retrieval(s, wf.db, run_id, plan, retry_failed=args.retry_failed)
         except (Exception, KeyboardInterrupt):
-            if args.diagnostic or plan.get("stage") == "diagnostic":
+            if args.diagnostic:
                 wf.db.checkpoint(run_id, phase="discovery", status="needs_review", data={"next": "使用原run-id和问题单恢复，检查retrieval_calls审计"})
             raise
-        if args.diagnostic or plan.get("stage") == "diagnostic":
+        if (args.diagnostic or plan.get("stage") == "diagnostic") and not result.get("reused"):
             wf.db.checkpoint(run_id, phase="discovery", status=result["status"], data=result)
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0 if result["status"] == "completed" else 2

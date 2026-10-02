@@ -219,28 +219,24 @@ def test_response_normalization_failure_preserves_real_response_and_credits(cont
     assert trace['failure_stage']=='provider_normalization' and rows(context)[0]['reported_credits']==2
 
 
-def test_search_local_failure_still_fetches_known_public_url_without_evidence_promotion(context,monkeypatch):
+def test_search_local_failure_preserves_isolated_page_without_evidence_promotion(context,monkeypatch):
     from sqmy.retrieval import execute_retrieval
-    from test_fetch_evidence import Page,public_dns
     settings,workflow,run,ledger=context
     provider,router=router_for(context)
     def local_error(*args,**kwargs):
         raise AttributeError('local-only')
     monkeypatch.setattr('sqmy.search_providers.send_json',local_error)
     monkeypatch.setattr('sqmy.retrieval_pipeline.build_search_router',lambda *args:router)
-    opener=Mock()
-    opener.open.return_value=Page('<title>规则</title><p>退款：须实名办理，现行执行效果待核。</p>'.encode())
-    monkeypatch.setattr('sqmy.retrieval_pipeline.DirectFetcher',lambda cfg,**kwargs:DirectFetcher(cfg,opener=opener,resolver=public_dns,**kwargs))
     result=execute_retrieval(settings,workflow.db,run,{'stage':'diagnostic',
         'queries':[{'purpose':'policy','query':'规则'}],
         'pages':[{'url':'https://example.test/policy','terms':['退款']}]})
     assert result['status']=='needs_review' and result['research_status']=='RESEARCH_INCOMPLETE'
     state=json.loads(Path(result['report']).read_text())
     page=state['results'][1]['result']
-    assert page['status']=='fetched' and page['transport_metadata']['dispatch_attempts']==1
-    assert page['transport_metadata']['responses_received']==1
+    assert page['status']=='unsupported' and page['error_code']=='unsupported_transport'
+    assert page['transport_metadata']['dispatch_attempts']==0
+    assert page['transport_metadata']['responses_received']==0 and page['body_read'] is False
     assert EvidenceStore.source_from_fetch(page,key='policy',source_name='规则')['fetch_status']=='source_unread'
-    opener.open.assert_called_once()
     with workflow.db.connect() as con:
         assert con.execute('SELECT COUNT(*) FROM model_calls').fetchone()[0]==0
         assert con.execute('SELECT COUNT(*) FROM source_usages').fetchone()[0]==0

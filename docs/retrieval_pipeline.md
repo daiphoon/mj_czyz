@@ -7,7 +7,8 @@
 - `search_types.py` 定义9类检索用途和统一请求/结果。结果始终为 `unverified`，没有日期时保留空值。
 - `search_providers.py` 提供Brave Web、Tavily keyless Search/Extract和旧Bing News RSS适配器。Bing当前实现是公开新闻RSS，不是已退役的Azure Bing Search API，也不作为通用政策搜索。
 - `search_router.py` 按用途、能力和明确授权选择入口。默认顺序为keyless、RSS、Brave；RSS仅支持news，图片请求没有可用入口时明确返回unavailable。合法空结果停止fallback，不换词凑数。并行默认关闭，显式开启后至多两个入口。
-- `fetch.py` 在已知公开URL上先尝试普通HTTP；搜索全部失败也继续执行问题单中的明确URL。HTTP失败、不完整或无法解析时，可在原行动额度内调用keyless Extract。Extract不附加query，不把相关片段伪装为完整原文。PDF保留获取限制，转人工提取。
+- `retrieve` 的新行为保留 `queries` 搜索，暂时隔离 `pages` 自动正文获取。每页记录 `unsupported/unsupported_transport`、`body_read=false`、`source_unread/unverified` 和零HTTP派发，不解析DNS、不读取Fetch缓存、不调用HTTP或Extract。搜索失败和 `--retry-failed` 都不会打开页面传输。需要正文的研究保持 `RESEARCH_INCOMPLETE`。
+- `fetch.py` 保留原URL、DNS、重定向安全检查及有界摘录实现，供离线回归和后续传输设计验证；当前 `retrieve` 不实例化它。未取得正文的记录没有最终响应URL、正文哈希或片段；`provider=direct_http` 表示原拟用入口，不表示发出了HTTP请求。
 - `source_registry.py` 读取栏目/域名属性，供回源规划。域名匹配按主机及真实子域，不接受 `gov.cn.evil.example`。来源属性不证明原始发布链或主张可靠。
 - 原有 `evidence.py` 的 `EvidenceStore` 整理Fetch记录，默认 `source_unread/unverified`；人工逐片段核验后才能写 `excerpt_verified`。不完整、未命中目标或哈希不一致的记录不能被此接口标为已核验。继续使用原sources/claims关系和evidence_v2，不自动导入、通过证据闸门或代替主张核验。
 
@@ -15,7 +16,7 @@
 
 默认 `[search] allow_paid=false`、`[brave] enabled=false`。Tavily keyless固定发送 `X-Tavily-Access-Mode: keyless`，不读取或发送账户密钥、不携带Authorization；免费入口失败不会隐式切换为密钥计费请求。Brave须同时显式开启计费授权、Brave开关并配置密钥。费用记录为保守估算，不是实际账户账单；免费服务没有可由代码保证的永久额度。
 
-检索供应商和认证模式分别维护CLOSED/OPEN/HALF_OPEN状态；429尊重Retry-After，认证、退役及明确配额错误停止该入口，普通超时/5xx按阈值冷却，冷却后仅放行一个探测。未验证的免费限流响应记为错误。熔断不阻止其他合格入口或已知URL Fetch。状态保存在现有缓存目录，可由维护者在查明原因后处理；不自动重置账户或抹除失败用量。
+检索供应商和认证模式分别维护CLOSED/OPEN/HALF_OPEN状态；429尊重Retry-After，认证、退役及明确配额错误停止该入口，普通超时/5xx按阈值冷却，冷却后仅放行一个探测。未验证的免费限流响应记为错误。熔断不阻止其他合格搜索入口；页面隔离独立生效。状态保存在现有缓存目录，可由维护者在查明原因后处理；不自动重置账户或抹除失败用量。
 
 原 `retrieval_calls` 向前增加provider、auth_mode、intent、query_id、latency_ms、retry_count、fallback_from、cache_hit；旧行保留legacy_unknown。真实请求前先占额。整个行动最多4次Search、2次Extract和6次合计尝试，fallback/重试与旧记录共用额度；旧配置若更低则沿用更低限制。默认不自动重试。缓存不重发网络请求，但跨行动复用记入行动范围。未知中断仍保留running预留，恢复重试须显式指定且受剩余额度限制。
 
@@ -27,17 +28,19 @@
 
 Bing旧RSS适配层同样检查真实派发状态：缓存读取、Request/TLS准备或审计持久化在发送前失败时保留本地错误和零派发，不触发供应商熔断；已派发并收到HTML、坏RSS等不合格响应时仍按invalid_response冷却。离线回归使用实际SourceCollector→Bing适配器→Router路径，不能用统一stub绕过包装层验证。
 
-Fetch单列`transport_metadata`和`destination_error`。DNS成功返回非公网地址时保持`refused/unsafe_destination/non_global_dns_address`，派发前计数为零；重定向目标同样校验。DNS或代理可能使用fake-IP时，必须先查明环境原因，不能把这些地址白名单化、禁用校验或改用其他抓取工具绕过拒绝，也不允许对该拒绝调用Extract。系统DNS、VPN或代理设置修改需具体说明范围和影响后另获批准。人工补读不能冒充程序通过，来源和主张仍由既有人工核验闸门控制。
+Fetch单列`transport_metadata`和`destination_error`。原引擎对非公网DNS结果仍返回`refused/unsafe_destination/non_global_dns_address`，不调用Extract或发送HTTP；这项检查没有绑定实际连接IP，不能独自证明代理的实际终点安全。新页面隔离是应用策略，不是来源已通过安全校验。不能把fake-IP地址白名单化、删除检查，或将受拒URL转送旧collector、curl或Extract。此次不改变Clash、DNS、TUN、Tailscale或系统权限。完整自动正文获取仍需要另行验证解析、连接和每次重定向的实际终点约束，隔离不算该修复的验收。人工补读不能冒充程序通过。
 
 ## 冻结、恢复和取证
 
-Search与Extract使用同一熔断实现，健康状态按供应商、认证模式及端点分开保存。Extract首个URL触发429、401或配额错误后，第二URL仍尝试普通HTTP，但不绕过Extract冷却或禁用；熔断拒绝不占新请求额。API端点404/410标为endpoint_unavailable并冷却，不据单个410断言供应商退役；普通来源网页410只是该页获取失败。HTTP 410的语义是目标资源不可用，不能据此证明整个服务退役，参见 [RFC 9110 §15.5.11](https://www.rfc-editor.org/rfc/rfc9110.html#name-410-gone)。
+原引擎的Search与Extract熔断仍按供应商、认证模式及端点分开保存，离线回归继续覆盖冷却、拒绝和额度。当前 `retrieve pages` 不执行Extract。API端点404/410标为endpoint_unavailable并冷却，不据单个410断言供应商退役；普通来源网页410只是该页获取失败。HTTP 410的语义是目标资源不可用，不能据此证明整个服务退役，参见 [RFC 9110 §15.5.11](https://www.rfc-editor.org/rfc/rfc9110.html#name-410-gone)。
 
-生产问题单的IMAGE_SEARCH明确映射到image能力；一期适配器均不支持时保留unavailable与RESEARCH_INCOMPLETE，不发送网页查询。PDF等unsupported响应保留原内容类型和requires_manual_extraction，不调用Extract、不升级为已读片段。允许的HTTP失败/不完整页面补提取保留原响应类型、状态、哈希及截断情况，另标extracted_content_type和提取方式；不把供应商返回的text/plain伪装为原网页类型。
+问题单的IMAGE_SEARCH明确映射到image能力；一期适配器均不支持时保留unavailable与RESEARCH_INCOMPLETE，不发送网页查询。独立Fetch引擎的离线测试仍覆盖PDF内容类型、requires_manual_extraction、补提取时的原响应类型/哈希/截断以及人工核验边界。新隔离策略不读取页面，因而不声称已知其响应内容类型、哈希或适用条件。
 
-新运行使用 `retrieval_pipeline_v1`，冻结问题单、Search/Fetch参数和Registry哈希。已完成步骤幂等复用；原问题单变更不能混入同一行为。旧无版本检查点仍走旧兼容逻辑，不会自动换新参数或启动付费入口。
+发现采集继续使用 `retrieval_pipeline_v1` 及原冻结参数，不因页面隔离改动配置或历史采集。新的 `retrieve` 使用 `retrieval_pipeline_v2`，单独冻结 `page_fetch_policy=isolated_v1`；问题单、Search/Fetch参数和Registry哈希仍绑定原行为。已完成查询与隔离页面幂等复用，`--retry-failed` 只重试失败查询，继续共用原用量和额度，不改写已有隔离页面。
 
-问题单继续指定 `stage/candidate_id/queries/pages/repair`。查询保留 `purpose`，可附 `intent/domains/exclude_domains`；政策、反证等不受发现新闻90天窗口机械限制。pages指定URL和1—8个目标词；新入口由程序自行判断普通HTTP是否失败，无需提前声称失败原因。选题、预研、停止记录、最新决策单和补查轮次保持原闸门。
+启用新Search路由时，旧v1及旧无版本检索检查点仅核对原输入和原参数后返回历史视图，不写检查点、运行状态或用量，不重试HTTP、Search或Extract。返回 `historical/reused`、原 `checkpoint_status` 和恢复限制；旧未完成材料保持 `RESEARCH_INCOMPLETE/needs_review`。旧已完成、待核验材料保留其状态，不升级证据。CLI复用或旧输入校验失败也不覆盖原运行检查点。未知契约、删除契约标识或改动隔离策略均拒绝，不降级到旧付费入口。程序不自动创建新run、修复轮次或退款来继续旧行为。
+
+问题单继续指定 `stage/candidate_id/queries/pages/repair`。查询保留 `purpose`，可附 `intent/domains/exclude_domains`；政策、反证等不受发现新闻90天窗口机械限制。pages登记URL和1—8个目标词，无需提前声称HTTP失败；登记后明确为正文未读。选题、预研、停止记录、最新决策单和补查轮次保持原闸门。
 
 Search空政策结果、入口失败、Fetch失败或未找到目标会写 `RESEARCH_INCOMPLETE/needs_review`；材料齐备只写 `MATERIALS_READY_AWAITING_VERIFICATION`。不会把不完整检索写成研究通过。
 
@@ -47,6 +50,6 @@ Fetch只落必要摘录及限制条件、元数据、原始响应哈希和摘录
 
 公开配置不携带私人参考稿路径。可用 `SQMY_REFERENCE_PATH` 指定本机原始参考文档，或保留本地 `document.reference_path`；缺少原始参考文档时预检明确失败，版本化模板不被冒充为原始稿。测试只用隔离样本和临时数据库。
 
-离线测试覆盖供应商HTTP响应、免费认证分离、错误分类、熔断探测、fallback/parallel/域名筛选、缓存及共享额度、Search失败后的Fetch、条件摘录与人工核验边界、恢复绑定、官方文号去重及对话下一步。普通测试阻止真实网络和工作区数据库连接。本次不请求真实Brave/Tavily、不安装依赖、不迁移用户数据库、不改历史输出。
+离线测试覆盖供应商HTTP响应、免费认证分离、错误分类、熔断探测、fallback/parallel/域名筛选、缓存及共享额度，以及页面隔离、查询继续、CLI诊断/绑定运行/显式重试、旧历史只复用和冻结兼容。原Fetch引擎的安全拒绝、条件摘录与人工核验边界仍单独回归。普通测试阻止真实网络和工作区数据库连接，不迁移用户数据库或改历史输出。
 
 后续仍需在另获真实运行授权后观察召回和研究质量。图片检索、反向检索策略、跨域原始链自动识别、自动PDF解析和复杂Agent编排不在一期内。

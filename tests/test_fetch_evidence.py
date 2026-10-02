@@ -130,13 +130,12 @@ def wire(context, monkeypatch, *, results=None, error=None):
     settings, workflow, run = context
     provider = Provider(results, error)
     router = SearchRouter([provider], cfg={'max_retries': 0}, ledger=RetrievalLedger(settings, workflow.db, run, 'diagnostic'))
-    fetcher, opener = page_fetcher('<title>政策</title><p>退款：必须实名申请，实施效果需复核。</p>'.encode())
+    opener = Mock()
     monkeypatch.setattr('sqmy.retrieval_pipeline.build_search_router', lambda *a, **k: router)
-    monkeypatch.setattr('sqmy.retrieval_pipeline.DirectFetcher', lambda *a, **k: fetcher)
     return provider, opener
 
 
-def test_all_searches_failed_known_url_still_fetched_and_resume_frozen(context, monkeypatch):
+def test_all_searches_failed_known_url_stays_isolated_and_resume_frozen(context, monkeypatch):
     settings, workflow, run = context
     provider, opener = wire(context, monkeypatch, error=SearchError('timeout', 'transient'))
     plan = dict(stage='diagnostic', queries=[{'purpose': 'policy', 'query': '现行退款办法'}],
@@ -145,9 +144,9 @@ def test_all_searches_failed_known_url_still_fetched_and_resume_frozen(context, 
     state = json.loads(Path(result['report']).read_text())
     assert result['status'] == 'needs_review' and result['research_status'] == 'RESEARCH_INCOMPLETE'
     assert state['results'][0]['result']['status'] == 'unavailable'
-    assert state['results'][1]['result']['status'] == 'fetched'
+    assert state['results'][1]['result']['error_code'] == 'unsupported_transport'
     assert execute_retrieval(settings, workflow.db, run, plan)['reused']
-    assert provider.calls == 1 and opener.open.call_count == 1
+    assert provider.calls == 1 and opener.open.call_count == 0
     with workflow.db.connect() as conn:
         assert conn.execute('SELECT COUNT(*) FROM model_calls').fetchone()[0] == 0
         assert conn.execute('SELECT COUNT(*) FROM source_usages').fetchone()[0] == 0
@@ -169,8 +168,8 @@ def test_page_only_plan_never_requires_search(context, monkeypatch):
     settings, workflow, run = context
     provider, opener = wire(context, monkeypatch)
     result = execute_retrieval(settings, workflow.db, run, dict(stage='diagnostic', pages=[{'url': 'https://example.test/policy', 'terms': ['退款']}]))
-    assert result['research_status'] == 'MATERIALS_READY_AWAITING_VERIFICATION'
-    assert provider.calls == 0 and opener.open.call_count == 1
+    assert result['research_status'] == 'RESEARCH_INCOMPLETE'
+    assert provider.calls == 0 and opener.open.call_count == 0
 
 
 def test_failed_direct_http_extracts_only_known_url_and_accounts_before_send(context):
@@ -221,7 +220,7 @@ def test_routed_repair_shares_lower_legacy_limit_and_preserves_manual_stop(tmp_p
         execute_retrieval(settings, workflow.db, run, repair(base, review))
 
 
-def test_production_pdf_record_stays_manual_and_research_incomplete(context, monkeypatch):
+def test_fetch_engine_pdf_record_stays_manual_and_unread(context, monkeypatch):
     from sqmy.search_providers import TavilyKeylessProvider
     settings, workflow, run = context
     assert settings.raw['search']['keyless_enabled'] and settings.raw['fetch']['allow_keyless_extract']
@@ -229,15 +228,11 @@ def test_production_pdf_record_stays_manual_and_research_incomplete(context, mon
     monkeypatch.setattr(TavilyKeylessProvider, 'extract', extract)
     opener = Mock()
     opener.open.return_value = Page(b'%PDF-1.7', media='application/pdf')
-    def production_fetcher(cfg, **kwargs):
-        assert kwargs['extractor'].available and kwargs['ledger'] is not None
-        return DirectFetcher(cfg, opener=opener, resolver=public_dns, **kwargs)
-    monkeypatch.setattr('sqmy.retrieval_pipeline.DirectFetcher', production_fetcher)
-    result = execute_retrieval(settings, workflow.db, run, dict(stage='diagnostic',
-        pages=[{'url': 'https://example.test/policy', 'terms': ['退款']}]))
+    from sqmy.retrieval_ledger import RetrievalLedger
+    record = DirectFetcher(settings.raw['fetch'], opener=opener, resolver=public_dns,
+        extractor=TavilyKeylessProvider({'enabled': True}),
+        ledger=RetrievalLedger(settings, workflow.db, run, 'diagnostic')).fetch_record('https://example.test/policy', ['退款'])
     extract.assert_not_called()
-    assert result['status'] == 'needs_review' and result['research_status'] == 'RESEARCH_INCOMPLETE'
-    record = json.loads(Path(result['report']).read_text())['results'][0]['result']
     assert record['status'] == 'unsupported' and record['content_type'] == 'application/pdf'
     assert record['provider'] == 'direct_http' and record['error_code'] == 'requires_manual_extraction'
     assert record['fetch_status'] == 'source_unread' and record['verification_status'] == 'unverified'
@@ -273,19 +268,18 @@ def test_production_image_intent_cannot_fall_back_to_web_search(context, monkeyp
 
 @pytest.mark.parametrize('code,category', [('http_429', 'rate_limit'), ('http_401', 'authentication'), ('http_432', 'quota'), ('http_433', 'quota')])
 @pytest.mark.parametrize('second_direct_succeeds', [False, True])
-def test_production_extract_errors_cool_down_across_urls_but_direct_http_continues(context, monkeypatch, code, category, second_direct_succeeds):
+def test_fetch_engine_extract_errors_cool_down_across_urls_but_direct_http_continues(context, monkeypatch, code, category, second_direct_succeeds):
     from sqmy.search_providers import TavilyKeylessProvider
     settings, workflow, run = context
     extract = Mock(side_effect=SearchError(code, category, retry_after=60))
     monkeypatch.setattr(TavilyKeylessProvider, 'extract', extract)
     opener = Mock()
     opener.open.side_effect = [TimeoutError(), Page('退款条件：仅限实名办理。'.encode(), url='https://example.test/two') if second_direct_succeeds else TimeoutError()]
-    monkeypatch.setattr('sqmy.retrieval_pipeline.DirectFetcher', lambda cfg, **kwargs: DirectFetcher(cfg, opener=opener, resolver=public_dns, **kwargs))
-    result = execute_retrieval(settings, workflow.db, run, dict(stage='diagnostic', pages=[
-        {'url': 'https://example.test/one', 'terms': ['退款']}, {'url': 'https://example.test/two', 'terms': ['退款']}]))
+    from sqmy.retrieval_ledger import RetrievalLedger
+    fetcher = DirectFetcher(settings.raw['fetch'], opener=opener, resolver=public_dns,
+        extractor=TavilyKeylessProvider({'enabled': True}), ledger=RetrievalLedger(settings, workflow.db, run, 'diagnostic'))
+    records = [fetcher.fetch_record(url, ['退款']) for url in ('https://example.test/one', 'https://example.test/two')]
     assert opener.open.call_count == 2 and extract.call_count == 1
-    assert result['research_status'] == 'RESEARCH_INCOMPLETE'
-    records = [row['result'] for row in json.loads(Path(result['report']).read_text())['results']]
     assert records[0]['extract_error'] == code
     if second_direct_succeeds:
         assert records[1]['status'] == 'fetched' and records[1]['provider'] == 'direct_http'
@@ -317,7 +311,7 @@ def test_incomplete_html_extract_preserves_original_type_and_method(context):
     assert record['verification_status'] == 'unverified' and record['fetch_status'] == 'source_unread'
 
 
-def test_search_rate_limit_does_not_block_production_extract(context, monkeypatch):
+def test_search_rate_limit_does_not_block_fetch_engine_extract(context, monkeypatch):
     from sqmy.search_providers import TavilyKeylessProvider
     settings, workflow, run = context
     search = Mock(side_effect=SearchError('http_429', 'rate_limit', retry_after=60))
@@ -326,12 +320,15 @@ def test_search_rate_limit_does_not_block_production_extract(context, monkeypatc
     monkeypatch.setattr(TavilyKeylessProvider, 'extract', extract)
     opener = Mock()
     opener.open.side_effect = TimeoutError()
-    monkeypatch.setattr('sqmy.retrieval_pipeline.DirectFetcher', lambda cfg, **kwargs: DirectFetcher(cfg, opener=opener, resolver=public_dns, **kwargs))
-    result = execute_retrieval(settings, workflow.db, run, dict(stage='diagnostic',
-        queries=[{'purpose': 'policy', 'query': '退款现行条件'}], pages=[{'url': 'https://example.test/policy', 'terms': ['退款']}]))
+    from sqmy.retrieval_ledger import RetrievalLedger
+    from sqmy.search_types import SearchRequest, RetrievalIntent
+    from sqmy.search_router import build_search_router
+    router = build_search_router(settings, workflow.db, run, 'diagnostic')
+    result = router.search(SearchRequest('退款现行条件', intent=RetrievalIntent.POLICY_SEARCH))
+    page = DirectFetcher(settings.raw['fetch'], opener=opener, resolver=public_dns,
+        extractor=TavilyKeylessProvider({'enabled': True}), ledger=RetrievalLedger(settings, workflow.db, run, 'diagnostic')).fetch_record('https://example.test/policy', ['退款'])
     assert search.call_count == 1 and extract.call_count == 1
-    assert result['research_status'] == 'RESEARCH_INCOMPLETE'
-    page = json.loads(Path(result['report']).read_text())['results'][1]['result']
+    assert result.status == 'unavailable'
     assert page['status'] == 'fetched' and page['provider'] == 'tavily_keyless'
 
 

@@ -207,7 +207,7 @@ def _execute_retrieval(settings, db, run_id, plan, *, retry_failed=False):
         if not isinstance(page["terms"], list) or not 1 <= len(page["terms"]) <= 8 or any(not isinstance(term, str) or not term.strip() or len(term) > 100 for term in page["terms"]):
             raise ValueError("每页需要1—8个100字以内的目标词")
     path = settings.root / "data/runs" / run_id / ("retrieval-" + checkpoint_action.replace(":", "-") + ".json")
-    if routed and (not path.exists() or json.loads(path.read_text()).get("contract") == "retrieval_pipeline_v1"):
+    if routed:
         from .retrieval_pipeline import execute_plan
         return execute_plan(settings, db, run_id, plan, action, checkpoint_action, retry_failed=retry_failed)
     client = TavilyClient(settings, db, run_id, action)

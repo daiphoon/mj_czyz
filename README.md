@@ -26,7 +26,7 @@ sqmy scan-import RUN_ID --resume
 
 对话筛选记为 `execution_mode=current_conversation`、`model=unknown`、`official_usage=null`。程序用冻结提示、Schema和结果长度形成 `artifact_proxy_estimate`，幂等记入 `stage_usage`，不伪造 `model_calls` 或官方Token。它不覆盖完整上下文、推理和重做，可能低估；实际订阅消耗仍需由用户能取得的用量信息补充观察。
 
-统一检索和回源接口的边界、费用开关及恢复方式见 [检索流水线一期](docs/retrieval_pipeline.md)。免费模式不读取Tavily账户密钥；Brave和旧Tavily计费入口默认关闭。接口已由离线响应验证，实时服务可用性及研究质量收益尚未验证。
+统一检索和回源接口的边界、费用开关及恢复方式见 [检索流水线一期](docs/retrieval_pipeline.md)。免费模式不读取Tavily账户密钥；Brave和旧Tavily计费入口默认关闭。当前 `retrieve` 保留查询搜索，自动页面正文获取暂隔离，明确记录未读和 `RESEARCH_INCOMPLETE`；这不影响固定来源元数据采集，也不等于完整Fetch已修复。
 
 ## 独立CLI兼容路径
 
@@ -109,9 +109,9 @@ PYTHONPATH=src python3 -m sqmy.cli init
 - 人工选题后使用固定问题单：查新线索用 `discovery/news`（90天），查现行政策/原始依据用 `policy/general`（不设新闻时间限制）。原有RSS制度新意快审和影子核验保持原规则；不自动把所有反证查询都改成付费调用。
 - 保存发布时间、事件时间、更新时间及待核状态。缺日期不补造，也不一律丢弃；仅有更新时间不代表新事件。材料用途、疑似推广和同源转载为提示，不新增硬性准入闸门；国际页面须核对与中国的具体关系。
 - Tavily来源按发布域名归并，避免把检索词数量当来源多样性；不同域名仍不等于独立原始信息链。已确认政策覆盖仍须依据原始文件及其适用范围。
-- 普通HTTP失败或内容不完整的、人工选题研究所需的具体公开页面，才可显式调用Extract；每行为最多2页。响应有大小上限，只在内存按目标词及附近的适用条件、例外、版本取摘录，记录原文位置和内容哈希，不保存全文。遗漏目标/条件和多版本会提示回看原文，提取成功不等于证据闸门通过。
+- `retrieve pages` 暂时不执行HTTP、DNS或Extract，也不通过已有缓存或旧collector取得正文。每行为仍最多登记2页，记录 `unsupported_transport/body_read=false/source_unread`；搜索摘要和来源属性不能代替已读原文。底层Fetch安全检查保留，完整传输兼容性另行验收。
 
-密钥只放本项目的 `.env`：`TAVILY_API_KEY=你的新密钥`（自行在编辑器输入，不发到聊天或命令行）。CLI会读取，不需要开通OpenAI API。`.env`应保持600权限且已被Git忽略；`.env.example`只有空占位。未配置、`enabled=false`、mock、fixture、回放或refresh不会自动调用补充API。
+当前默认Tavily keyless搜索不读取或发送账户密钥，免费入口失败也不隐式切换为密钥计费。旧 `.env` 与计费字段仅保留兼容，不因此次回退启用付费入口；不得将密钥写入问题单、日志或输出。mock、fixture、回放或refresh不会自动调用补充API。
 
 参数在 `[tavily]`。初始每行为10积分、等价费用0.08美元上限，搜索最多4次、提取最多2次；金额和次数分别在请求前拦截，不保证用满所有名额。默认高级搜索每次按2积分预留；单页高级提取按2积分保守预留，并保留不足5页时的分摊成本。积分不是模型Token，美元是配置单价估值，不是实际账户账单；原模型单行为Token及DeepSeek金额预算不变。价格和接口语义依据 [Tavily计费说明](https://docs.tavily.com/documentation/api-credits)、[Search](https://docs.tavily.com/documentation/api-reference/endpoint/search) 和 [Extract](https://docs.tavily.com/documentation/api-reference/endpoint/extract)，2026-09-06核验。
 
@@ -125,11 +125,11 @@ sqmy retrieve --run-id RUN_ID --plan data/sources/TOPIC_retrieval_plan.json
 sqmy retrieval-usage RUN_ID
 # 中断后先使用完全相同的运行和问题单；成功步骤不会重做。
 sqmy retrieve --run-id RUN_ID --plan data/sources/TOPIC_retrieval_plan.json
-# 仅在确认要重试失败/未知请求后使用；可能重复计费，仍受原行为额度和重试次数限制。
+# 新检索策略下显式重试失败查询，仍共用原额度；页面不重试，旧检查点仅复用。
 sqmy retrieve --run-id RUN_ID --plan data/sources/TOPIC_retrieval_plan.json --retry-failed
 ```
 
-初轮问题单包含 `stage`、`candidate_id`、`queries`、`pages`；显式补查可增加绑定最新决策单的 `repair`，字段见[补查说明](docs/research_workflow_revision.md)。每条query必须说明用途，每页必须有目标词及普通HTTP失败/内容不完整的原因。`pre_research`要求已人工选题；`research`还要求最新预研闸门通过和人工proceed。每轮问题单、时间窗口和检索参数一经执行即固定；恢复不能改词扩题，补查也不增加原行为额度。`--diagnostic`会新建隔离诊断并真实请求API，普通回归不会执行它，不得通过反复新建诊断规避同一行为预算。
+初轮问题单包含 `stage`、`candidate_id`、`queries`、`pages`；显式补查可增加绑定最新决策单的 `repair`，字段见[补查说明](docs/research_workflow_revision.md)。每条query须说明用途，每页须有目标词；新路由不要求预先填写HTTP失败原因，页面登记仍保持未读。`pre_research`要求已人工选题；`research`还要求最新预研闸门通过和人工proceed。问题单、检索参数及页面隔离策略一经执行即固定；恢复不能改词扩题，补查也不增加原行为额度。新检索使用v2策略，原固定采集v1契约保持不变；旧检索检查点只读复用，不重新派发或转到旧付费入口。`--diagnostic`含queries时会真实搜索，不得反复新建诊断规避同一行为预算。
 
 检查点和检索报告位于 `data/runs/RUN_ID/`，SQLite `retrieval_calls` 是积分权威账本，`retrieval_calls.json`为可重建审计副本。成功输入永久用于同一行为恢复；跨运行相同请求按24小时复用精简结果。硬中断和失败未知用量保留占额，不自动重试、不自动切换DeepSeek。可选发现通道失败时停止Tavily补充、记录原因，已有RSS继续原流程；预研检索失败则保存步骤并要求明确恢复。旧 `.env` 不因程序运行被覆盖。
 
